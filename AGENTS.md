@@ -108,7 +108,7 @@ See README → "Building the kernel modules". Afterwards check `strings X.ko | g
 
 ## Payload (S24 files)
 
-The release tarball unpacks to `device/airdrop/`. Everything that isn't built from source comes from the S24 Ultra firmware, which you can download with [samloader](https://github.com/samloader/samloader) or a similar tool (model `SM-S928B`, a CSC such as `EUX`). Unpack `super.img` with `lpunpack` and mount or extract the `system`, `system_ext` and `vendor` images.
+The release file `airdrop-S918WVLU8GZIF.tar.gz` (release `payloads-S918WVLU8GZIF`) is downloaded by the phone and unpacked to `/data/adb/s23tweaks/payload/airdrop/`. Everything that isn't built from source comes from the S24 Ultra firmware, which you can download with [samloader](https://github.com/samloader/samloader) or a similar tool (model `SM-S928B`, a CSC such as `EUX`). Unpack `super.img` with `lpunpack` and mount or extract the `system`, `system_ext` and `vendor` images.
 
 | File | From the S24 image |
 |---|---|

@@ -20,7 +20,7 @@ category or single tweaks.
 | 11 | Galaxy AI and Samsung apps | `galaxyai` | The S24's **Now Brief**, **Creative Studio** and **Call Assist** | firmware S918WVLU8GZIF (219 MB download) |
 | 12 | Galaxy AI and Samsung apps | `audioeraser` | **Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices | firmware S918WVLU8GZIF (34 MB download) |
 | 13 | Galaxy AI and Samsung apps | `settingssearch` | The S24's **Settings search** bar. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) | firmware S918WVLU8GZIF (10 MB download) |
-| 14 | Galaxy AI and Samsung apps | `callscreen` | **Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** | needs your own copy of Samsung Language Core 4.0.01.24 (see [Call screening](#call-screening)) |
+| 14 | Galaxy AI and Samsung apps | `callscreen` | **Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** | firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs) |
 | 15 | Galaxy AI and Samsung apps | `bargein` | **Bixby barge-in**: talk over Bixby while it answers. **Untested** | any S23 Ultra on One UI 9 |
 | 16 | Battery and settings | `battery` | Settings → Battery → **Battery information** shows battery health and cycle count | any S23 Ultra on One UI 9 |
 | 17 | Battery and settings | `features` | **Auto power on/off** schedule, **louder VoIP calls** | any S23 Ultra on One UI 9 |
@@ -81,7 +81,7 @@ git clone https://github.com/dtechterminal/s23-ultra-tweaks && cd s23-ultra-twea
 What happens:
 
 - It checks the phone model, firmware, root and Play services version, then shows the menu.
-- It downloads the tweaks. `airdrop` and `wifi7` also download a 20 MB payload from this repo's release, which is checked against a SHA-256 pinned in `install.sh`.
+- It downloads the tweak scripts. The files some tweaks need (the AirDrop driver, the S24 apps, Language Core) are downloaded by the phone itself from this repo's release when it applies them, each checked against a SHA-256 pinned in `device/tweaks.sh`.
 - It copies everything to `/data/adb/s23tweaks` on the phone (a root-only folder) and applies your picks.
 - It asks whether to re-apply them automatically at every boot.
 - With `airdrop`, Wi-Fi and the hotspot drop for about 30 s while the driver is swapped.
@@ -212,11 +212,9 @@ and Galaxy Store refuses the S23 ("not compatible", 9908). `callscreen` installs
 - **What doesn't:** the caller/purpose summary ("Something went wrong while summarizing this call") and
   the AI replies to the caller. Samsung's language model inside Language Core is compiled only for the
   S26's NPU. On the S23 it stops before anything reaches the NPU, so it fails safely.
-- **You supply the file.** The APK is 3.1 GB, too big for a GitHub release, so it isn't downloaded for
-  you. Get `com.samsung.android.offline.languagemodel` 4.0.01.24 (versionCode 400124010, MD5
-  `994620f3071706391d17ff132ea16c42`), then either run the installer with
-  `S23T_LANGCORE=/path/to/file.apk`, or copy it to the phone as
-  `/data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk` and pick the tweak on the module page.
+- **A 3.1 GB download.** GitHub caps a release file at 2 GB, so the phone downloads Language Core in
+  two parts, checks each against its SHA-256, joins them, checks the APK's MD5, installs it and
+  deletes the download. It needs about 7 GB free while it does this; use Wi-Fi.
 - **It stays after a reboot**, unlike the other tweaks. Remove it with
   `adb shell pm uninstall-system-updates com.samsung.android.offline.languagemodel`.
 

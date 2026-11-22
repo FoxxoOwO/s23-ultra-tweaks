@@ -31,7 +31,7 @@
 
 # KernelSU runs boot scripts in BusyBox standalone mode; make sure every tool here is Android's own
 unset ASH_STANDALONE; export PATH=/system/bin:/system/xbin:/vendor/bin:$PATH
-D=$(cd "$(dirname "$0")" && pwd)            # code: this script, files/, airdrop/ (the payload)
+D=$(cd "$(dirname "$0")" && pwd)            # code: this script and files/
 V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, autostart flag
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
@@ -43,14 +43,20 @@ STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
 CF=/system/cameradata/camera-feature.xml
 PL=$V/payload; T24=/dev/s23tweaks_layers    # per-tweak downloads (unpacked in payload/<tweak>/) and their RAM layers
-# Tweaks whose files are a separate download, fetched by the phone only when picked: tweak, file in the
-# GitHub release $PAYLOAD_URL, SHA-256. A copy in $V/dl/ (the installer can push one) is used first.
+AIR=$PL/airdrop                              # the airdrop/wifi7 download: kernel modules, firmware, Mosey, tools
+# The module zip holds only scripts. Every tweak that needs files downloads them from the GitHub release
+# $PAYLOAD_URL when it's picked: tweak, file, SHA-256. A tweak with several lines is one tar split into
+# parts (GitHub caps a file at 2 GB), joined on the phone. A copy in $V/dl/ (the installer can push one)
+# is used first.
 PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/payloads-S918WVLU8GZIF
-PAYLOADS="camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
+PAYLOADS="airdrop airdrop-S918WVLU8GZIF.tar.gz 84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
+camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
 audioeraser audioeraser-S918WVLU8GZIF.tar.gz a11d2868b3d8ba0121554ea2a31bb65256e0c141c6033c4e6ddb4770f4d11704
 colortone colortone-S918WVLU8GZIF.tar.gz 4be28f16e3631f1e377ecec9ad2b5b78d1abf8c6a9b971435c7ac12604f75e40
 galaxyai galaxyai-S918WVLU8GZIF.tar.gz 5619aaee7580b985df300dcfca1fadc56bc774f60ebb2af9db975876dfe01c0e
-settingssearch settingssearch-S918WVLU8GZIF.tar.gz bddfa32a08def256b7497730a0e7faecf7b1621655ce0cc85bec423843357042"
+settingssearch settingssearch-S918WVLU8GZIF.tar.gz bddfa32a08def256b7497730a0e7faecf7b1621655ce0cc85bec423843357042
+callscreen callscreen-S918WVLU8GZIF.tar.partaa 6a8d141557050e738b3a805d741463aae46b9322732bdd3039d836c0d116af9a
+callscreen callscreen-S918WVLU8GZIF.tar.partab 3335ea84794746040513e4297175736d792a19f378187d7b970c4058bc421025"
 SETTINGS=/system/priv-app/SecSettings/SecSettings.apk
 SETTINGS_STOCK_MD5=5b8afa24f17e090d57380b8ebbd3dcee   # SecSettings.apk on S918WVLU8GZIF
 SETTINGS_EAD_MD5=f499f2e574a47eca0414f470e1ae20e8     # the same with files/SecSettings-ead.patch applied
@@ -123,7 +129,7 @@ wifi_up() {
 back_to_stock() { mounted /vendor/firmware/kiwi overlay && umount /vendor/firmware/kiwi; insmod $STOCK_KO; wifi_up; }
 
 airdrop_kernel() {
-  A=$D/airdrop
+  A=$AIR
   if [ -d /sys/module/wonder ] && [ -d /sys/module/bwfix ]; then log "airdrop: kernel side already loaded"; AK_LOADED=1; return 0; fi
   log "airdrop: swapping in the S24 Wi-Fi driver and firmware (Wi-Fi drops for ~30 s)"
   wifi_down
@@ -156,7 +162,7 @@ airdrop_kernel() {
 W7=/dev/s23tweaks_mlo; INI=/vendor/etc/wifi/kiwi_v2/WCNSS_qcom_cfg.ini; WPAS=/vendor/bin/hw/wpa_supplicant
 MLO_INI="mlo_support_link_num=2 mlo_5gl_5gh_mlsr=1 oem_eht_mlo_crypto_bitmap=0 epcs_support_enable=1"
 wifi7_bind() {   # sets W7_INI_NEW=1 when the driver has to be reloaded to read the config
-  A=$D/airdrop/wifi7
+  A=$AIR/wifi7
   mkdir -p $W7; mounted $W7 tmpfs || mount -t tmpfs -o mode=755 s23tweaks_mlo $W7; mkdir -p $W7/lib
   if ! bound $WPAS; then
     cp $A/wpa_supplicant $W7/wpa_supplicant; chmod 755 $W7/wpa_supplicant
@@ -181,15 +187,15 @@ wifi7_unbind_sup() { bound $WPAS && umount $WPAS; mounted /vendor/lib64 overlay 
 wifi7_reload() {   # the AirDrop driver was already loaded before the config was bound
   log "wifi7: reloading the Wi-Fi driver so it reads the MLO settings (Wi-Fi drops for ~15 s)"
   wifi_down
-  insmod $D/airdrop/kiwi_v2.ko || { back_to_stock; fail "wifi7: kiwi_v2 reload: $(dmesg | tail -2 | tr '\n' ' ')"; }
+  insmod $AIR/kiwi_v2.ko || { back_to_stock; fail "wifi7: kiwi_v2 reload: $(dmesg | tail -2 | tr '\n' ' ')"; }
   wifi_up
-  insmod $D/airdrop/wonder.ko || fail "wonder: $(dmesg | tail -3 | tr '\n' ' ')"
+  insmod $AIR/wonder.ko || fail "wonder: $(dmesg | tail -3 | tr '\n' ' ')"
 }
 wifi7_check() {
   # If Wi-Fi can't run with the S24 supplicant, go back to the S23's and carry on without MLO
   wait_for 60 wlan_up; wait_for 90 connected
   if [ "$(getprop init.svc.wpa_supplicant)" = running ] && cmd wifi status | grep -q "Wifi is enabled" &&
-     [ "$(md5 /proc/$(pidof wpa_supplicant)/exe)" = "$(md5 $D/airdrop/wifi7/wpa_supplicant)" ]; then
+     [ "$(md5 /proc/$(pidof wpa_supplicant)/exe)" = "$(md5 $AIR/wifi7/wpa_supplicant)" ]; then
     log "wifi7: Wi-Fi running with the S24 supplicant ($(cmd wifi status | grep -oE 'Wi-Fi standard: [^,]*' | head -1))"
   else
     log "wifi7: warning: Wi-Fi didn't come up with the S24 supplicant; switching back to the S23 one (no MLO)"
@@ -202,7 +208,7 @@ connected() { cmd wifi status | grep -q "Supplicant state: COMPLETED"; }
 # ---------- airdrop: Mosey (Google's AirDrop stack from the S24) ----------
 airdrop_overlays() {
   bound /system_ext/bin && { log "airdrop: Mosey already in /system_ext"; return 1; }
-  M=$D/airdrop/mosey; T=/dev/s23tweaks_mosey
+  M=$AIR/mosey; T=/dev/s23tweaks_mosey
   mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_mosey $T
   mkdir -p $T/bin $T/lib64 $T/priv-app/MoseyApp $T/perm $T/sysconfig $T/vintf
   cp $M/mosey_server $T/bin/; cp $M/libmosey_daemon_ffi.so $T/lib64/; cp $M/MoseyApp.apk $T/priv-app/MoseyApp/
@@ -247,7 +253,7 @@ airdrop_post() {
 gms_flags() {
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db
   SNAP=$G/files/phenotype/shared/com.google.android.gms.nearby.pb
-  SQ=$D/airdrop/sqlite3; W=$R/gms; rm -rf $W; mkdir -p $W $V/backup
+  SQ=$AIR/sqlite3; W=$R/gms; rm -rf $W; mkdir -p $W $V/backup
   if [ ! -f $DB ]; then
     # Before the first unlock after a boot, app storage is still encrypted. The overrides set on an
     # earlier run are stored in Play services' database and stay in effect, so nothing is lost.
@@ -276,8 +282,8 @@ gms_flags() {
   cat $W/p.db > $DB && rm -f $DB-wal $DB-shm    # cat keeps the file's owner and SELinux label
   if [ -f $SNAP ]; then
     cp $SNAP $W/s0.pb
-    $D/airdrop/pbflag $W/s0.pb $W/s1.pb ${NEARBY_FLAGS% *} 1 >/dev/null && \
-    $D/airdrop/pbflag $W/s1.pb $W/s2.pb ${NEARBY_FLAGS#* } 1 >/dev/null && cat $W/s2.pb > $SNAP
+    $AIR/pbflag $W/s0.pb $W/s1.pb ${NEARBY_FLAGS% *} 1 >/dev/null && \
+    $AIR/pbflag $W/s1.pb $W/s2.pb ${NEARBY_FLAGS#* } 1 >/dev/null && cat $W/s2.pb > $SNAP
   fi
   rm -rf $W
   log "airdrop: Play services Nearby flags on ($n of 2 overrides present)"
@@ -539,24 +545,27 @@ settingssearch_bind() {
 # Call screening (Phone app). Needs Samsung Language Core (com.samsung.android.offline.languagemodel);
 # the firmware has a stub and Galaxy Store refuses the S23 (9908). Install the real one as an ordinary
 # update: Samsung-signed like the stub, so the installer accepts it. Persistent (survives reboot); undo
-# with pm uninstall-system-updates. The APK (3.1 GB, too big for a GitHub release) isn't downloaded:
-# put it in $V/dl/ (install.sh does, with S23T_LANGCORE=<file>). What works: screening, the greeting,
+# with pm uninstall-system-updates. Its 3.1 GB download comes in two parts (GitHub caps a file at 2 GB)
+# and is deleted once installed. What works: screening, the greeting,
 # the voice message. What doesn't: the AI summary and AI replies, since Samsung's model only exists for
 # the S26's NPU; on the S23 it fails safely (no V73 stub, nothing reaches the DSP). See docs/findings.md.
 LC_PKG=com.samsung.android.offline.languagemodel
 LC_APK=languagecore-4.0.01.24.apk
 LC_MD5=994620f3071706391d17ff132ea16c42
+lc_ok() { [ "$(lc_installed)" -ge 400000000 ] 2>/dev/null; }
 lc_installed() { dumpsys package $LC_PKG 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2; }
 callscreen_apply() {
-  v=$(lc_installed); [ "${v:-0}" -ge 400000000 ] && { log "callscreen: Language Core $v already installed"; return 0; }
-  [ -f $V/dl/$LC_APK ] || { log "callscreen: needs $V/dl/$LC_APK (Language Core 4.0.01.24); skipped"; return 1; }
-  [ "$(md5 $V/dl/$LC_APK)" = $LC_MD5 ] || { log "callscreen: $V/dl/$LC_APK doesn't match its checksum; skipped"; return 1; }
-  log "callscreen: installing Samsung Language Core 4.0.01.24 (3.1 GB, a minute or two)"
-  # pm can't read /data/adb; stage it where the installer can
-  cp $V/dl/$LC_APK /data/local/tmp/$LC_APK && chmod 644 /data/local/tmp/$LC_APK
-  r=$(pm install -r /data/local/tmp/$LC_APK 2>&1); rm -f /data/local/tmp/$LC_APK
-  case "$r" in *Success*) log "callscreen: Language Core installed; turn on Phone > Settings > Call screening" ;;
-    *) log "callscreen: install failed: $r" ;; esac
+  lc_ok && { log "callscreen: Language Core $(lc_installed) already installed"; return 0; }
+  A=$PL/callscreen/$LC_APK
+  [ -f $A ] || { log "callscreen: its download isn't there; skipped"; return 1; }
+  [ "$(md5 $A)" = $LC_MD5 ] || { rm -rf $PL/callscreen; log "callscreen: the download is damaged; deleted, apply again to fetch it"; return 1; }
+  log "callscreen: installing Samsung Language Core 4.0.01.24 (a minute or two)"
+  # streamed through stdin: the installer can't read files under /data/adb
+  r=$(pm install -r -S $(stat -c %s $A) < $A 2>&1)
+  case "$r" in
+    *Success*) rm -rf $PL/callscreen; log "callscreen: Language Core installed; turn on Phone > Settings > Call screening" ;;
+    *) log "callscreen: install failed: $r" ;;
+  esac
 }
 
 # payload_fetch: download and unpack the files of each picked tweak that has them, unless the
@@ -566,18 +575,35 @@ dl() {   # dl <url> <file>: curl if the phone has it, else KernelSU's busybox wg
   else for b in /data/adb/ksu/bin/busybox /data/adb/magisk/busybox; do [ -x $b ] && { $b wget -q -O "$2" "$1"; return; }; done; return 1; fi
 }
 payload_fetch() {
-  echo "$PAYLOADS" | while read t f sum; do
+  for t in $(echo "$PAYLOADS" | awk '{print $1}' | uniq); do
     has $t || continue
-    [ "$(cat $PL/$t/.sha256 2>/dev/null)" = "$sum" ] && continue
-    mkdir -p $V/dl; z=$V/dl/$f
-    if [ "$(sha256sum $z 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
-      log "$t: downloading its files ($f)"
-      rm -f $z; dl "$PAYLOAD_URL/$f" $z.part && mv $z.part $z || { rm -f $z.part; log "$t: download failed (no internet?); skipped"; continue; }
-      [ "$(sha256sum $z | cut -d' ' -f1)" = "$sum" ] || { rm -f $z; log "$t: the download doesn't match its checksum; skipped"; continue; }
-    fi
+    [ $t = callscreen ] && lc_ok && continue      # installed already; its 3.1 GB isn't kept
+    sums=$(echo "$PAYLOADS" | awk -v t=$t '$1 == t {print $3}' | tr '\n' ' ' | sed 's/ $//')
+    [ "$(cat $PL/$t/.sha256 2>/dev/null)" = "$sums" ] && continue
+    mkdir -p $V/dl
+    [ $t = callscreen ] && [ "$(df -k /data | awk 'NR == 2 {print $4}')" -lt 7340032 ] &&
+      { log "$t: needs 7 GB free on the phone for its download; skipped"; continue; }
+    parts=""; ok=1
+    for f in $(echo "$PAYLOADS" | awk -v t=$t '$1 == t {print $2}'); do
+      sum=$(echo "$PAYLOADS" | awk -v f=$f '$2 == f {print $3}'); z=$V/dl/$f
+      if [ "$(sha256sum $z 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
+        log "$t: downloading $f"
+        rm -f $z; dl "$PAYLOAD_URL/$f" $z.part && mv $z.part $z || { rm -f $z.part; log "$t: download failed (no internet?); skipped"; ok=0; break; }
+        [ "$(sha256sum $z | cut -d' ' -f1)" = "$sum" ] || { rm -f $z; log "$t: $f doesn't match its checksum; skipped"; ok=0; break; }
+      fi
+      parts="$parts $z"
+    done
+    [ $ok = 1 ] || continue
     rm -rf $PL/$t $PL/$t.new; mkdir -p $PL/$t.new
-    tar -xzf $z -C $PL/$t.new || { rm -rf $PL/$t.new; log "$t: couldn't unpack $f; skipped"; continue; }
-    echo $sum > $PL/$t.new/.sha256; mv $PL/$t.new $PL/$t; rm -f $z
+    case "$parts" in
+      *.tar.gz) tar -xzf $parts -C $PL/$t.new ;;
+      *) cat $parts | tar -xf - -C $PL/$t.new ;;
+    esac || { rm -rf $PL/$t.new; log "$t: couldn't unpack its download; skipped"; continue; }
+    echo "$sums" > $PL/$t.new/.sha256; mv $PL/$t.new $PL/$t; rm -f $parts
+    if [ $t = airdrop ]; then
+      chmod 755 $AIR/moseyrun $AIR/sqlite3 $AIR/pbflag
+      chcon u:object_r:system_file:s0 $AIR/moseyrun   # its exec into mosey_server's domain needs this label
+    fi
     log "$t: files ready"
   done
 }
@@ -741,14 +767,13 @@ probe)
   why_ad=$why_s23
   [ -z "$why_ad" ] && [ "$kern" != "$AIRDROP_KERNEL" ] && why_ad="needs firmware S918WVLU8GZIF (this phone runs $build)"
   [ -z "$why_ad" ] && [ "${gms:-0}" -lt $GMS_MIN ] && why_ad="needs Google Play services 26.11 or newer"
-  [ -z "$why_ad" ] && [ ! -f $D/airdrop/kiwi_v2.ko ] && why_ad="the AirDrop payload isn't installed"
   why_csc=$why_s23; [ -z "$why_csc" ] && [ "$csc" != XAC ] && why_csc="needs XAC (Canadian) firmware (this phone is $csc)"
   why_bat=$why_s23; [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/asoc ] && why_bat="this phone has no battery data in /efs/FactoryApp"
   pw() { echo "$why_s23"; }   # their files are downloaded when picked
   why_6g=$why_s23; [ -z "$why_6g" ] && [ ! -x /data/adb/ksu/bin/resetprop ] && why_6g="needs KernelSU's resetprop"
-  lcv=$(lc_installed)
-  why_lc=$why_s23; [ -z "$why_lc" ] && [ "${lcv:-0}" -lt 400000000 ] && [ ! -f $V/dl/$LC_APK ] &&
-    why_lc="needs the Language Core 4.0.01.24 APK (3.1 GB) in $V/dl/$LC_APK; see the README"
+  lcv=$(lc_installed); why_lc=$why_s23
+  [ -z "$why_lc" ] && [ "${lcv:-0}" -lt 400000000 ] && [ "$(df -k /data | awk 'NR == 2 {print $4}')" -lt 7340032 ] &&
+    why_lc="needs about 7 GB free on the phone for its 3.1 GB download"
   act() { "$@" && echo true || echo false; }
   a_air=$(act eval '[ -d /sys/module/wonder ] && bound /system_ext/bin')
   a_bat=$(act mounted /sys/class/power_supply tmpfs)
@@ -787,7 +812,7 @@ loop)
   # init can't start mosey_server (its .rc isn't loaded on this boot). moseyrun starts it the way
   # mosey.rc does: uid system, groups system+inet, ambient NET_ADMIN/NET_RAW, u:r:mosey_server:s0
   # (as root it fails to open /dev/tun). It's a lazy service that exits when idle: restart it.
-  while true; do $D/airdrop/moseyrun; sleep 1; done
+  while true; do $AIR/moseyrun; sleep 1; done
   ;;
 guard)
   # If the Wi-Fi firmware ever crashes, the S24 driver's recovery leaks the AirDrop interface and
@@ -827,7 +852,8 @@ status)
   echo "csc:      $(bound $XAC/system/cscfeature.xml && grep -oE '<SalesCode>[A-Z]+' $XAC/system/cscfeature.xml | cut -c12- || echo stock)"
   ;;
 unflag)
-  G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db; SQ=$D/airdrop/sqlite3; W=$R/gms
+  G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db; SQ=$AIR/sqlite3; W=$R/gms
+  [ -x $SQ ] || { echo "the AirDrop download (with its sqlite3) isn't on the phone; pick AirDrop once to fetch it" >&2; exit 1; }
   rm -rf $W; mkdir -p $W; am force-stop com.google.android.gms
   cp $DB $W/p.db; [ -f $DB-wal ] && cp $DB-wal $W/p.db-wal
   $SQ $W/p.db "DELETE FROM experiment_states_to_overrides WHERE override_id IN (SELECT override_id FROM flag_overrides WHERE name IN ('${NEARBY_FLAGS% *}', '${NEARBY_FLAGS#* }') AND account_id=0);

@@ -357,7 +357,7 @@ const CATS = [
   { id: "carrier", name: "Carrier (XAC firmware only)" },
 ];
 const TWEAKS = [
-  { id: "airdrop", cat: "connect", name: "AirDrop", desc: "Quick Share → Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)" },
+  { id: "airdrop", cat: "connect", name: "AirDrop", desc: "Quick Share → Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)" },
   { id: "wifi7", cat: "connect", name: "Wi-Fi 7 multi-link", desc: "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers; needs AirDrop" },
   { id: "hotspot6g", cat: "connect", name: "6 GHz hotspot", desc: "6 GHz Mobile Hotspot (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz, needs WPA3" },
   { id: "logvideo", cat: "camera", name: "Log video", desc: "Log recording and LUT preview in Pro video (10-bit HEVC)" },
@@ -370,7 +370,7 @@ const TWEAKS = [
   { id: "galaxyai", cat: "ai", name: "Now Brief, Creative Studio, Call Assist", desc: "The S24's newer builds of these three Galaxy AI apps (219 MB download)" },
   { id: "audioeraser", cat: "ai", name: "Audio Eraser", desc: "Remove wind, noise, music or voices from videos in Gallery (34 MB download)" },
   { id: "settingssearch", cat: "ai", name: "Settings search", desc: "The S24's new Settings search bar; natural-language answers stay off (10 MB download)" },
-  { id: "callscreen", cat: "ai", name: "Call screening", desc: "Installs Samsung Language Core: screening and voice messages work, the AI summary and replies don't. Stays after a reboot" },
+  { id: "callscreen", cat: "ai", name: "Call screening", desc: "Installs Samsung Language Core: screening and voice messages work, the AI summary and replies don't. Stays after a reboot (3.1 GB download; Wi-Fi recommended)" },
   { id: "bargein", cat: "ai", name: "Bixby barge-in", desc: "Talk over Bixby while it answers, as on the S24 (untested)" },
   { id: "battery", cat: "system", name: "Battery health", desc: "Settings → Battery → Battery information shows health and cycle count" },
   { id: "features", cat: "system", name: "Power schedule and louder calls", desc: "Auto power on/off schedule and louder VoIP calls" },
@@ -951,7 +951,7 @@ function installMock() {
     else if (has("callrec")) add(0.5, "callrec: call recording on (Phone app > Settings > Record calls)");
     if (fail) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(2.0, "FAILED: something went wrong in the mock (framework did not come back)"); return out; }
     if (has("display") || has("logvideo")) add(0.4, "feature flags on: " + (has("display") ? "LCD_CONFIG_VIVIDNESS LCD_CONFIG_VIVIDPLUS LCD_CONFIG_AOD_FULLSCREEN LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION " : "") + (has("logvideo") ? "CAMERA_CONFIG_LOG_VIDEO GALLERY_SUPPORT_LOG_CORRECT_COLOR" : ""));
-    for (const t of ["camerahdr", "audioeraser", "colortone", "galaxyai"]) if (has(t)) { add(0.8, t + ": downloading its files (" + t + "-S918WVLU8GZIF.tar.gz)"); add(0.2, t + ": files ready"); }
+    for (const t of ["airdrop", "camerahdr", "audioeraser", "colortone", "galaxyai", "settingssearch"]) if (has(t)) { add(0.8, t + ": downloading its files (" + t + "-S918WVLU8GZIF.tar.gz)"); add(0.2, t + ": files ready"); }
     if (has("camerahdr")) add(0.3, "camerahdr: One UI 6 multi-frame HDR and low-light HDR on");
     if (has("audioeraser")) add(0.5, "audioeraser: S24 video editor engine, sound-separation libraries and models on");
     if (has("colortone")) add(0.6, "colortone: Adaptive color tone on (Settings > Display)");
@@ -988,7 +988,7 @@ function installMock() {
     return JSON.stringify({ version: "v1.1.0", module: true,
       phone: { model: "SM-S918W", firmware: "S918WVLU8GZIF", csc: "XAC", android: "17", kernel: "5.15.197-android13-8-34343818-abS918WVLU8GZIF", gms: 264531035 },
       picked: st.picked, autostart: st.autostart, applying: !!st.run,
-      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "the AirDrop payload isn't installed"), tw("display"), tw("logvideo"), tw("vulkan"), tw("camerahdr"), tw("audioeraser"), tw("colortone"), tw("galaxyai"), tw("camextras"), tw("autoframe"), tw("settingssearch"), tw("bargein"), tw("callscreen", "needs the Language Core 4.0.01.24 APK (3.1 GB) in /data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk; see the README")] });
+      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "needs firmware S918WVLU8GZIF (this phone runs S918WVLU7GZE1)"), tw("display"), tw("logvideo"), tw("vulkan"), tw("camerahdr"), tw("audioeraser"), tw("colortone"), tw("galaxyai"), tw("camextras"), tw("autoframe"), tw("settingssearch"), tw("bargein"), tw("callscreen", "needs the Language Core 4.0.01.24 APK (3.1 GB) in /data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk; see the README")] });
   }
   function handle(cmd) {
     tick();

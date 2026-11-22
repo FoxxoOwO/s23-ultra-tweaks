@@ -9,8 +9,6 @@ set -euo pipefail
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
 VERSION=v1.1.0
-PAYLOAD=airdrop-payload-S918WVLU8GZIF.tar.gz
-PAYLOAD_SHA256=84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
 PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
 MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
@@ -58,12 +56,11 @@ can_airdrop=1; why_airdrop=""
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 
-# Language Core for callscreen: too big for a GitHub release (3.1 GB), so it's never downloaded. Give
-# your own copy with S23T_LANGCORE=<file>, or have it in $PHONE_DIR/dl/ already.
-LC_APK=languagecore-4.0.01.24.apk
-can_lc=0; why_lc="needs Samsung Language Core 4.0.01.24 (3.1 GB): run with S23T_LANGCORE=<apk> (see the README)"
-if [ -n "${S23T_LANGCORE:-}" ]; then [ -f "$S23T_LANGCORE" ] || die "S23T_LANGCORE: $S23T_LANGCORE not found"; can_lc=1; why_lc=""
-elif [ "$(sh_ "su -c '[ -f $PHONE_DIR/dl/$LC_APK ] && echo y; dumpsys package com.samsung.android.offline.languagemodel | grep -m1 -oE \"versionCode=4[0-9]{8}\"'" | head -n 1)" != "" ]; then can_lc=1; why_lc=""; fi
+# Language Core for callscreen: a 3.1 GB download, so the phone needs about 7 GB free while it installs
+can_lc=1; why_lc=""
+free_kb=$(sh_ "df -k /data | tail -n 1" | awk '{print $4}')
+lc_have=$(sh_ "dumpsys package com.samsung.android.offline.languagemodel 2>/dev/null | grep -m1 -oE 'versionCode=4[0-9]{8}'")
+[ -z "$lc_have" ] && [ "${free_kb:-0}" -lt 7340032 ] && { can_lc=0; why_lc="needs about 7 GB free on the phone for its 3.1 GB download"; }
 
 # Tweaks, grouped in categories. A category letter picks every available tweak in it.
 ids=(airdrop wifi7 hotspot6g
@@ -75,7 +72,7 @@ ids=(airdrop wifi7 hotspot6g
 cat=(A A A  B B B B  C C C  D D D D D  E E  F F)
 cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier (XAC firmware only)")
-desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)"
+desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
       "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds AirDrop)"
       "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz)"
       "Log video: Log recording and LUT preview in Camera > Pro video"
@@ -88,7 +85,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Galaxy AI apps: the S24's Now Brief, Creative Studio and Call Assist (219 MB download)"
       "Audio Eraser: remove wind, noise, music or voices from videos in Gallery (34 MB download)"
       "Settings search: the S24's new Settings search bar; natural-language answers stay off (10 MB download)"
-      "Call screening: installs Samsung Language Core; screening and voice messages work, the AI summary doesn't (persistent)"
+      "Call screening: installs Samsung Language Core; screening and voice messages work, the AI summary doesn't (persistent; 3.1 GB download)"
       "Bixby barge-in: talk over Bixby while it answers (untested)"
       "Battery health page: Settings > Battery > Battery information shows health and cycles"
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
@@ -147,7 +144,7 @@ fi
 say "Applying: $picked"
 case " $picked " in *" airdrop "*) info "Wi-Fi (and the hotspot) drop for ~30 s while the driver is swapped." ;; esac
 case " $picked " in *" callscreen "*) info "Call screening installs Samsung Language Core as an app update; unlike the rest, a reboot doesn't remove it." ;; esac
-case " $picked " in *" camerahdr "*|*" audioeraser "*|*" colortone "*|*" galaxyai "*|*" settingssearch "*) info "The phone downloads the files of the tweaks that need them from GitHub first (needs internet)." ;; esac
+case " $picked " in *" airdrop "*|*" wifi7 "*|*" camerahdr "*|*" audioeraser "*|*" colortone "*|*" galaxyai "*|*" settingssearch "*|*" callscreen "*) info "The phone downloads the files of the tweaks that need them from GitHub first (needs internet; Wi-Fi recommended)." ;; esac
 info "The screen goes black for ~30 s while Android restarts its framework. Don't unplug the phone."
 r=$(ask "Continue? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && exit 0
 r=$(ask "Re-apply these automatically at every boot, with no computer? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && auto=off || auto=on
@@ -162,39 +159,27 @@ else
   curl -fsSL "https://github.com/$REPO/archive/refs/tags/$VERSION.tar.gz" -o "$W/src.tar.gz"
   tar -xzf "$W/src.tar.gz" -C "$W/src" --strip-components=1
 fi
-case " $picked " in *" airdrop "*|*" wifi7 "*)
-  if [ -n "${S23T_PAYLOAD:-}" ]; then cp "$S23T_PAYLOAD" "$W/payload.tar.gz"   # development: local payload
-  else curl -fSL --progress-bar "https://github.com/$REPO/releases/download/$VERSION/$PAYLOAD" -o "$W/payload.tar.gz"; fi
-  [ "$(sha "$W/payload.tar.gz")" = "$PAYLOAD_SHA256" ] || die "AirDrop payload checksum mismatch"
-  mkdir -p "$W/src/device/airdrop"; tar -xzf "$W/payload.tar.gz" -C "$W/src/device/airdrop"
-;; esac
 
 # ---- push and run ----
 say "Copying to the phone..."
 a shell "su -c 'mkdir -p $PHONE_DIR'"
 a push "$W/src/device/." /data/local/tmp/s23tweaks_new >/dev/null
-a shell "su -c 'cp -r /data/local/tmp/s23tweaks_new/. $PHONE_DIR/ && rm -rf /data/local/tmp/s23tweaks_new && chmod -R 755 $PHONE_DIR && chcon u:object_r:system_file:s0 $PHONE_DIR/airdrop/moseyrun 2>/dev/null; true'"
+a shell "su -c 'cp -r /data/local/tmp/s23tweaks_new/. $PHONE_DIR/ && rm -rf /data/local/tmp/s23tweaks_new && chmod 755 $PHONE_DIR/tweaks.sh'"
 fi
-# Tweaks with their own download (camerahdr audioeraser colortone galaxyai): the phone fetches them
-# from GitHub while applying. Development: S23T_PAYLOADS=<folder of *.tar.gz> pushes local copies.
+# Tweaks with files (AirDrop, the S24 apps, Language Core): the phone downloads them from GitHub while
+# applying. Development: S23T_PAYLOADS=<folder of release files> pushes local copies instead.
 if [ -n "${S23T_PAYLOADS:-}" ]; then
   a shell "su -c 'mkdir -p $PHONE_DIR/dl'"
-  for f in "$S23T_PAYLOADS"/*-S918WVLU8GZIF.tar.gz; do
-    case " $picked " in *" $(basename "$f" | sed 's/-S918WVLU8GZIF.tar.gz//') "*) ;; *) continue ;; esac
+  for f in "$S23T_PAYLOADS"/*-S918WVLU8GZIF.tar*; do
+    case " $picked " in *" $(basename "$f" | sed 's/-S918WVLU8GZIF.tar.*//') "*) ;; *) continue ;; esac
     a push "$f" /data/local/tmp/ >/dev/null && a shell "su -c 'mv /data/local/tmp/$(basename "$f") $PHONE_DIR/dl/'"
   done
 fi
-case " $picked " in *" callscreen "*)
-  if [ -n "${S23T_LANGCORE:-}" ]; then
-    say "Copying Language Core to the phone (3.1 GB)..."
-    a shell "su -c 'mkdir -p $PHONE_DIR/dl'"
-    a push "$S23T_LANGCORE" /data/local/tmp/$LC_APK >/dev/null && a shell "su -c 'mv /data/local/tmp/$LC_APK $PHONE_DIR/dl/'"
-  fi ;; esac
 a shell "su -c 'sh $TW start \"$picked\"'" >/dev/null
 
 say "Applying (2-3 minutes)..."
-shown=0; end=$((SECONDS + 420)); case " $picked " in *" galaxyai "*|*" audioeraser "*|*" camerahdr "*|*" settingssearch "*) end=$((end + 900)) ;; esac   # downloads
-case " $picked " in *" callscreen "*) end=$((end + 300)) ;; esac   # Language Core install
+shown=0; end=$((SECONDS + 420)); case " $picked " in *" galaxyai "*|*" audioeraser "*|*" camerahdr "*|*" settingssearch "*|*" airdrop "*) end=$((end + 900)) ;; esac   # downloads
+case " $picked " in *" callscreen "*) end=$((end + 2700)) ;; esac   # 3.1 GB download + install
 while [ $SECONDS -lt $end ]; do
   sleep 3
   out=$(a shell "su -c 'cat $PHONE_DIR/tweaks.log'" 2>/dev/null | tr -d '\r') || continue

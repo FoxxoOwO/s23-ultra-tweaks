@@ -19,22 +19,17 @@ esac
 
 # The kernel the AirDrop/Wi-Fi 7 payload was built for (tweaks.sh is the single source)
 want=$(sed -n 's/^AIRDROP_KERNEL=\([^ #]*\).*/\1/p' "$MODPATH/tweaks.sh" | head -n 1)
-if [ ! -f "$MODPATH/airdrop/kiwi_v2.ko" ]; then
-  ui_print "! The AirDrop payload is missing from this zip: AirDrop and Wi-Fi 7 won't be offered"
-elif [ -n "$want" ] && [ "$kern" = "$want" ]; then
+if [ -n "$want" ] && [ "$kern" = "$want" ]; then
   ui_print "- AirDrop / Wi-Fi 7: the kernel modules match this kernel"
 else
   ui_print "! AirDrop / Wi-Fi 7 need firmware S918WVLU8GZIF (kernel ${want:-unknown});"
   ui_print "!   this phone runs $kern. Those two stay unavailable; the other tweaks still work."
 fi
 
-# Permissions: directories 755, files 644, the scripts and the payload's programs 755
+# Permissions: directories 755, files 644, the scripts 755. The zip holds only scripts; each tweak's
+# files are downloaded from GitHub when it's first applied.
 set_perm_recursive "$MODPATH" 0 0 0755 0644
-for f in tweaks.sh service.sh action.sh uninstall.sh airdrop/moseyrun airdrop/sqlite3 airdrop/pbflag; do
-  [ -f "$MODPATH/$f" ] && set_perm "$MODPATH/$f" 0 0 0755
-done
-# moseyrun starts mosey_server in its own SELinux domain; that transition needs this label
-[ -f "$MODPATH/airdrop/moseyrun" ] && chcon u:object_r:system_file:s0 "$MODPATH/airdrop/moseyrun"
+for f in tweaks.sh service.sh action.sh uninstall.sh; do set_perm "$MODPATH/$f" 0 0 0755; done
 
 mkdir -p "$V"
 
@@ -50,4 +45,5 @@ if [ -s "$V/choices" ]; then
 fi
 
 ui_print "- Next: reboot, then open KernelSU > Modules > S23 Ultra Tweaks"
-ui_print "  and tap the page icon to choose tweaks."
+ui_print "  and tap the page icon to choose tweaks. Tweaks that need files"
+ui_print "  download them from GitHub when applied (Wi-Fi recommended)."
