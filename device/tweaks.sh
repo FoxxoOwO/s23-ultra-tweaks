@@ -1,13 +1,20 @@
-# s23-ultra-tweaks, phone side. install.sh copies this folder to /data/adb/s23tweaks (root-only) and
-# runs it as root in init's mount namespace, detached (the framework restart would kill an adb shell):
-#   su -c "nsenter -t 1 -m -- setsid sh /data/adb/s23tweaks/tweaks.sh apply 'airdrop battery' </dev/null >/dev/null 2>&1 &"
+# s23-ultra-tweaks, phone side. Two ways it gets onto the phone:
+#  - the KernelSU module: code in /data/adb/modules/s23_ultra_tweaks (this folder has module.prop)
+#  - install.sh (adb): code in /data/adb/s23tweaks
+# State (picks, logs, backups) always lives in /data/adb/s23tweaks, so module updates keep it.
+# Everything runs as root. "start" runs "apply" detached in init's mount namespace, because the
+# framework restart kills the caller (adb shell, KernelSU's WebUI):
+#   su -c "sh <this folder>/tweaks.sh start 'airdrop battery'"
 # Commands:
-#   apply "<tweaks>"  apply the listed tweaks; progress goes to tweaks.log in this folder
+#   start "<tweaks>"  apply the listed tweaks in the background; follow tweaks.log in the state folder
+#   apply "<tweaks>"  the same in the foreground (what start runs)
+#   probe             one line of JSON: phone, which tweaks it can take and why not, what's active
 #   status            print what is active
 #   unflag            remove the two Play services flag overrides that the airdrop tweak adds
-#   autostart on|off  re-apply the saved tweaks at every boot (KernelSU runs /data/adb/service.d
-#                     scripts once DFRoot has rooted the phone, which DFRoot does by itself at boot)
-#   boot              (internal) what the boot script runs
+#   autostart on|off  re-apply the saved tweaks at every boot. DFRoot roots the phone by itself at
+#                     boot, then KernelSU runs the module's service.sh (module) or a script in
+#                     /data/adb/service.d (install.sh). Both call "boot".
+#   boot              (internal) the automatic apply at boot
 #   wifi7page         open Samsung's hidden "Wi-Fi 7 mode" settings page (Wi-Fi Labs)
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7  (see README.md)
@@ -19,7 +26,13 @@
 # Never touched: the sales code (mps_code.dat, sales_code.dat, omc.info, persist.sys.matched_code).
 # Changing those can factory-reset the phone.
 
-D=$(cd "$(dirname "$0")" && pwd); L=$D/tweaks.log; R=$D/run
+D=$(cd "$(dirname "$0")" && pwd)            # code: this script, files/, airdrop/ (the payload)
+V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, autostart flag
+mkdir -p $V; L=$V/tweaks.log; R=$V/run
+[ -f $D/module.prop ] && MODULE=1 || MODULE=0
+APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7"
+GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
@@ -202,7 +215,7 @@ airdrop_post() {
 gms_flags() {
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db
   SNAP=$G/files/phenotype/shared/com.google.android.gms.nearby.pb
-  SQ=$D/airdrop/sqlite3; W=$R/gms; rm -rf $W; mkdir -p $W $D/backup
+  SQ=$D/airdrop/sqlite3; W=$R/gms; rm -rf $W; mkdir -p $W $V/backup
   if [ ! -f $DB ]; then
     # Before the first unlock after a boot, app storage is still encrypted. The overrides set on an
     # earlier run are stored in Play services' database and stay in effect, so nothing is lost.
@@ -213,7 +226,7 @@ gms_flags() {
   # edit a copy (opening the live WAL database as root would leave root-owned -wal/-shm files)
   am force-stop com.google.android.gms
   cp $DB $W/p.db; [ -f $DB-wal ] && cp $DB-wal $W/p.db-wal
-  [ -f $D/backup/phenotype.db ] || cp $W/p.db* $D/backup/ 2>/dev/null
+  [ -f $V/backup/phenotype.db ] || cp $W/p.db* $V/backup/ 2>/dev/null
   id=$($SQ $W/p.db "select config_package_id from config_packages where name='com.google.android.gms.nearby'")
   [ -n "$id" ] || { log "airdrop: Play services has no Nearby config yet; open Quick Share once and run again"; return; }
   sql="PRAGMA integrity_check;"
@@ -325,10 +338,13 @@ restart_framework() {
 
 case "$1" in
 apply)
+  [ "$(id -u)" = 0 ] || { echo "needs root" >&2; exit 1; }
+  mkdir $APPLY_LOCK 2>/dev/null || { echo "another apply is already running (see $L)" >&2; exit 3; }
+  trap 'rmdir $APPLY_LOCK 2>/dev/null' EXIT
   TWEAKS=" $2 "; : > $L
-  [ "$(id -u)" = 0 ] || fail "needs root"
   log "applying:$TWEAKS"
-  echo "$2" > $D/choices
+  for x in $2; do case " $TWEAK_IDS " in *" $x "*) ;; *) fail "unknown tweak: $x" ;; esac; done
+  echo "$2" > $V/choices
   has wifi7 && ! has airdrop && fail "wifi7 needs airdrop (the S24 Wi-Fi driver)"
   if has airdrop; then
     [ "$(uname -r)" = "$AIRDROP_KERNEL" ] || fail "airdrop needs kernel $AIRDROP_KERNEL (firmware S918WVLU8GZIF)"
@@ -348,6 +364,45 @@ apply)
   has airdrop && airdrop_post
   log "DONE"
   ;;
+start)
+  [ "$(id -u)" = 0 ] || { echo "needs root" >&2; exit 1; }
+  [ -d $APPLY_LOCK ] && { echo "another apply is already running (see $L)" >&2; exit 3; }
+  [ -n "$2" ] || { echo "usage: tweaks.sh start \"<tweaks>\"" >&2; exit 2; }
+  : > $L
+  nsenter -t 1 -m -- setsid sh $D/tweaks.sh apply "$2" </dev/null >/dev/null 2>&1 &
+  echo "started; progress in $L"
+  ;;
+probe)
+  # One line of JSON for the WebUI and install.sh. Values never contain quotes or backslashes.
+  model=$(getprop ro.product.model); build=$(getprop ro.build.PDA); csc=$(getprop ro.csc.sales_code)
+  kern=$(uname -r); android=$(getprop ro.build.version.release)
+  gms=$(dumpsys package com.google.android.gms 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2)
+  ver=$( [ $MODULE = 1 ] && grep -m1 '^version=' $D/module.prop | cut -d= -f2 || echo script)
+  why_s23=""; case "$model" in SM-S918*) ;; *) why_s23="this is for the Galaxy S23 Ultra (SM-S918*), not $model" ;; esac
+  why_ad=$why_s23
+  [ -z "$why_ad" ] && [ "$kern" != "$AIRDROP_KERNEL" ] && why_ad="needs firmware S918WVLU8GZIF (this phone runs $build)"
+  [ -z "$why_ad" ] && [ "${gms:-0}" -lt $GMS_MIN ] && why_ad="needs Google Play services 26.11 or newer"
+  [ -z "$why_ad" ] && [ ! -f $D/airdrop/kiwi_v2.ko ] && why_ad="the AirDrop payload isn't installed"
+  why_csc=$why_s23; [ -z "$why_csc" ] && [ "$csc" != XAC ] && why_csc="needs XAC (Canadian) firmware (this phone is $csc)"
+  why_bat=$why_s23; [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/asoc ] && why_bat="this phone has no battery data in /efs/FactoryApp"
+  why_6g=$why_s23; [ -z "$why_6g" ] && [ ! -x /data/adb/ksu/bin/resetprop ] && why_6g="needs KernelSU's resetprop"
+  act() { "$@" && echo true || echo false; }
+  a_air=$(act eval '[ -d /sys/module/wonder ] && bound /system_ext/bin')
+  a_bat=$(act mounted /sys/class/power_supply tmpfs)
+  a_fea=$(act eval 'bound $FF && grep -q SETTINGS_SUPPORT_AUTO_POWER_ON_OFF $FF')
+  a_ind=$(act bound $PRISM)
+  a_rec=$(act eval 'bound $XAC/system/cscfeature.xml && ! bound $PRISM')
+  a_6g=$(act eval '[ "$(getprop ro.csc.countryiso_code)" = IN ]')
+  a_w7=$(act eval 'bound $WPAS && bound $INI')
+  j() { printf '{"id":"%s","available":%s,"why":"%s","active":%s}' "$1" "$( [ -z "$2" ] && echo true || echo false)" "$2" "$3"; }
+  printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s},' \
+    "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}"
+  printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(cat $V/choices 2>/dev/null)" \
+    "$( [ -f $V/autostart ] && echo true || echo false)" "$( [ -d $APPLY_LOCK ] && echo true || echo false)"
+  printf '%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
+    "$(j features "$why_s23" $a_fea)" "$(j callrec "$why_csc" $a_rec)" "$(j india "$why_csc" $a_ind)" \
+    "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)"
+  ;;
 loop)
   # init can't start mosey_server (its .rc isn't loaded on this boot). moseyrun starts it the way
   # mosey.rc does: uid system, groups system+inet, ambient NET_ADMIN/NET_RAW, u:r:mosey_server:s0
@@ -362,14 +417,14 @@ guard)
   while sleep 1; do
     [ "$(hangs)" -gt "$base" ] || continue
     log "Wi-Fi firmware crashed: saving the kernel log and rebooting"
-    echo "the Wi-Fi firmware crashed before the last reboot (log saved in $D)" > $D/boot.skip
+    echo "the Wi-Fi firmware crashed before the last reboot (log saved in $V)" > $V/boot.skip
     ps -A -o PID,ARGS | grep "[t]weaks.sh loop" | while read pid rest; do kill $pid; done
-    pkill mosey_server; sleep 3; dmesg > $D/fwcrash_$(cut -d. -f1 /proc/uptime).txt; sync
+    pkill mosey_server; sleep 3; dmesg > $V/fwcrash_$(cut -d. -f1 /proc/uptime).txt; sync
     reboot
   done
   ;;
 status)
-  echo "saved choices: $(cat $D/choices 2>/dev/null); $(sh $D/tweaks.sh autostart)"
+  echo "saved choices: $(cat $V/choices 2>/dev/null); $(sh $D/tweaks.sh autostart)"
   echo "airdrop:  modules [$(grep -oE '^(wonder|bwfix) ' /proc/modules | tr -d '\n')]," \
        "Mosey $(bound /system_ext/bin && echo on || echo off), daemon $(running loop && echo running || echo stopped)," \
        "$(service check com.google.android.moseyservice.IMoseyService/default | sed 's/.*: //')"
@@ -392,39 +447,44 @@ autostart)
   S=/data/adb/service.d/s23tweaks.sh
   case "$2" in
   on)
+    # the module's own service.sh does the boot call; install.sh needs a service.d script
+    if [ $MODULE = 1 ]; then rm -f $S; touch $V/autostart; echo "autostart on: the saved tweaks ($(cat $V/choices 2>/dev/null)) re-apply at every boot"; exit 0; fi
     mkdir -p /data/adb/service.d
     cat > $S <<EOF
 #!/system/bin/sh
 # s23-ultra-tweaks: re-apply the saved tweaks at boot. KernelSU runs this once DFRoot has rooted the
 # phone. Remove with: sh $D/tweaks.sh autostart off
-[ -f $D/autostart ] && nsenter -t 1 -m -- setsid sh $D/tweaks.sh boot </dev/null >/dev/null 2>&1 &
+[ -f $V/autostart ] && nsenter -t 1 -m -- setsid sh $D/tweaks.sh boot </dev/null >/dev/null 2>&1 &
 EOF
-    chmod 700 $S; touch $D/autostart; echo "autostart on: the saved tweaks ($(cat $D/choices 2>/dev/null)) re-apply at every boot" ;;
-  off) rm -f $S $D/autostart $D/boot.pending $D/boot.skip; echo "autostart off" ;;
-  *) [ -f $D/autostart ] && [ -f $S ] && echo "autostart on" || echo "autostart off" ;;
+    chmod 700 $S; touch $V/autostart; echo "autostart on: the saved tweaks ($(cat $V/choices 2>/dev/null)) re-apply at every boot" ;;
+  off) rm -f $S $V/autostart $V/boot.pending $V/boot.skip; echo "autostart off" ;;
+  *) [ -f $V/autostart ] && { [ $MODULE = 1 ] || [ -f $S ]; } && echo "autostart on" || echo "autostart off" ;;
   esac
   ;;
 boot)
-  B=$D/boot.log
+  B=$V/boot.log
   blog() { echo "$(date '+%F %T') $*" >> $B; }
   note() { cmd notification post -S bigtext -t "S23 tweaks" s23tweaks "$1" >/dev/null 2>&1; }
-  [ -f $D/autostart ] || exit 0
-  t=$(cat $D/choices 2>/dev/null); [ -n "$t" ] || exit 0
+  [ -f $V/autostart ] || exit 0
+  t=$(cat $V/choices 2>/dev/null); [ -n "$t" ] || exit 0
+  # KernelSU can run boot scripts more than once per boot (seen with DFRoot's late load): only the
+  # first call goes on
+  mkdir /dev/s23tweaks_boot.lock 2>/dev/null || exit 0
   n=600; until [ "$(getprop sys.boot_completed)" = 1 ]; do n=$((n-1)); [ $n = 0 ] && break; sleep 1; done
   sleep 30   # let Wi-Fi, Play services and the launcher settle before swapping the driver
   # Fail-safe against a boot loop: if the last boot's apply never finished (the phone rebooted in the
   # middle) or the Wi-Fi firmware crashed, skip this boot once and say so.
   why=""
-  [ -f $D/boot.pending ] && why="the last automatic apply didn't finish"
-  [ -f $D/boot.skip ] && why=$(cat $D/boot.skip)
+  [ -f $V/boot.pending ] && why="the last automatic apply didn't finish"
+  [ -f $V/boot.skip ] && why=$(cat $V/boot.skip)
   if [ -n "$why" ]; then
-    rm -f $D/boot.pending $D/boot.skip; blog "skipped: $why"
-    note "Tweaks not applied at this boot: $why. Run the installer to apply them, or reboot to try again."
+    rm -f $V/boot.pending $V/boot.skip; blog "skipped: $why"
+    note "Tweaks not applied at this boot: $why. Apply them from KernelSU > Modules > S23 Ultra Tweaks (or the installer), or reboot to try again."
     exit 0
   fi
-  touch $D/boot.pending; sync; blog "applying: $t"
+  touch $V/boot.pending; sync; blog "applying: $t"
   S23T_BOOT=1 sh $D/tweaks.sh apply "$t"
-  rm -f $D/boot.pending
+  rm -f $V/boot.pending
   if grep -q DONE $L; then blog "done"; note "Applied: $t"
   else f=$(grep FAILED $L | tail -1 | cut -d' ' -f2-); blog "failed: $f"; note "Applying the tweaks failed: $f. Details: $L"; fi
   ;;
@@ -435,5 +495,5 @@ wifi7page)
   am start -n com.android.settings/.SubSettings \
     --es :settings:show_fragment com.samsung.android.settings.wifi.develop.WifiLabs7ModeSettingsFragment
   ;;
-*) echo "usage: tweaks.sh apply \"<tweaks>\" | status | unflag | autostart on|off | wifi7page"; exit 2 ;;
+*) echo "usage: tweaks.sh start|apply \"<tweaks>\" | probe | status | unflag | autostart on|off | wifi7page"; exit 2 ;;
 esac

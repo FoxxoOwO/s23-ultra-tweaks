@@ -120,7 +120,7 @@ say "Copying to the phone..."
 a shell "su -c 'mkdir -p $PHONE_DIR'"
 a push "$W/src/device/." /data/local/tmp/s23tweaks_new >/dev/null
 a shell "su -c 'cp -r /data/local/tmp/s23tweaks_new/. $PHONE_DIR/ && rm -rf /data/local/tmp/s23tweaks_new && chmod -R 755 $PHONE_DIR && chcon u:object_r:system_file:s0 $PHONE_DIR/airdrop/moseyrun 2>/dev/null; true'"
-a shell "su -c 'nsenter -t 1 -m -- setsid sh $PHONE_DIR/tweaks.sh apply \"$picked\" </dev/null >/dev/null 2>&1 &'"
+a shell "su -c 'sh $PHONE_DIR/tweaks.sh start \"$picked\"'" >/dev/null
 
 say "Applying (2-3 minutes)..."
 shown=0; end=$((SECONDS + 420))
