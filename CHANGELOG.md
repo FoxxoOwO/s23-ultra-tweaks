@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- New tweaks: `display` (Vividness slider and full-screen AOD wallpaper), `logvideo` (Log recording and LUT preview in Pro video) and `vulkan` (Skia on Vulkan for apps).
+- Feature flags can now be set to values, replacing the stock ones (not only added as TRUE).
+
 ## v1.0.0
 
 First release, for the Galaxy S23 Ultra on One UI 9 / Android 17 (AirDrop and Wi-Fi 7 need firmware S918WVLU8GZIF).

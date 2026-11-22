@@ -11,6 +11,9 @@ Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One 
 | 5 | `india` | India (INS) carrier config: call recording, Smart IVR, message cards and more. The sales code stays XAC | XAC (Canadian) firmware S918WVLU8GZIF |
 | 6 | `hotspot6g` | **6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz | any S23 Ultra on One UI 9 |
 | 7 | `wifi7` | **Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes `airdrop` | same as `airdrop` |
+| 8 | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
+| 9 | `logvideo` | **Log video**: Camera → Pro video gets the LOG button and LUT preview (10-bit HEVC) | any S23 Ultra on One UI 9 |
+| 10 | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |
 
 The installer asks which ones you want and greys out the ones your phone can't take.
 
@@ -151,6 +154,13 @@ The S23 Ultra's Wi-Fi chip and its stock `hostapd` run a 6 GHz hotspot fine (tes
 - Apps that read the CSC country see `IN` until the next reboot.
 
 The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostapd` is built with it.
+
+## Display, Log video and Vulkan
+
+- **Vividness**: Samsung hides *Screen mode → Advanced settings* (where the slider is) while **Eye comfort shield** or a vision accessibility feature is on. That's stock behaviour, the S24 does the same.
+- **Always On Display**: *Lock screen and AOD → Always On Display* gets *Show Lock screen wallpaper*. *Erase background* only works with a photo wallpaper whose subject was cut out by the wallpaper editor (a "layered" wallpaper), not with the AI weather wallpaper.
+- **Log video**: in *Pro video*, tap **LOG** at the top. The S23's camera already records 10-bit; the tweak only turns on Samsung's switches for it.
+- **Vulkan**: Samsung's renderer ignores the S24's `ro.hwui.use_vulkan`; the tweak sets `debug.hwui.renderer=skiavk`. Check with `adb shell dumpsys gfxinfo com.android.systemui | grep Pipeline` (should say `Skia (Vulkan)`).
 
 ## Undo
 

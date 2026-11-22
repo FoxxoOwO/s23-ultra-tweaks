@@ -17,7 +17,7 @@
 #   boot              (internal) the automatic apply at boot
 #   wifi7page         open Samsung's hidden "Wi-Fi 7 mode" settings page (Wi-Fi Labs)
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
-# Tweaks: airdrop battery features callrec india hotspot6g wifi7  (see README.md)
+# Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan  (see README.md)
 #
 # Nothing here writes to a partition. Every change is a module load, a RAM (tmpfs) overlay, a bind
 # mount or a runtime setting, so a reboot always returns the phone to stock. The one exception is
@@ -33,11 +33,12 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
+CF=/system/cameradata/camera-feature.xml
 XAC=/optics/configs/carriers/XAC/conf; PRISM=/prism/etc/carriers/XAC
 # md5 of the stock (encoded) XAC files on S918WVLU8GZIF: the CSC tweaks replace them, so they only
 # run when the phone has exactly these
@@ -267,20 +268,49 @@ gms_flags() {
   log "airdrop: Play services Nearby flags on ($n of 2 overrides present)"
 }
 
-# ---------- Samsung feature flags (battery, features) ----------
-ff_tags=""
+# ---------- Samsung feature flags (battery, features, display, logvideo) ----------
+# ff_tags: tags turned on (TRUE) when the stock file doesn't have them.
+# ff_set TAG VALUE: set a tag to a value, replacing the stock one (values may contain spaces).
+ff_tags=""; ff_kv=""
+ff_set() { case "$2" in *'&'*|*'
+'*) fail "ff_set $1: value has & or a newline" ;; esac; ff_kv="$ff_kv$1=$2
+"; }
 ff_apply() {
-  [ -z "$ff_tags" ] && return 1
+  [ -z "$ff_tags" ] && [ -z "$ff_kv" ] && return 1
   mkdir -p $R; bound $FF && umount $FF       # rebuild from the stock file each time
-  grep -v '^</SecFloatingFeatureSet>' $FF > $R/ff.new
-  for t in $ff_tags; do
-    grep -q "<SEC_FLOATING_FEATURE_$t>" $R/ff.new || echo "    <SEC_FLOATING_FEATURE_$t>TRUE</SEC_FLOATING_FEATURE_$t>" >> $R/ff.new
-  done
-  echo '</SecFloatingFeatureSet>' >> $R/ff.new
+  for t in $ff_tags; do grep -q "<SEC_FLOATING_FEATURE_$t>" $FF || ff_set $t TRUE; done
+  printf '%s' "$ff_kv" > $R/ff.kv
+  # replace the values of tags the file has; add the rest before the closing tag
+  awk -v kvf=$R/ff.kv '
+    BEGIN { while ((getline l < kvf) > 0) { i = index(l, "="); k = substr(l, 1, i - 1); val[k] = substr(l, i + 1); ord[++n] = k } }
+    match($0, /<SEC_FLOATING_FEATURE_[A-Z0-9_]+>/) { k = substr($0, RSTART + 22, RLENGTH - 23)
+      if (k in val) { $0 = substr($0, 1, RSTART + RLENGTH - 1) val[k] "</SEC_FLOATING_FEATURE_" k ">"; seen[k] = 1 } }
+    /<\/SecFloatingFeatureSet>/ { for (i = 1; i <= n; i++) if (!(ord[i] in seen))
+      print "    <SEC_FLOATING_FEATURE_" ord[i] ">" val[ord[i]] "</SEC_FLOATING_FEATURE_" ord[i] ">" }
+    { print }' $FF > $R/ff.new
+  grep -q '</SecFloatingFeatureSet>' $R/ff.new || fail "floating_feature edit"
   mv $R/ff.new $R/floating_feature.xml; chmod 644 $R/floating_feature.xml
   chcon u:object_r:system_file:s0 $R/floating_feature.xml
   mount --bind $R/floating_feature.xml $FF || fail "floating_feature bind mount"
-  log "feature flags on: $ff_tags"
+  log "feature flags on: $(printf '%s' "$ff_kv" | cut -d= -f1 | tr '\n' ' ')"
+}
+
+# Log video: the S24 camera settings that turn on Log recording and LUT preview in Pro video, on top
+# of the phone's own camera-feature.xml (the S23's sensor/HAL already records 10-bit Log).
+CF_ADD='<local name="SUPPORT_LOG_VIDEO" value="true"/>
+<local name="SUPPORT_PREVIEW_LUT" value="true"/>'
+camfeat_apply() {
+  mkdir -p $R; bound $CF && umount $CF
+  grep -q '</resources>' $CF || { log "logvideo: $CF has no </resources>; skipped"; return 1; }
+  grep -v '</resources>' $CF > $R/cf.new
+  printf '%s\n' "$CF_ADD" | while read -r l; do
+    n=$(echo "$l" | sed 's/.*name="\([^"]*\)".*/\1/'); grep -q "name=\"$n\"" $CF || echo "    $l" >> $R/cf.new
+  done
+  echo '</resources>' >> $R/cf.new
+  mv $R/cf.new $R/camera-feature.xml; chmod 644 $R/camera-feature.xml
+  chcon u:object_r:system_file:s0 $R/camera-feature.xml
+  mount --bind $R/camera-feature.xml $CF || fail "camera-feature bind mount"
+  log "logvideo: Log and LUT on in Pro video"
 }
 
 # Settings > Battery > Battery information shows health only when an authenticated battery IC
@@ -374,6 +404,16 @@ apply)
   has airdrop && airdrop_overlays && restart=1
   has battery && { ff_tags="$ff_tags BATTERY_SUPPORT_BSOH_SETTINGS SETTINGS_ENABLE_EU_BATTERY_REGULATORY"; battery_auth; }
   has features && ff_tags="$ff_tags SETTINGS_SUPPORT_AUTO_POWER_ON_OFF AUDIO_SUPPORT_VOIP_SOUND_LOUDER"
+  if has display; then  # Vividness slider (Screen mode > Advanced settings) and full-screen AOD wallpaper
+    ff_set LCD_CONFIG_VIVIDNESS 1; ff_set LCD_CONFIG_VIVIDPLUS 1
+    ff_set LCD_CONFIG_AOD_FULLSCREEN 1; ff_set LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION 1
+  fi
+  if has logvideo; then
+    ff_set CAMERA_CONFIG_LOG_VIDEO V1.0; ff_set GALLERY_SUPPORT_LOG_CORRECT_COLOR TRUE
+    camfeat_apply && restart=1
+  fi
+  # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
+  has vulkan && { setprop debug.hwui.renderer skiavk; log "vulkan: apps render with Skia on Vulkan"; restart=1; }
   ff_apply && restart=1
   if has india; then india_apply && { setprop ctl.restart ril-daemon; log "india: mobile network restarting"; restart=1; }
   elif has callrec; then callrec_apply && restart=1; fi
@@ -416,14 +456,18 @@ probe)
   a_rec=$(act eval 'bound $XAC/system/cscfeature.xml && ! bound $PRISM')
   a_6g=$(act eval '[ "$(getprop ro.csc.countryiso_code)" = IN ]')
   a_w7=$(act eval 'bound $WPAS && bound $INI')
+  a_dis=$(act eval 'bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<" $FF')
+  a_log=$(act bound $CF)
+  a_vk=$(act eval '[ "$(getprop debug.hwui.renderer)" = skiavk ]')
   j() { printf '{"id":"%s","available":%s,"why":"%s","active":%s}' "$1" "$( [ -z "$2" ] && echo true || echo false)" "$2" "$3"; }
   printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s},' \
     "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}"
   printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(cat $V/choices 2>/dev/null)" \
     "$( [ -f $V/autostart ] && echo true || echo false)" "$( lock_alive && echo true || echo false)"
-  printf '%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
     "$(j features "$why_s23" $a_fea)" "$(j callrec "$why_csc" $a_rec)" "$(j india "$why_csc" $a_ind)" \
-    "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)"
+    "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)" \
+    "$(j display "$why_s23" $a_dis)" "$(j logvideo "$why_s23" $a_log)" "$(j vulkan "$why_s23" $a_vk)"
   ;;
 loop)
   # init can't start mosey_server (its .rc isn't loaded on this boot). moseyrun starts it the way
@@ -452,6 +496,9 @@ status)
        "$(service check com.google.android.moseyservice.IMoseyService/default | sed 's/.*: //')"
   echo "features: $(bound $FF && grep -oE 'SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
   echo "battery:  $(mounted /sys/class/power_supply tmpfs && echo on || echo off)"
+  echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<' $FF && echo on || echo off)"
+  echo "logvideo: $(bound $CF && echo on || echo off)"
+  echo "vulkan:   renderer $(getprop debug.hwui.renderer | grep . || echo default)"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  CSC country $(getprop ro.csc.countryiso_code)"
   echo "csc:      $(bound $XAC/system/cscfeature.xml && grep -oE '<SalesCode>[A-Z]+' $XAC/system/cscfeature.xml | cut -c12- || echo stock)"

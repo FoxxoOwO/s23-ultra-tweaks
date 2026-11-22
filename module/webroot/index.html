@@ -346,6 +346,9 @@ const TWEAKS = [
   { id: "india", name: "India carrier config", desc: "India (INS) carrier config: call recording, Smart IVR, message cards; the sales code stays XAC" },
   { id: "hotspot6g", name: "6 GHz hotspot", desc: "6 GHz Mobile Hotspot (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz, needs WPA3" },
   { id: "wifi7", name: "Wi-Fi 7 multi-link", desc: "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers; needs AirDrop" },
+  { id: "display", name: "Vividness and full-screen AOD", desc: "Vividness slider in Screen mode and the lock screen wallpaper on Always On Display" },
+  { id: "logvideo", name: "Log video", desc: "Log recording and LUT preview in Pro video (10-bit HEVC)" },
+  { id: "vulkan", name: "Vulkan rendering", desc: "Apps draw with Vulkan instead of OpenGL, as on the S24" },
 ];
 const NAME = Object.fromEntries(TWEAKS.map(t => [t.id, t.name]));
 const IDS = TWEAKS.map(t => t.id);
@@ -358,6 +361,9 @@ const WHERE = {
   india: ["Call recording", "Phone app → Settings → Record calls."],
   hotspot6g: ["6 GHz hotspot", "Settings → Connections → Mobile Hotspot → Band → 6 GHz (security WPA3)."],
   wifi7: ["Wi-Fi 7", "Multi-link needs a Wi-Fi 7 router with MLO on. The Wi-Fi 7 mode page is under Status."],
+  display: ["Vividness", "Settings → Display → Screen mode → Advanced settings (hidden while Eye comfort shield is on). AOD: Lock screen and AOD → Always On Display → Show Lock screen wallpaper."],
+  logvideo: ["Log video", "Camera → More → Pro video → LOG button at the top."],
+  vulkan: ["Vulkan", "Nothing to set; every app drawn after the restart uses Vulkan."],
 };
 
 const CONFIRM_TEXT = "Wi-Fi and the hotspot drop for ~30 s (AirDrop/Wi-Fi 7), and the screen goes black for ~30 s while Android restarts. This page closes during that; reopen it to see the result.";
@@ -882,7 +888,9 @@ function installMock() {
     if (has("india")) add(0.5, "india: INS carrier config on (sales code stays XAC)");
     else if (has("callrec")) add(0.5, "callrec: call recording on (Phone app > Settings > Record calls)");
     if (fail) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(2.0, "FAILED: something went wrong in the mock (framework did not come back)"); return out; }
-    if (["airdrop", "battery", "features", "callrec", "india"].some(has)) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(3.0, "framework back"); }
+    if (has("display") || has("logvideo")) add(0.4, "feature flags on: " + (has("display") ? "LCD_CONFIG_VIVIDNESS LCD_CONFIG_VIVIDPLUS LCD_CONFIG_AOD_FULLSCREEN LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION " : "") + (has("logvideo") ? "CAMERA_CONFIG_LOG_VIDEO GALLERY_SUPPORT_LOG_CORRECT_COLOR" : ""));
+    if (has("vulkan")) add(0.3, "vulkan: apps render with Skia on Vulkan");
+    if (["airdrop", "battery", "features", "callrec", "india", "display", "logvideo", "vulkan"].some(has)) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(3.0, "framework back"); }
     if (has("hotspot6g")) add(0.5, "hotspot6g: CSC country CA -> IN; Mobile hotspot > Band now offers 6 GHz (needs WPA3)");
     if (has("airdrop")) { add(0.4, "airdrop: mosey_server running"); add(0.4, "airdrop: Play services Nearby flags on (2 of 2 overrides present)"); }
     add(0.4, "DONE");
@@ -913,7 +921,7 @@ function installMock() {
     return JSON.stringify({ version: "v1.0.0", module: true,
       phone: { model: "SM-S918W", firmware: "S918WVLU8GZIF", csc: "XAC", android: "17", kernel: "5.15.197-android13-8-34343818-abS918WVLU8GZIF", gms: 264531035 },
       picked: st.picked, autostart: st.autostart, applying: !!st.run,
-      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "the AirDrop payload isn't installed")] });
+      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "the AirDrop payload isn't installed"), tw("display"), tw("logvideo"), tw("vulkan")] });
   }
   function handle(cmd) {
     tick();

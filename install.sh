@@ -57,16 +57,19 @@ can_airdrop=1; why_airdrop=""
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 
-ids=(airdrop battery features callrec india hotspot6g wifi7)
+ids=(airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan)
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)"
       "Battery health page: Settings > Battery > Battery information shows health and cycles"
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "Call recording in the Samsung Phone app"
       "India (INS) carrier config: call recording, Smart IVR, message cards; sales code stays XAC"
       "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz)"
-      "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds 1)")
-avail=($can_airdrop 1 1 $can_csc $can_csc 1 $can_airdrop)
-why=("$why_airdrop" "" "" "$why_csc" "$why_csc" "" "$why_airdrop")
+      "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds 1)"
+      "Vividness slider (Screen mode > Advanced settings) and lock screen wallpaper on Always On Display"
+      "Log video: Log recording and LUT preview in Camera > Pro video"
+      "Vulkan rendering: apps draw with Vulkan instead of OpenGL")
+avail=($can_airdrop 1 1 $can_csc $can_csc 1 $can_airdrop 1 1 1)
+why=("$why_airdrop" "" "" "$why_csc" "$why_csc" "" "$why_airdrop" "" "" "")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
@@ -91,7 +94,7 @@ if [ -z "$picked" ]; then
   r=$(ask "Numbers separated by spaces, Enter for all available: ")
   [ -n "$r" ] || r=$(for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && printf '%s ' $((i+1)); done; true)
   for n in $r; do
-    [[ "$n" =~ ^[1-9]$ ]] && [ "$n" -le ${#ids[@]} ] || die "not an option: $n"
+    [[ "$n" =~ ^[1-9][0-9]?$ ]] && [ "$n" -le ${#ids[@]} ] || die "not an option: $n"
     i=$((n-1)); [ "${avail[$i]}" = 1 ] || die "${ids[$i]} is unavailable on this phone: ${why[$i]}"
     case " $picked " in *" ${ids[$i]} "*) ;; *) picked="$picked ${ids[$i]}" ;; esac
   done
