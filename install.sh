@@ -18,7 +18,8 @@ MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
 say()  { printf '\033[1m%s\033[0m\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
 die()  { printf '\033[31mError:\033[0m %s\n' "$*" >&2; exit 1; }
-ask()  { local a; read -r -p "$1" a </dev/tty || true; printf '%s' "$a"; }
+# A closed input (EOF) must not count as Enter, which means "all tweaks" and "yes"
+ask()  { local a; read -r -p "$1" a </dev/tty || die "no answer (input closed)"; printf '%s' "$a"; }
 
 command -v adb >/dev/null || die "adb not found. Install Android platform-tools: https://developer.android.com/tools/releases/platform-tools"
 command -v curl >/dev/null || die "curl not found"
