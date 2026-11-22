@@ -33,7 +33,7 @@ Portrait video (they crash the camera).
 
 The installer asks which ones you want and greys out the ones your phone can't take.
 
-**Nothing is written to any partition.** Every change is a kernel module load, a RAM overlay, a bind mount or a runtime setting. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), and Samsung Language Core, which `callscreen` installs as an app update (see [Undo](#undo)).
+**Nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), and Samsung Language Core, which `callscreen` installs as an app update (see [Undo](#undo)).
 
 **Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
 
@@ -121,11 +121,11 @@ The S23's Wi-Fi briefly disconnects while Quick Share is looking for Apple devic
 Samsung's S24-and-newer phones do AirDrop through Google's **Mosey** stack. The phone runs Apple's peer-to-peer Wi-Fi protocol (AWDL) itself, using a Qualcomm firmware feature called *Wondertap*. The S23 Ultra has the same Wi-Fi chip as the S24 Ultra (Qualcomm WCN7850), but its firmware, driver and system image leave all of this out. The `airdrop` tweak adds the S24 pieces at runtime:
 
 1. **S24 Wi-Fi driver** (`kiwi_v2.ko`): Samsung's GPL source for the S24 Ultra's qcacld-3.0 driver with Wondertap, built against the S23 kernel. The patches are in `src/qcacld-patch`; they cover the S23's older cnss2 platform driver and a CFI function-type mismatch.
-2. **S24 Wi-Fi firmware** (`amss20.bin`, `phy_ucode20.elf`, `regdb.bin`) in a RAM overlay. The S23's own board file stays.
+2. **S24 Wi-Fi firmware** (`amss20.bin`, `phy_ucode20.elf`, `regdb.bin`) in an overlay. The S23's own board file stays.
 3. **`mhifix.ko`**: cnss2 sizes its firmware-download buffers for the boot-time firmware, and loading the bigger S24 image would crash the kernel. mhifix frees those buffers first.
 4. **`bwfix.ko`**: when AirDrop starts, the S24 firmware asks for a PCIe Gen3 link. The S23's PCIe root port tops out at Gen2, so the request is refused, and the firmware crashes on the refusal. bwfix sets Gen2 and acknowledges.
 5. **`wonder.ko`**: Google's virtual Wi-Fi driver that Mosey drives, with small S23 patches (`src/wonder-patch`).
-6. **Mosey**: `MoseyApp.apk`, `mosey_server` and `libmosey_daemon_ffi.so` from the S24 Ultra system image, added to `/system_ext` in a RAM overlay. `moseyrun` starts the daemon as uid `system` with only `NET_ADMIN`/`NET_RAW`, the same way the S24's init script does.
+6. **Mosey**: `MoseyApp.apk`, `mosey_server` and `libmosey_daemon_ffi.so` from the S24 Ultra system image, added to `/system_ext` in an overlay. `moseyrun` starts the daemon as uid `system` with only `NET_ADMIN`/`NET_RAW`, the same way the S24's init script does.
 7. **Play services**: two Nearby flags (`45704091`, `45723015`) that make Play services hand AirDrop to Mosey, set as local overrides.
 
 A watchdog script also runs. If the Wi-Fi firmware ever crashes, it saves the kernel log and reboots cleanly. Without it, the S24 driver's recovery leaves the phone to hard-reset about a minute later.
@@ -192,7 +192,7 @@ it's kept in `/data/adb/s23tweaks/payload/` so it isn't downloaded again.
 - **audioeraser**: the S23's video editor engine was built without the audio scanner. The tweak swaps in
   the S24 engine and adds its sound-separation libraries and two models.
 - **colortone**: Samsung compiled the S23's Settings to hide the switch. The tweak patches one byte in
-  a RAM copy of Settings (`device/files/SecSettings-ead.patch`, checked by MD5) and adds the S24's
+  a patched copy of Settings, kept on storage (`device/files/SecSettings-ead.patch`, checked by MD5) and adds the S24's
   colour-tone service.
 - **galaxyai**: binds the S24 builds of the three apps over the S23's. While it's on, it replaces any
   Galaxy Store update of Personal Data Intelligence; after a reboot without it, Galaxy Store offers the

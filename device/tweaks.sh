@@ -21,8 +21,10 @@
 #         camerahdr audioeraser colortone galaxyai camextras autoframe settingssearch bargein
 #         callscreen  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
-# Nothing here writes to a partition. Every change is a module load, a RAM (tmpfs) overlay, a bind
-# mount or a runtime setting, so a reboot always returns the phone to stock. The one exception is
+# Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
+# runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
+# (/data/adb/s23tweaks), not in RAM: the kernel won't build an overlay from /data, so each overlay holds
+# only empty placeholders in tmpfs and the real file is bind-mounted over its placeholder (pbind). The one exception is
 # the airdrop tweak's two Play services flag overrides, stored in Play services' own database
 # (harmless without the rest; "unflag" removes them), camextras' camera app setting, and callscreen,
 # which installs Samsung Language Core as an ordinary app (undo: pm uninstall <package>).
@@ -42,7 +44,22 @@ AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
 CF=/system/cameradata/camera-feature.xml
-PL=$V/payload; T24=/dev/s23tweaks_layers    # per-tweak downloads (unpacked in payload/<tweak>/) and their RAM layers
+# Files made on the phone (edited configs) that binds point at, on storage: one folder per boot, since a
+# boot's mounts keep using its files. ly_init deletes the earlier boots' folders the first time in a boot.
+LY=$V/layers/$(cat /proc/sys/kernel/random/boot_id)
+ly_init() { [ -d $LY ] || { rm -rf $V/layers; mkdir -p $LY; }; }
+PL=$V/payload; T24=/dev/s23tweaks_layers    # per-tweak downloads (unpacked in payload/<tweak>/); tmpfs for the layers' placeholders
+# pbind <file on storage> <target> <SELinux type> [exec]: bind a downloaded file over a path (over its
+# placeholder, for a file an overlay adds). A bind keeps /data's nosuid, which would stop a program
+# from entering its own SELinux domain, so for programs BusyBox clears it (toybox mount can't).
+pbind() {
+  if [ -n "$4" ]; then chmod 755 "$1"; else chmod 644 "$1"; fi; chcon u:object_r:$3:s0 "$1"
+  mount -o bind,ro "$1" "$2" || fail "bind $2"
+  [ -n "$4" ] || return 0
+  for bb in /data/adb/ksu/bin/busybox /data/adb/magisk/busybox; do [ -x $bb ] && { $bb mount -o remount,bind,ro,suid "$2"; break; }; done
+  grep " $2 " /proc/mounts | grep -q nosuid && { umount "$2"; fail "couldn't clear nosuid on $2"; }
+  return 0
+}
 AIR=$PL/airdrop                              # the airdrop/wifi7 download: kernel modules, firmware, Mosey, tools
 # The module zip holds only scripts. Every tweak that needs files downloads them from the GitHub release
 # $PAYLOAD_URL when it's picked: tweak, file, SHA-256. A tweak with several lines is one tar split into
@@ -94,9 +111,17 @@ to_root_cgroup() { echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; }
 # kallsyms address of a symbol in a module (kptr_restrict is lowered only for the read)
 ksym() {
   o=$(cat /proc/sys/kernel/kptr_restrict); echo 1 > /proc/sys/kernel/kptr_restrict
-  a=$(grep -E " $1\$" /proc/kallsyms | grep "\[$2\]" | head -1 | cut -d' ' -f1)
+  # lines are "<address> <type> <name>\t[<module>]": match the name and module fields exactly
+  a=$(awk -v s="$1" -v m="[$2]" '$3 == s && $4 == m {print $1; exit}' /proc/kallsyms)
   echo $o > /proc/sys/kernel/kptr_restrict
   [ -n "$a" ] && [ "$a" != 0000000000000000 ] && echo $a
+}
+# ksect <module> <section>: a module section's address (hidden, like kallsyms, unless kptr_restrict <= 1)
+ksect() {
+  o=$(cat /proc/sys/kernel/kptr_restrict); echo 1 > /proc/sys/kernel/kptr_restrict
+  a=$(cat /sys/module/$1/sections/$2 2>/dev/null)
+  echo $o > /proc/sys/kernel/kptr_restrict
+  [ -n "$a" ] && [ "$a" != 0x0000000000000000 ] && echo $a
 }
 
 # ---------- airdrop: kernel side ----------
@@ -126,7 +151,10 @@ wifi_up() {
   wait_for 45 wlan_up && log "Wi-Fi back on" || log "Wi-Fi did not come back by itself"
   cmd wifi set-scan-always-available enabled
 }
-back_to_stock() { mounted /vendor/firmware/kiwi overlay && umount /vendor/firmware/kiwi; insmod $STOCK_KO; wifi_up; }
+back_to_stock() {   # the firmware binds sit on the overlay, so they come off first
+  for m in $(awk '$2 ~ "^/vendor/firmware/kiwi/" {print $2}' /proc/mounts); do umount $m; done
+  mounted /vendor/firmware/kiwi overlay && umount /vendor/firmware/kiwi; insmod $STOCK_KO; wifi_up
+}
 
 airdrop_kernel() {
   A=$AIR
@@ -136,14 +164,18 @@ airdrop_kernel() {
   # cnss2/MHI keep buffers sized for the boot-time firmware; mhifix frees them so the bigger S24
   # firmware gets correctly sized ones. It needs the address of cnss2's static plat_env pointer.
   pe=$(ksym plat_env cnss2) || { back_to_stock; fail "plat_env not found in kallsyms"; }
-  b=$(cat /sys/module/cnss2/sections/.bss); d=$(( 0x$pe - b ))
+  b=$(ksect cnss2 .bss) || { back_to_stock; fail "cnss2 .bss address not readable"; }; d=$(( 0x$pe - b ))
   [ $d -ge 0 ] && [ $d -lt 1048576 ] || { back_to_stock; fail "plat_env 0x$pe is not in cnss2 .bss"; }
   insmod $A/mhifix.ko mode=1 plat_env=0x$pe; r=$(dmesg | grep mhifix | tail -4 | tr '\n' ' ')
   case "$r" in *"tables freed"*"fw_mem DDR freed"*) ;; *) back_to_stock; fail "mhifix: $r" ;; esac
-  # S24 firmware in a RAM overlay over /vendor/firmware/kiwi (the S23 board file stays)
-  T=/dev/s23tweaks_fw; mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_fw $T
-  cp $A/fw/amss20.bin $A/fw/phy_ucode20.elf $A/fw/regdb.bin $T/ && chmod 644 $T/* && chcon u:object_r:vendor_firmware_file:s0 $T $T/*
+  # S24 firmware over /vendor/firmware/kiwi: an overlay of placeholders, each bound to the downloaded file
+  # (the S23 board file stays)
+  T=/dev/s23tweaks_fw; FW="amss20.bin phy_ucode20.elf regdb.bin"
+  mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_fw $T
+  for f in $FW; do : > $T/$f; done; chmod 644 $T/*; chcon u:object_r:vendor_firmware_file:s0 $T $T/*
   mount -t overlay s23tweaks_fwov -o ro,lowerdir=$T:/vendor/firmware/kiwi /vendor/firmware/kiwi || { back_to_stock; fail "firmware overlay"; }
+  for f in $FW; do chmod 644 $A/fw/$f; chcon u:object_r:vendor_firmware_file:s0 $A/fw/$f
+    mount -o bind,ro $A/fw/$f /vendor/firmware/kiwi/$f || { back_to_stock; fail "firmware bind $f"; }; done
   insmod $A/kiwi_v2.ko || { back_to_stock; fail "S24 Wi-Fi driver: $(dmesg | tail -2 | tr '\n' ' ')"; }
   wifi_up; sleep 5
   # bwfix: the S24 firmware asks for a PCIe Gen3 link when AirDrop starts; the S23 refuses (Gen2
@@ -159,20 +191,20 @@ airdrop_kernel() {
 # and the S23's driver config doesn't turn MLO on. Use the S24's wpa_supplicant (same Samsung HAL
 # extensions; it needs one AIDL library the S23 vendor image lacks, added to /vendor/lib64 with a
 # read-only RAM overlay) and the S23's own driver config plus the S24's four MLO lines.
-W7=/dev/s23tweaks_mlo; INI=/vendor/etc/wifi/kiwi_v2/WCNSS_qcom_cfg.ini; WPAS=/vendor/bin/hw/wpa_supplicant
+W7=$LY/mlo; INI=/vendor/etc/wifi/kiwi_v2/WCNSS_qcom_cfg.ini; WPAS=/vendor/bin/hw/wpa_supplicant
 MLO_INI="mlo_support_link_num=2 mlo_5gl_5gh_mlsr=1 oem_eht_mlo_crypto_bitmap=0 epcs_support_enable=1"
 wifi7_bind() {   # sets W7_INI_NEW=1 when the driver has to be reloaded to read the config
   A=$AIR/wifi7
-  mkdir -p $W7; mounted $W7 tmpfs || mount -t tmpfs -o mode=755 s23tweaks_mlo $W7; mkdir -p $W7/lib
+  ly_init; mkdir -p $W7
   if ! bound $WPAS; then
-    cp $A/wpa_supplicant $W7/wpa_supplicant; chmod 755 $W7/wpa_supplicant
-    chcon u:object_r:hal_wifi_supplicant_default_exec:s0 $W7/wpa_supplicant
-    mount --bind $W7/wpa_supplicant $WPAS || fail "wifi7: bind wpa_supplicant"
+    pbind $A/wpa_supplicant $WPAS hal_wifi_supplicant_default_exec exec
   fi
   if ! mounted /vendor/lib64 overlay; then
-    cp $A/android.hardware.wifi.supplicant-V2-ndk.so $W7/lib/; chmod 755 $W7/lib; chmod 644 $W7/lib/*.so
-    chcon u:object_r:vendor_file:s0 $W7/lib $W7/lib/*.so
-    mount -t overlay s23tweaks_mlolib -o ro,lowerdir=$W7/lib:/vendor/lib64 /vendor/lib64 || { umount $WPAS; fail "wifi7: library overlay"; }
+    WL=/dev/s23tweaks_mlolib; SO=android.hardware.wifi.supplicant-V2-ndk.so
+    mkdir -p $WL; mounted $WL tmpfs || mount -t tmpfs -o mode=755 s23tweaks_mlolib $WL
+    : > $WL/$SO; chmod 644 $WL/$SO; chcon u:object_r:vendor_file:s0 $WL $WL/$SO
+    mount -t overlay s23tweaks_mlolib -o ro,lowerdir=$WL:/vendor/lib64 /vendor/lib64 || { umount $WPAS; fail "wifi7: library overlay"; }
+    pbind $A/$SO /vendor/lib64/$SO vendor_file
   fi
   if ! bound $INI; then
     lab=$(ls -Z $INI | cut -d' ' -f1); cp $INI $W7/ini
@@ -211,7 +243,8 @@ airdrop_overlays() {
   M=$AIR/mosey; T=/dev/s23tweaks_mosey
   mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_mosey $T
   mkdir -p $T/bin $T/lib64 $T/priv-app/MoseyApp $T/perm $T/sysconfig $T/vintf
-  cp $M/mosey_server $T/bin/; cp $M/libmosey_daemon_ffi.so $T/lib64/; cp $M/MoseyApp.apk $T/priv-app/MoseyApp/
+  # the three big files are placeholders here, bound to the download below; the XMLs are a few KB
+  : > $T/bin/mosey_server; : > $T/lib64/libmosey_daemon_ffi.so; : > $T/priv-app/MoseyApp/MoseyApp.apk
   cp $M/privapp-permissions-com.google.android.mosey.xml $T/perm/
   cp $M/preinstalled-packages-com.google.android.mosey.xml $M/hiddenapi-allowlist-mosey.xml $T/sysconfig/
   cp $M/manifest_mosey.xml $T/vintf/
@@ -224,7 +257,10 @@ airdrop_overlays() {
     set -- $p
     mount -t overlay s23tweaks_$1 -o ro,lowerdir=$T/$1:$2 $2 || fail "overlay on $2"
   done
-  log "airdrop: Mosey added to /system_ext (RAM overlay)"
+  pbind $M/mosey_server /system_ext/bin/mosey_server mosey_server_exec exec
+  pbind $M/libmosey_daemon_ffi.so /system_ext/lib64/libmosey_daemon_ffi.so system_lib_file
+  pbind $M/MoseyApp.apk /system_ext/priv-app/MoseyApp/MoseyApp.apk system_file
+  log "airdrop: Mosey added to /system_ext (overlay)"
 }
 
 airdrop_post() {
@@ -377,8 +413,12 @@ directorsview_pref() {
 # missing.
 tlayer() { mkdir -p $T24; mounted $T24 tmpfs || mount -t tmpfs -o mode=755 s23tweaks_layers $T24; }
 same_size() { [ "$(stat -c %s "$1" 2>/dev/null)" = "$(stat -c %s "$2" 2>/dev/null)" ]; }
-# stage <folder under /system> <source file>: add the file to the next layer unless /system shows it
-stage() { [ -e /system/$1/${2##*/} ] && return 1; tlayer; mkdir -p $T24/new/$1; cp "$2" $T24/new/$1/ || fail "copy $2 to RAM"; }
+# stage <folder under /system> <source file>: add the file to the next layer unless /system shows it. The
+# layer gets an empty placeholder; layers_mount binds the downloaded file over it (no copy in RAM).
+stage() {
+  [ -e /system/$1/${2##*/} ] && return 1; tlayer; mkdir -p $T24/new/$1
+  : > $T24/new/$1/${2##*/} && echo "$2 /system/$1/${2##*/}" >> $T24/new.binds || fail "stage $2"
+}
 # stage_text <file under /system>: write stdin to the next layer in place of that file
 stage_text() { tlayer; mkdir -p $T24/new/${1%/*}; cat > $T24/new/$1; }
 # An overlay on a folder hides whatever is mounted inside it (other modules' files, earlier binds).
@@ -405,6 +445,7 @@ layers_mount() {
   [ -d $T24/new ] || return 1
   n=1; while [ -e $T24/L$n ]; do n=$((n+1)); done
   mv $T24/new $T24/L$n; LD=$T24/L$n   # not L: that is the log file
+  [ -f $T24/new.binds ] && mv $T24/new.binds $LD.binds
   find $LD -type d -exec chmod 755 {} +; find $LD -type f -exec chmod 644 {} +
   chcon -R u:object_r:system_file:s0 $LD; [ -d $LD/lib64 ] && chcon -R u:object_r:system_lib_file:s0 $LD/lib64
   for d in $LD/*; do d=${d##*/}
@@ -413,8 +454,12 @@ layers_mount() {
     mount -t overlay s23tweaks_$d$n -o ro,lowerdir=$LD/$d:/system/$d /system/$d ||
       { keep_restore; fail "overlay on /system/$d (if tweaks were already added since the last reboot, reboot and apply again)"; }
     keep_restore
-    log "RAM layer on /system/$d: $(cd $LD/$d && find . -type f | sed 's|^\./||' | tr '\n' ' ')"
+    log "layer on /system/$d: $(cd $LD/$d && find . -type f | sed 's|^\./||' | tr '\n' ' ')"
   done
+  [ -f $LD.binds ] && while read src dst; do
+    case "$dst" in /system/lib64/*) ty=system_lib_file ;; *) ty=system_file ;; esac
+    pbind "$src" "$dst" $ty
+  done < $LD.binds
   return 0
 }
 pl_check() {   # pl_check <tweak> <file>...: all present in payload/<tweak>?
@@ -494,12 +539,16 @@ colortone_bind() {
   elif [ "$sm" != $SETTINGS_STOCK_MD5 ]; then
     log "colortone: Settings isn't the S918WVLU8GZIF build, so the Adaptive color tone switch stays hidden"; return
   else
-    tlayer; cp $SETTINGS $T24/SecSettings.apk
-    grep -v '^#' $D/files/SecSettings-ead.patch | while read off oct; do
-      printf "\\$oct" | dd of=$T24/SecSettings.apk bs=1 seek=$off conv=notrunc 2>/dev/null; done
-    [ "$(md5sum $T24/SecSettings.apk | cut -d' ' -f1)" = $SETTINGS_EAD_MD5 ] || { rm -f $T24/SecSettings.apk; fail "colortone: Settings patch gave the wrong file"; }
-    chmod 644 $T24/SecSettings.apk; chcon u:object_r:system_file:s0 $T24/SecSettings.apk
-    mount -o bind,ro $T24/SecSettings.apk $SETTINGS || fail "colortone: bind $SETTINGS"
+    P=$PL/colortone/SecSettings.apk   # the patched copy stays on storage and is reused at the next boot
+    if [ "$(md5sum $P 2>/dev/null | cut -d' ' -f1)" != $SETTINGS_EAD_MD5 ]; then
+      cp $SETTINGS $P.new
+      grep -v '^#' $D/files/SecSettings-ead.patch | while read off oct; do
+        printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
+      [ "$(md5sum $P.new | cut -d' ' -f1)" = $SETTINGS_EAD_MD5 ] || { rm -f $P.new; fail "colortone: Settings patch gave the wrong file"; }
+      mv $P.new $P
+    fi
+    chmod 644 $P; chcon u:object_r:system_file:s0 $P
+    mount -o bind,ro $P $SETTINGS || fail "colortone: bind $SETTINGS"
     am force-stop com.android.settings
   fi
   log "colortone: Adaptive color tone on (Settings > Display)"

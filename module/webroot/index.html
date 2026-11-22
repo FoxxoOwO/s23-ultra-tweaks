@@ -943,7 +943,7 @@ function installMock() {
       add(1.6, "Wi-Fi back on");
       add(0.6, "airdrop: kernel side loaded (wonder: connected to wlan0)");
       if (has("wifi7")) add(0.5, "wifi7: Wi-Fi running with the S24 supplicant (Wi-Fi standard: 11be)");
-      add(0.5, "airdrop: Mosey added to /system_ext (RAM overlay)");
+      add(0.5, "airdrop: Mosey added to /system_ext (overlay)");
     }
     if (has("battery")) add(0.5, "battery: auth IC presented");
     if (has("battery") || has("features")) add(0.4, "feature flags on: " + (has("battery") ? "BATTERY_SUPPORT_BSOH_SETTINGS " : "") + (has("features") ? "SETTINGS_SUPPORT_AUTO_POWER_ON_OFF AUDIO_SUPPORT_VOIP_SOUND_LOUDER" : ""));
