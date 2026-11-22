@@ -159,9 +159,9 @@ mode names in 2023, today and on the S24, so the strings alone don't settle whet
 
 ### Fix: `camerahdr` tweak (untested)
 
-`camerahdr` puts back what One UI 9 removed. Everything is RAM-only and gone after a reboot.
+`camerahdr` puts back what One UI 9 removed. Nothing is written to a partition, and all of it is gone after a reboot.
 
-- The two 2023 libraries, added to `/system/lib64` through a tmpfs overlay.
+- The two 2023 libraries, added to `/system/lib64`: an overlay adds empty placeholders and the libraries are bind-mounted over them from storage, so they use no RAM.
 - Their two lines in `public.libraries-arcsoft.txt`, also through an overlay.
 - `mfhdr.arcsoft.v4,llhdr.arcsoft.v4` appended to `CAMERA_CONFIG_VENDOR_LIB_INFO`.
 
@@ -251,7 +251,7 @@ AI replies to the caller don't, and can't with Samsung's model.
 - Fix: install the real Language Core directly. **4.0.01.24** (versionCode 400124010, the Snapdragon S26
   build from APKMirror, 3.1 GB, md5 `994620f3071706391d17ff132ea16c42`) is Samsung-signed (SHA-256
   `34df0e7a…5f900a42`, the S24 stub's cert too) and installs as an ordinary app.
-- **This is persistent, not RAM-only:** it's a /data/app install that survives reboot. Undo with
+- **This is persistent, unlike the other tweaks:** it's a /data/app install that survives reboot. Undo with
   `pm uninstall com.samsung.android.offline.languagemodel` (`pm uninstall-system-updates` crashes with a
   NullPointerException, because on the S23 it isn't an update of a system app).
 - No Galaxy Store spoofing is needed. The Store checks `deviceId` server-side, and the stub-download service
