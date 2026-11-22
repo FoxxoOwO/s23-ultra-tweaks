@@ -138,3 +138,64 @@ are killed drafts and Samsung's HAL-side changes, and `camerahdr` should stay of
   private, so the `umount` reached init's namespace and removed two live overrides for about 3 minutes.
   Use util-linux `unshare -m --propagation private`, or `mount --make-rprivate /` first, or read the file
   from the firmware image instead.
+
+## AI weather wallpaper: what Samsung's pipeline expects
+
+Written 2026-11-22. Samsung's weather wallpaper is built for the S24's NPU (Hexagon V75). The S23 has V73,
+so its three model files have to be rebuilt. These notes say what the rebuilt files must accept. They come
+from `libSSNeuralCoreVNDK.so` and `liblvm.samsung.so` in Samsung AI Core, and the wallpaper package in
+VisionModel 200517500.
+
+### Confirmed from the code
+
+- **Pipeline:** the wallpaper runs the "Adapter3" pipeline (`SS_SR_WALLPAPER_ADAPTER`, foundation model
+  `SD_V15_I2I`, 10 steps, OLSS scheduler with `olss_weights.json`).
+- **Encoder (SSNet1):** the image goes in normalised to −1..1. The pipeline multiplies the output by
+  `encoder_scale = 0.18215`, hard-coded in `liblvm` and logged as "scaling SSNet1 output by %f". So the
+  encoder model must output **unscaled** latents.
+- **Conditioning:** the pipeline concatenates `[one channel of ones, scaled image latents (4)]` for the
+  **whole** image. No segmentation mask goes into the UNet. The sky mask (`segMaskBuffer`, fast guided
+  filter in `liblvm`) is only used to blend the result afterwards.
+- **Decoder (SSNet3):** the denoised latents go in unchanged, and afterwards the pipeline only clamps to
+  0..1. So the decoder model must apply `1/0.18215` itself and output `x/2 + 0.5`.
+- **Guidance:** each prompt pair has two scales (`wallpaper_prompt_scale.txt`, e.g. `6 7 6.5 1.6`), logged
+  as "using guidance scaling factors %f and %f". There is a three-way concatenation in the denoise loop.
+  This matches InstructPix2Pix guidance, with a text scale and an image scale.
+- **Mode-2 scaling isn't this path:** the `Image2ImagePipeline` class also scales latents by 0.18215 / 1/0.18215,
+  but only in its mode 2. The wallpaper uses Adapter3.
+
+### Tested on a PC (float, public models, Samsung's conventions)
+
+- **SD1.5-inpainting UNet (first rebuild): fails.** With Samsung's conditioning (mask all ones, full-image
+  latents) it only blows out the colours and makes no weather change. It produced good edits only with a
+  sky mask and masked latents, which Samsung's pipeline never provides.
+- **InstructPix2Pix UNet (SD1.5 base): works.** With the image latents un-scaled inside the graph and
+  three-pass guidance using Samsung's own prompt pairs and scales, it gives scene-preserving snow,
+  snowy-evening, golden-hour, night, clear-after-rain and rainy-night edits. "Dark night" at text scale 9.0
+  comes out nearly black.
+- **Next:** rebuild the UNet and its time-embedding file from InstructPix2Pix for V73. Then test on the
+  phone; the order of the UNet's 9 input channels is only inferred (`[noisy latents, ones, image latents]`).
+
+## Call Screening (One UI 9 Phone app on the S23)
+
+- **The app side works.** The S24 Phone and Call Assist builds show the Call screening page, and its switch
+  sets `call_screening=1` in Settings.System. With the switch off, InCallUI logs
+  `getCallScreeningConfigState: DISABLED` and calls go to Text call.
+- **It needs Samsung Language Core** (`com.samsung.android.offline.languagemodel`). The firmware ships only a
+  stub (1.0.00.38). InCallUI reads a `FUNCTION_INFO` JSON from Language Core's manifest. Call Screening
+  needs the `CallScreeningResponse` function, which the real builds list for ko, en, es, fr, de, it, pt,
+  zh, ja, pl, hi, th, vi, ru, id and ar.
+- **No Language Core build fits the S23.** Each build carries Samsung's on-device LLM compiled for one NPU.
+  The builds on APKMirror (checked by reading their file lists, not downloaded):
+
+  | Version | Build number | Models | Target |
+  |---|---|---|---|
+  | 4.1.20.28 | 412028100 | `.nnc`, `lora_lsi_*` | Exynos S26 |
+  | 4.0.01.24 | 400124010 | QNN 2.38/2.39, `libQnnHtpV81Stub` | Snapdragon S26 |
+  | 3.2.40.5 | 324005500 | `.dla` | MediaTek |
+
+  Galaxy Store answers "not compatible (9908)" on the S23, and Samsung's stub-download service refuses
+  the package.
+- **Possible partial route (untested):** a build whose manifest lists `CallScreeningResponse` would pass
+  InCallUI's check. The LLM-written replies and summary would then fail, because the V81 models can't run
+  on V73. Whether the greeting and transcription still work without them is unknown.
