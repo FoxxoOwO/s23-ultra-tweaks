@@ -1,4 +1,55 @@
-# Findings
+# One UI 9 quietly removed the Galaxy S23 Ultra's HDR processing. Planned obsolescence?
+
+The S23 Ultra's One UI 6 firmware from 2023 had two ArcSoft camera processing steps: multi-frame HDR and
+low-light HDR. On One UI 9 both are gone: the libraries and their entries in the camera's processing list.
+The camera app still has the steps, and without them it runs a stand-in that returns the frame
+unchanged. The evidence below shows what was removed, not why, so whether this is planned obsolescence
+is a question it raises, not one it answers.
+
+## How we tracked it down
+
+1. **What looked wrong.** Owners report that on One UI 9 S23 Ultra photos look flat and soft, that the
+   final image appears instantly, and that the old "processing" step after a shot is gone.
+2. **Is processing dead?** No. A low-light shot in logcat ran the full path: a draft, 11 RAW frames
+   through Super Night (3.1 s), and the processed photo 5.4 s after the shot
+   ([details](#1-the-low-light-path-still-processes)).
+3. **A first, ordinary cause.** If the camera process is killed while a photo is still processing, the
+   unprocessed draft becomes the permanent photo
+   ([details](#2-a-killed-camera-keeps-the-draft-forever)).
+4. **Compare the firmware.** We put the S23's One UI 6 firmware (S918WVLS2BWKA, 2023) next to its
+   current One UI 9 firmware (S918WVLU8GZIF) and the S24 Ultra's (S928BXXU6EZJB). We checked the
+   `CAMERA_CONFIG_VENDOR_LIB_INFO` feature flag, `/system/lib64`, `public.libraries-arcsoft.txt` and
+   `camera-feature.xml`.
+5. **What was missing.** `mfhdr.arcsoft.v4` and `llhdr.arcsoft.v4` are gone from the list, and
+   `libhigh_dynamic_range.arcsoft.so` (13 MB) and `liblow_light_hdr.arcsoft.so` (19 MB) are gone from
+   the phone. The S24 Ultra doesn't have them either. `camera-feature.xml` has no processing-related
+   change ([table](#3-what-one-ui-9-removed)).
+6. **Look inside the camera app.** It still sends shot modes 20–29 to an `MF_HDR` chain and 30–35,
+   37–39 and 60 to an `LL_HDR` chain. When a chain's feature isn't listed, it uses `MfHdrDummyNode` /
+   `LlHdrDummyNode`, which return the input buffer unchanged. Today's `libnode-jni.so` still names both
+   libraries, and the symbols it looks up match the 2023 libraries' exports exactly
+   ([details](#4-why-the-2023-libraries-should-still-work)).
+7. **Rule out the rest.** "Prioritize quality" is on maximum, there is no server-side processing
+   config, and this module's own flag changes don't touch the processing list
+   ([details](#6-settings-and-the-reddit-claims)).
+8. **Put it back.** The `camerahdr` tweak adds the two 2023 libraries, their lines in
+   `public.libraries-arcsoft.txt` and the two list entries, then goes through a framework restart.
+   **It is untested** ([the fix and how to check it](#fix-camerahdr-tweak-untested)).
+
+**Still open:** only dark scenes were shot, and they used Super Night or a single frame. No MF_HDR or
+LL_HDR mode appeared ([shot modes](#5-shot-modes-seen-live-dark-scenes-only)). Daylight, backlit, 3x and
+10x shots will show whether One UI 9 still picks those modes and falls back to the dummy. If it never
+does, the removal is harmless on this firmware.
+
+The camera isn't the only place where the firmware leaves out something the S23 can do. One UI 9 still
+ships Director's view, which the S23 had in 2023, but hides it. The S23's camera already records 10-bit;
+Log video only needs Samsung's switches turned on. Samsung compiled the S23's Settings to hide the
+Adaptive color tone switch. Not every gap is like this: Samsung's models for the AI weather wallpaper
+and Call Screening's AI summary are built for other NPUs, not the S23's
+([weather wallpaper](#ai-weather-wallpaper-what-samsungs-pipeline-expects),
+[Call Screening](#call-screening-one-ui-9-phone-app-on-the-s23)).
+
+## Findings
 
 Research notes from porting S24 features to the Galaxy S23 Ultra (SM-S918W, S918WVLU8GZIF, One UI 9 /
 Android 17). Each section says what was confirmed on the phone and what is still unverified.
