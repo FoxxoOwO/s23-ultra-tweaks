@@ -178,24 +178,51 @@ VisionModel 200517500.
 
 ## Call Screening (One UI 9 Phone app on the S23)
 
-- **The app side works.** The S24 Phone and Call Assist builds show the Call screening page, and its switch
-  sets `call_screening=1` in Settings.System. With the switch off, InCallUI logs
-  `getCallScreeningConfigState: DISABLED` and calls go to Text call.
-- **It needs Samsung Language Core** (`com.samsung.android.offline.languagemodel`). The firmware ships only a
-  stub (1.0.00.38). InCallUI reads a `FUNCTION_INFO` JSON from Language Core's manifest. Call Screening
-  needs the `CallScreeningResponse` function, which the real builds list for ko, en, es, fr, de, it, pt,
-  zh, ja, pl, hi, th, vi, ru, id and ar.
-- **No Language Core build fits the S23.** Each build carries Samsung's on-device LLM compiled for one NPU.
-  The builds on APKMirror (checked by reading their file lists, not downloaded):
+**Status: partly working, tested on a live call on 2026-11-23.** Screening works; the AI summary and the
+AI replies to the caller don't, and can't with Samsung's model.
 
-  | Version | Build number | Models | Target |
-  |---|---|---|---|
-  | 4.1.20.28 | 412028100 | `.nnc`, `lora_lsi_*` | Exynos S26 |
-  | 4.0.01.24 | 400124010 | QNN 2.38/2.39, `libQnnHtpV81Stub` | Snapdragon S26 |
-  | 3.2.40.5 | 324005500 | `.dla` | MediaTek |
+| Part | Status |
+|---|---|
+| Call screening switch (Phone settings) | Works once Language Core is installed |
+| Screen call button on incoming calls | Works |
+| Greeting read to the caller (TTS, Hindi tested) | Works |
+| Recording the caller / voice message | Works |
+| Caller name and purpose summary | Fails: "Something went wrong while summarizing this call." |
+| AI-generated replies to the caller | Fail (`FAILED_SLC_PROCESS_KILLED`); screening carries on without them |
 
-  Galaxy Store answers "not compatible (9908)" on the S23, and Samsung's stub-download service refuses
-  the package.
-- **Possible partial route (untested):** a build whose manifest lists `CallScreeningResponse` would pass
-  InCallUI's check. The LLM-written replies and summary would then fail, because the V81 models can't run
-  on V73. Whether the greeting and transcription still work without them is unknown.
+### How it was enabled
+
+- The Phone settings app (TelephonyUI) only checks that Samsung Language Core
+  (`com.samsung.android.offline.languagemodel`) lists `CallScreeningResponse` in its `FUNCTION_INFO`
+  manifest metadata. The firmware ships only a stub (1.0.00.38), so turning the switch on opened Galaxy
+  Store, which refuses the S23 with "not compatible (9908)".
+- Fix: install the real Language Core directly. **4.0.01.24** (versionCode 400124010, the Snapdragon S26
+  build from APKMirror, 3.1 GB, md5 `994620f3071706391d17ff132ea16c42`) is signed with the same Samsung cert
+  as the stub (SHA-256 `34df0e7a…5f900a42`), so `pm install -r` accepts it as an ordinary update.
+- **This is persistent, not RAM-only:** it's a /data/app update that survives reboot. Undo with
+  `pm uninstall-system-updates com.samsung.android.offline.languagemodel`.
+- No Galaxy Store spoofing is needed. The Store checks `deviceId` server-side, and the stub-download service
+  answers "Application is not approved as stub" even for the S24 Ultra.
+
+### Why the summary and replies fail
+
+- Every LLM step (caller/purpose summary, replies, Lite mode's `ToneConversion`) runs Samsung's on-device
+  LLM inside Language Core. Each build carries it as a QNN context binary for one NPU: 4.0.01.x V81 (S26
+  Snapdragon), 3.1.x Exynos `.nnc`, 3.2.x MediaTek `.dla`. No build targets the S23's V73.
+- On the S23 it fails safely, before any model reaches the DSP. libQnnHtp picks the stub by SoC, and the APK
+  ships only `libQnnHtpV81Stub.so`; the vendor's V73 stub is outside the app's linker namespace:
+  `QnnDsp: Failed in loading stub: libQnnHtpV73Stub.so not found` → AI Core `LlmWrapperService` error 8400
+  "Language core is closed by system". No CDSP crash. (Contrast: the weather model crashed the CDSP because
+  AI Core bundles its own V73 stub.)
+- Its SSNeural allowlist does include SM8550, so it isn't a chip-check rejection.
+
+### Paths not taken
+
+- InCallUI test mode (`key_boolean_test_mode_master` + `key_preference_list_call_screening_solution`:
+  1 on-device, 2 on-device+cloud, 3 Gemini, 4 Gemini advanced, 5 Lite) can route the LLM step off-device.
+  Mode 2 posts transcripts over plain HTTP to `43.202.243.81:7002` (Samsung internal test server); modes
+  3/4 call Gemini with an API key embedded in InCallUI. Not used: the first is unencrypted and goes to an
+  unknown host, and the second uses Samsung's credentials.
+- A replacement-model route is possible but wasn't built: an LSPosed hook on InCallUI's
+  `CallScreeningOnDeviceAdapter` answering with a V73-compiled model (Qualcomm's Llama 3.2 3B for SM8550
+  via Genie) or a CPU model.
