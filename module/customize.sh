@@ -17,12 +17,14 @@ case "$model" in
   *) abort "! This module is for the Galaxy S23 Ultra (SM-S918*), not $model" ;;
 esac
 
-# The kernel the AirDrop/Wi-Fi 7 payload was built for (tweaks.sh is the single source)
-want=$(sed -n 's/^AIRDROP_KERNEL=\([^ #]*\).*/\1/p' "$MODPATH/tweaks.sh" | head -n 1)
-if [ -n "$want" ] && [ "$kern" = "$want" ]; then
+# The firmware the AirDrop/Wi-Fi 7 modules are checked against (tweaks.sh is the single source)
+kb=$(sed -n 's/^AIRDROP_KBASE=\([^ #]*\).*/\1/p' "$MODPATH/tweaks.sh" | head -n 1)
+fws=$(sed -n 's/^AIRDROP_FW="\([^"]*\)".*/\1/p' "$MODPATH/tweaks.sh" | head -n 1); ok=0
+for f in $fws; do [ "$kern" = "$kb$f" ] && ok=1; done
+if [ $ok = 1 ]; then
   ui_print "- AirDrop / Wi-Fi 7: the kernel modules match this kernel"
 else
-  ui_print "! AirDrop / Wi-Fi 7 need firmware S918WVLU8GZIF (kernel ${want:-unknown});"
+  ui_print "! AirDrop / Wi-Fi 7 need firmware ${fws:-unknown};"
   ui_print "!   this phone runs $kern. Those two stay unavailable; the other tweaks still work."
 fi
 

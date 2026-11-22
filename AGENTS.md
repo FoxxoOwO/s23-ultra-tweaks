@@ -33,10 +33,10 @@ The release is built and tested for exactly one setup:
 | `battery`, `features` | No (One UI 9 floating features) | Check that the tags still exist in `/system/etc/floating_feature.xml` |
 | `hotspot6g` | Mostly no | Re-check `SemWifiApServiceImpl.isRegionFor6GCountry()` in `/system/framework/semwifi-service.jar`; `IN` must still pass |
 | `callrec`, `india` | **Yes**: XAC on GZIF only | New CSC files + new MD5 gates (see "Carrier config") |
-| `airdrop`, `wifi7` kernel modules | **Yes**: exact kernel build | Rebuild all four `.ko`s (see "Kernel modules") |
+| `airdrop`, `wifi7` kernel modules | **Yes**: kernel build (all models of one build share them) | Same build, other model: check and add to `AIRDROP_FW` (see "Another model on the same build"). New build: rebuild all four `.ko`s (see "Kernel modules") |
 | `airdrop` payload (firmware, Mosey, supplicant) | Android version + S24 release | Re-extract from a matching S24 firmware (see "Payload") |
 | Play services flags `45704091`, `45723015` | Play services version | Re-check if AirDrop doesn't show up (see "Play services") |
-| `AIRDROP_KERNEL`, `PAYLOAD*`, `PAYLOAD_SHA256` | Yes | Update in `install.sh` and `device/tweaks.sh` |
+| `AIRDROP_KBASE`, `AIRDROP_FW`, `PAYLOAD*` | Yes | Update in `install.sh` and `device/tweaks.sh` |
 
 Collect this from the phone first:
 
@@ -50,8 +50,20 @@ adb shell su -c 'cat /proc/config.gz' | gunzip > phone.config
 
 `kiwi_v2.ko` (the S24 qcacld-3.0 driver with Wondertap), `wonder.ko`, `mhifix.ko` and `bwfix.ko` are out-of-tree modules for the phone's **running** kernel. Two things must match exactly, or `insmod` fails:
 
-- **vermagic**: the `UTS_RELEASE` string. `build/prep-vendor-tree.sh` writes it to `include/generated/utsrelease.h`. Set it to the phone's `uname -r`.
+- **vermagic**: the `UTS_RELEASE` string. `build/prep-vendor-tree.sh` writes it to `include/generated/utsrelease.h`. Set it to the phone's `uname -r`. (With MODVERSIONS the kernel compares only the part after the release name, `SMP preempt mod_unload modversions aarch64`, which is why one build serves every model of a firmware month.)
 - **Symbol CRCs** (MODVERSIONS): every imported symbol's CRC must equal the phone's. A mismatch shows in `dmesg` as `disagrees about version of symbol`.
+
+### Another model on the same build
+
+Samsung builds every S23 Ultra model of one month from the same kernel source (GZIF: S918W, B, U1, U, N all run GKI `5.15.197-android13-8-34343818`). To add a model, get its firmware (`samloader download -m SM-S918B -r EUX`), take `boot.img`, and `vendor_dlkm`, `system_dlkm` and `vendor` from `super.img` (`simg2img`, then an LP-metadata extractor, then `fsck.erofs --extract`), and run:
+
+```sh
+strings -n 20 boot.img | grep -m1 'Linux version'          # same GKI build as AIRDROP_KBASE?
+python3 -I tools/kocompat.py <its modules dir> kiwi_v2.ko wonder.ko mhifix.ko bwfix.ko   # want 0 CRC mismatches
+python3 -I tools/modcmp.py <S918W modules dir> <its modules dir>                         # want "Wi-Fi stack: IDENTICAL"
+```
+
+Also compare `vendor/firmware/kiwi/amss20.bin` (mhifix's `fw_alloc_size` assumes its size). If all match, add the firmware to `AIRDROP_FW` in `device/tweaks.sh` and `install.sh`.
 
 ### 1. Sources and toolchain
 

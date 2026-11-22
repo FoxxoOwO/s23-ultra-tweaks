@@ -1,12 +1,16 @@
 # Changelog
 
+## v1.2.0
+
+- **AirDrop and Wi-Fi 7 on more S23 Ultra models:** S918B, S918U1, S918U and S918N on One UI 9 build GZIF, besides the S918W. All five run the same GKI kernel build; their Wi-Fi drivers (cnss2, mhi, cfg80211, mac80211, ipa) have the same code and every symbol the AirDrop modules import has the same CRC, checked against each firmware's files. Only the S918W has been tested on a phone so far. `AIRDROP_FW` in `device/tweaks.sh` lists the firmware; `tools/kocompat.py` and `tools/modcmp.py` check a new one.
+- `india` is now labelled for what it is to Airtel/Jio users: the **Use 5G standalone networks** switch, call recording, Smart IVR and message cards. With an Indian SIM (MCC 404/405) the Carrier category (module page and installer) picks `india` instead of `callrec`.
+
 ## v1.1.0
 
 - **Categories:** the tweaks are grouped into Connectivity, Camera, Display and graphics, Galaxy AI and Samsung apps, Battery and settings, and Carrier. The module page has a checkbox per category (all, some or none), and the installer takes a category letter or single tweak numbers.
 - New tweaks: `camextras` (Director's view and Super steady horizontal lock), `autoframe` (4K auto framing, untested), `settingssearch` (S24 Settings search bar, 10 MB download), `bargein` (Bixby barge-in, untested) and `callscreen` (Call screening via Samsung Language Core; screening works, the AI summary doesn't; persistent; 3.1 GB download in two parts).
 - Camera settings from several tweaks now share one rebuilt camera-feature.xml.
 - **No tweak files in RAM:** the overlays hold only empty placeholders in tmpfs, and every real file (AirDrop's driver files and Mosey, the Wi-Fi 7 supplicant and library, the camera HDR libraries, color tone's patched Settings) is bind-mounted from storage. All tweaks on now take 24 KB of tmpfs instead of about 107 MB. Programs bound from /data get `nosuid` cleared with BusyBox so they still enter their SELinux domains (the kernel won't build an overlay from /data).
-- `india` is now labelled for what it is to Airtel/Jio users: the **Use 5G standalone networks** switch, call recording, Smart IVR and message cards. With an Indian SIM (MCC 404/405) the Carrier category (module page and installer) picks `india` instead of `callrec`.
 - **Removing the module cleans up everything it made:** Play services flags, Language Core (if it installed it), the Camera setting, cached app manifests and `/data/adb/s23tweaks`. The cleanup (`tweaks.sh cleanup`) waits for Android and the first unlock.
 - Fixed: after a reboot, apps the tweaks had swapped (e.g. Now Brief / Smart Suggestions) could crash in a loop: Android kept the S24 build's parsed manifest in `/data/system/package_cache`. Every framework restart now drops the cache entries of the bound APKs.
 - Fixed: AirDrop failed on phones booted with `kptr_restrict=2` (the kallsyms line match never matched, and the cnss2 section address read as 0).

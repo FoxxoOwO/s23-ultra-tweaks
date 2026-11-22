@@ -7,7 +7,7 @@ category or single tweaks.
 
 | # | Category | Tweak | What you get | Works on |
 |---|---|---|---|---|
-| 1 | Connectivity | `airdrop` | **AirDrop with iPhones, iPads and Macs.** Quick Share → *Share with Apple devices* | SM-S918W, firmware **S918WVLU8GZIF** only (the kernel modules are built for that exact kernel) |
+| 1 | Connectivity | `airdrop` | **AirDrop with iPhones, iPads and Macs.** Quick Share → *Share with Apple devices* | One UI 9 build **GZIF** on SM-S918W, S918B, S918U1, S918U or S918N. Tested on the S918W; the others have the same Wi-Fi drivers and kernel symbols (checked against their firmware files) |
 | 2 | Connectivity | `wifi7` | **Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes `airdrop` | same as `airdrop` |
 | 3 | Connectivity | `hotspot6g` | **6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz | any S23 Ultra on One UI 9 |
 | 4 | Camera | `logvideo` | **Log video**: Camera → Pro video gets the LOG button and LUT preview (10-bit HEVC) | any S23 Ultra on One UI 9 |
@@ -241,11 +241,11 @@ items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
 
 ## Known limitations
 
-- **AirDrop needs firmware S918WVLU8GZIF.** Kernel modules only load on the kernel they were built for. For other firmware, rebuild them (below) against that firmware's kernel source.
+- **AirDrop needs One UI 9 build GZIF** (S918WVLU8GZIF, S918BXXUAGZIF, S918U1UEU8GZIF, S918USQU8GZIF or S918NKSU8GZIF). The modules are built on the S918W kernel. The other four have the same Wi-Fi drivers and the same kernel symbol CRCs, checked with `tools/kocompat.py` and `tools/modcmp.py` against their firmware files, but only the S918W has been tested on a phone. A different build needs the modules rebuilt (below).
 - Only **sending** to Apple devices has been tested. Receiving from them hasn't.
 - The Wi-Fi link to the PCIe bus stays at Gen2, so very large transfers may be slower than on an S24.
 - `callrec` and `india` replace three carrier config files. They only apply when those files exactly match the S918WVLU8GZIF XAC ones (checked by MD5), and never touch the sales code (`mps_code.dat`, `sales_code.dat`, `omc.info`). Changing the sales code can factory-reset the phone.
-- Tested on one phone: SM-S918W, S918WVLU8GZIF, Android 17, Play services 26.45.
+- Tested on one phone: SM-S918W, S918WVLU8GZIF, Android 17, Play services 26.45. Reports from other models are welcome.
 
 ## Other firmware: let your AI agent build it
 

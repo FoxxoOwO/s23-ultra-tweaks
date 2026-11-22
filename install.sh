@@ -8,8 +8,8 @@ set -euo pipefail
 # below can read the rest of the script from stdin (curl | bash).
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
-VERSION=v1.1.0
-AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
+VERSION=v1.2.0
+AIRDROP_KBASE=5.15.197-android13-8-34343818-ab; AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"   # as in device/tweaks.sh
 PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
 MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
 
@@ -52,7 +52,8 @@ root_ok || die "no root. On the phone: open DFRoot and tap LAUNCH ROOT, then in 
 # ---- what can this phone take? ----
 gms=$(sh_ 'dumpsys package com.google.android.gms | grep -m1 versionCode' | grep -oE 'versionCode=[0-9]+' | cut -d= -f2)
 can_airdrop=1; why_airdrop=""
-[ "$kernel" = "$AIRDROP_KERNEL" ] || { can_airdrop=0; why_airdrop="needs firmware S918WVLU8GZIF (this phone runs $build)"; }
+k_ok=0; for f in $AIRDROP_FW; do [ "$kernel" = "$AIRDROP_KBASE$f" ] && k_ok=1; done
+[ $k_ok = 1 ] || { can_airdrop=0; why_airdrop="needs firmware ${AIRDROP_FW// /, } (this phone runs $build)"; }
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 # an Indian SIM (MCC 404/405) makes the carrier picks take the India config instead of plain call recording

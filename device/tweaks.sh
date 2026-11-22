@@ -40,7 +40,12 @@ mkdir -p $V; L=$V/tweaks.log; R=$V/run
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
 TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
-AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
+# Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
+# All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
+# mac80211, ipa) has the same code and symbol CRCs as S918WVLU8GZIF, which the modules are built on.
+AIRDROP_KBASE=5.15.197-android13-8-34343818-ab
+AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"
+kernel_supported() { for f in $AIRDROP_FW; do [ "$(uname -r)" = "$AIRDROP_KBASE$f" ] && return 0; done; return 1; }
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
 CF=/system/cameradata/camera-feature.xml
@@ -765,7 +770,7 @@ apply)
   has wifi7 && ! has airdrop && fail "wifi7 needs airdrop (the S24 Wi-Fi driver)"
   payload_fetch   # before the AirDrop driver swap takes Wi-Fi down
   if has airdrop; then
-    [ "$(uname -r)" = "$AIRDROP_KERNEL" ] || fail "airdrop needs kernel $AIRDROP_KERNEL (firmware S918WVLU8GZIF)"
+    kernel_supported || fail "airdrop: kernel $(uname -r) isn't one the AirDrop modules are checked against (firmware: $AIRDROP_FW)"
     has wifi7 && wifi7_bind   # before the driver loads, so it reads the MLO settings
     airdrop_kernel
     if has wifi7; then [ "${AK_LOADED:-0}" = 1 ] && [ "${W7_INI_NEW:-0}" = 1 ] && wifi7_reload; wifi7_check; fi
@@ -823,7 +828,7 @@ probe)
   ver=$( [ $MODULE = 1 ] && grep -m1 '^version=' $D/module.prop | cut -d= -f2 || echo script)
   why_s23=""; case "$model" in SM-S918*) ;; *) why_s23="this is for the Galaxy S23 Ultra (SM-S918*), not $model" ;; esac
   why_ad=$why_s23
-  [ -z "$why_ad" ] && [ "$kern" != "$AIRDROP_KERNEL" ] && why_ad="needs firmware S918WVLU8GZIF (this phone runs $build)"
+  [ -z "$why_ad" ] && ! kernel_supported && why_ad="needs firmware $(echo $AIRDROP_FW | sed 's/ /, /g') (this phone runs $build)"
   [ -z "$why_ad" ] && [ "${gms:-0}" -lt $GMS_MIN ] && why_ad="needs Google Play services 26.11 or newer"
   why_csc=$why_s23; [ -z "$why_csc" ] && [ "$csc" != XAC ] && why_csc="needs XAC (Canadian) firmware (this phone is $csc)"
   why_bat=$why_s23; [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/asoc ] && why_bat="this phone has no battery data in /efs/FactoryApp"
