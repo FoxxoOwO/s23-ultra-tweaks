@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v1.1.0
+
+- **Categories:** the tweaks are grouped into Connectivity, Camera, Display and graphics, Galaxy AI and Samsung apps, Battery and settings, and Carrier. The module page has a checkbox per category (all, some or none), and the installer takes a category letter or single tweak numbers.
+- New tweaks: `camextras` (Director's view and Super steady horizontal lock), `autoframe` (4K auto framing, untested), `settingssearch` (S24 Settings search bar, 10 MB download), `bargein` (Bixby barge-in, untested) and `callscreen` (Call screening via Samsung Language Core; screening works, the AI summary doesn't; persistent; bring your own 3.1 GB APK).
+- Camera settings from several tweaks now share one rebuilt camera-feature.xml.
 
 - New tweaks: `display` (Vividness slider and full-screen AOD wallpaper), `logvideo` (Log recording and LUT preview in Pro video) and `vulkan` (Skia on Vulkan for apps).
 - Feature flags can now be set to values, replacing the stock ones (not only added as TRUE).

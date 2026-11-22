@@ -8,7 +8,7 @@ set -euo pipefail
 # below can read the rest of the script from stdin (curl | bash).
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
-VERSION=v1.0.0
+VERSION=v1.1.0
 PAYLOAD=airdrop-payload-S918WVLU8GZIF.tar.gz
 PAYLOAD_SHA256=84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
@@ -58,23 +58,44 @@ can_airdrop=1; why_airdrop=""
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 
-ids=(airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr audioeraser colortone galaxyai)
+# Language Core for callscreen: too big for a GitHub release (3.1 GB), so it's never downloaded. Give
+# your own copy with S23T_LANGCORE=<file>, or have it in $PHONE_DIR/dl/ already.
+LC_APK=languagecore-4.0.01.24.apk
+can_lc=0; why_lc="needs Samsung Language Core 4.0.01.24 (3.1 GB): run with S23T_LANGCORE=<apk> (see the README)"
+if [ -n "${S23T_LANGCORE:-}" ]; then [ -f "$S23T_LANGCORE" ] || die "S23T_LANGCORE: $S23T_LANGCORE not found"; can_lc=1; why_lc=""
+elif [ "$(sh_ "su -c '[ -f $PHONE_DIR/dl/$LC_APK ] && echo y; dumpsys package com.samsung.android.offline.languagemodel | grep -m1 -oE \"versionCode=4[0-9]{8}\"'" | head -n 1)" != "" ]; then can_lc=1; why_lc=""; fi
+
+# Tweaks, grouped in categories. A category letter picks every available tweak in it.
+ids=(airdrop wifi7 hotspot6g
+     logvideo camextras camerahdr autoframe
+     display colortone vulkan
+     galaxyai audioeraser settingssearch callscreen bargein
+     battery features
+     callrec india)
+cat=(A A A  B B B B  C C C  D D D D D  E E  F F)
+cats=(A B C D E F)
+catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier (XAC firmware only)")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)"
+      "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds AirDrop)"
+      "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz)"
+      "Log video: Log recording and LUT preview in Camera > Pro video"
+      "Camera extras: Director's view (front + back at once) and Super steady horizontal lock"
+      "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"
+      "4K auto framing: the S24's UHD auto framing in video (untested)"
+      "Vividness slider (Screen mode > Advanced settings) and lock screen wallpaper on Always On Display"
+      "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
+      "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
+      "Galaxy AI apps: the S24's Now Brief, Creative Studio and Call Assist (219 MB download)"
+      "Audio Eraser: remove wind, noise, music or voices from videos in Gallery (34 MB download)"
+      "Settings search: the S24's new Settings search bar; natural-language answers stay off (10 MB download)"
+      "Call screening: installs Samsung Language Core; screening and voice messages work, the AI summary doesn't (persistent)"
+      "Bixby barge-in: talk over Bixby while it answers (untested)"
       "Battery health page: Settings > Battery > Battery information shows health and cycles"
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "Call recording in the Samsung Phone app"
-      "India (INS) carrier config: call recording, Smart IVR, message cards; sales code stays XAC"
-      "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz)"
-      "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds 1)"
-      "Vividness slider (Screen mode > Advanced settings) and lock screen wallpaper on Always On Display"
-      "Log video: Log recording and LUT preview in Camera > Pro video"
-      "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
-      "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"
-      "Audio Eraser: remove wind, noise, music or voices from videos in Gallery (34 MB download)"
-      "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
-      "Galaxy AI apps: the S24's Now Brief, Creative Studio and Call Assist (219 MB download)")
-avail=($can_airdrop 1 1 $can_csc $can_csc 1 $can_airdrop 1 1 1 1 1 1 1)
-why=("$why_airdrop" "" "" "$why_csc" "$why_csc" "" "$why_airdrop" "" "" "" "" "" "" "")
+      "India (INS) carrier config: call recording, Smart IVR, message cards; sales code stays XAC")
+avail=($can_airdrop $can_airdrop 1  1 1 1 1  1 1 1  1 1 1 $can_lc 1  1 1  $can_csc $can_csc)
+why=("$why_airdrop" "$why_airdrop" ""  "" "" "" ""  "" "" ""  "" "" "" "$why_lc" ""  "" ""  "$why_csc" "$why_csc")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
@@ -92,16 +113,31 @@ if [ -n "$last" ]; then
 fi
 if [ -z "$picked" ]; then
   say "Which tweaks do you want?"
-  for i in "${!ids[@]}"; do
-    if [ "${avail[$i]}" = 1 ]; then info "$((i+1))) ${desc[$i]}"; else info "$((i+1))) (unavailable: ${why[$i]}) ${desc[$i]}"; fi
+  for c in "${!cats[@]}"; do
+    say "  ${cats[$c]}) ${catname[$c]}"
+    for i in "${!ids[@]}"; do
+      [ "${cat[$i]}" = "${cats[$c]}" ] || continue
+      if [ "${avail[$i]}" = 1 ]; then info "  $((i+1))) ${desc[$i]}"; else info "  $((i+1))) (unavailable: ${why[$i]}) ${desc[$i]}"; fi
+    done
   done
-  info "4 and 5 both touch the carrier config; 5 already includes call recording."
-  r=$(ask "Numbers separated by spaces, Enter for all available: ")
-  [ -n "$r" ] || r=$(for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && printf '%s ' $((i+1)); done; true)
+  info "Pick whole categories by letter and single tweaks by number, e.g. \"A B 16\"."
+  info "Category F picks call recording only; ${#ids[@]} (India) already includes it."
+  r=$(ask "Letters/numbers separated by spaces, Enter for all available: ")
+  add() { case " $picked " in *" $1 "*) ;; *) picked="$picked $1" ;; esac; }
+  if [ -z "$r" ]; then
+    for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != india ] && add "${ids[$i]}"; done
+  fi
   for n in $r; do
+    n=$(printf '%s' "$n" | tr '[:lower:]' '[:upper:]')
+    if [[ "$n" =~ ^[A-F]$ ]]; then
+      for i in "${!ids[@]}"; do
+        [ "${cat[$i]}" = "$n" ] && [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != india ] && add "${ids[$i]}"
+      done
+      continue
+    fi
     [[ "$n" =~ ^[1-9][0-9]?$ ]] && [ "$n" -le ${#ids[@]} ] || die "not an option: $n"
     i=$((n-1)); [ "${avail[$i]}" = 1 ] || die "${ids[$i]} is unavailable on this phone: ${why[$i]}"
-    case " $picked " in *" ${ids[$i]} "*) ;; *) picked="$picked ${ids[$i]}" ;; esac
+    add "${ids[$i]}"
   done
   case " $picked " in *" india "*) picked=$(echo "$picked" | sed 's/ callrec//') ;; esac
   case " $picked " in *" wifi7 "*) case " $picked " in *" airdrop "*) ;; *) info "wifi7 runs on the AirDrop Wi-Fi driver, so airdrop is added too."; picked="airdrop $picked" ;; esac ;; esac
@@ -110,7 +146,8 @@ fi
 [ -n "$picked" ] || die "nothing picked"
 say "Applying: $picked"
 case " $picked " in *" airdrop "*) info "Wi-Fi (and the hotspot) drop for ~30 s while the driver is swapped." ;; esac
-case " $picked " in *" camerahdr "*|*" audioeraser "*|*" colortone "*|*" galaxyai "*) info "The phone downloads the files of the tweaks that need them from GitHub first (needs internet)." ;; esac
+case " $picked " in *" callscreen "*) info "Call screening installs Samsung Language Core as an app update; unlike the rest, a reboot doesn't remove it." ;; esac
+case " $picked " in *" camerahdr "*|*" audioeraser "*|*" colortone "*|*" galaxyai "*|*" settingssearch "*) info "The phone downloads the files of the tweaks that need them from GitHub first (needs internet)." ;; esac
 info "The screen goes black for ~30 s while Android restarts its framework. Don't unplug the phone."
 r=$(ask "Continue? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && exit 0
 r=$(ask "Re-apply these automatically at every boot, with no computer? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && auto=off || auto=on
@@ -147,10 +184,17 @@ if [ -n "${S23T_PAYLOADS:-}" ]; then
     a push "$f" /data/local/tmp/ >/dev/null && a shell "su -c 'mv /data/local/tmp/$(basename "$f") $PHONE_DIR/dl/'"
   done
 fi
+case " $picked " in *" callscreen "*)
+  if [ -n "${S23T_LANGCORE:-}" ]; then
+    say "Copying Language Core to the phone (3.1 GB)..."
+    a shell "su -c 'mkdir -p $PHONE_DIR/dl'"
+    a push "$S23T_LANGCORE" /data/local/tmp/$LC_APK >/dev/null && a shell "su -c 'mv /data/local/tmp/$LC_APK $PHONE_DIR/dl/'"
+  fi ;; esac
 a shell "su -c 'sh $TW start \"$picked\"'" >/dev/null
 
 say "Applying (2-3 minutes)..."
-shown=0; end=$((SECONDS + 420)); case " $picked " in *" galaxyai "*|*" audioeraser "*|*" camerahdr "*) end=$((end + 900)) ;; esac   # downloads
+shown=0; end=$((SECONDS + 420)); case " $picked " in *" galaxyai "*|*" audioeraser "*|*" camerahdr "*|*" settingssearch "*) end=$((end + 900)) ;; esac   # downloads
+case " $picked " in *" callscreen "*) end=$((end + 300)) ;; esac   # Language Core install
 while [ $SECONDS -lt $end ]; do
   sleep 3
   out=$(a shell "su -c 'cat $PHONE_DIR/tweaks.log'" 2>/dev/null | tr -d '\r') || continue
@@ -171,6 +215,10 @@ case " $picked " in *" camerahdr "*) info "Camera HDR: untested. Shoot a bright 
 case " $picked " in *" audioeraser "*) info "Audio Eraser: Gallery > a video > Edit > speaker icon > Audio eraser." ;; esac
 case " $picked " in *" colortone "*) info "Adaptive color tone: Settings > Display > Adaptive color tone." ;; esac
 case " $picked " in *" galaxyai "*) info "Now Brief: turn on Settings > Galaxy AI > Personal data intelligence. Creative Studio is in the app drawer." ;; esac
+case " $picked " in *" camextras "*) info "Camera extras: Camera > More > Director's view; Video > Super steady > Horizontal lock." ;; esac
+case " $picked " in *" settingssearch "*) info "Settings search: open Settings and tap the search bar." ;; esac
+case " $picked " in *" callscreen "*) info "Call screening: Phone > Settings > Call screening. The AI summary shows an error on the S23; screening and voice messages work." ;; esac
+case " $picked " in *" autoframe "*|*" bargein "*) info "4K auto framing and Bixby barge-in are untested; turn them off if anything misbehaves." ;; esac
 case " $picked " in *" hotspot6g "*) info "6 GHz hotspot: Settings > Connections > Mobile Hotspot > Band > 6 GHz (security must be WPA3)." ;; esac
 if [ "$auto" = on ]; then
   info "At each boot DFRoot roots the phone by itself and the tweaks re-apply about a minute later (the screen"

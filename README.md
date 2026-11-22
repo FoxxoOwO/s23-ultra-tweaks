@@ -2,26 +2,38 @@
 
 Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One UI 9 / Android 17, with no flashing:
 
-| # | Tweak | What you get | Works on |
-|---|---|---|---|
-| 1 | `airdrop` | **AirDrop with iPhones, iPads and Macs.** Quick Share → *Share with Apple devices* | SM-S918W, firmware **S918WVLU8GZIF** only (the kernel modules are built for that exact kernel) |
-| 2 | `battery` | Settings → Battery → **Battery information** shows battery health and cycle count | any S23 Ultra on One UI 9 |
-| 3 | `features` | **Auto power on/off** schedule, **louder VoIP calls** | any S23 Ultra on One UI 9 |
-| 4 | `callrec` | **Call recording** in the Samsung Phone app | XAC (Canadian) firmware S918WVLU8GZIF |
-| 5 | `india` | India (INS) carrier config: call recording, Smart IVR, message cards and more. The sales code stays XAC | XAC (Canadian) firmware S918WVLU8GZIF |
-| 6 | `hotspot6g` | **6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz | any S23 Ultra on One UI 9 |
-| 7 | `wifi7` | **Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes `airdrop` | same as `airdrop` |
-| 8 | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
-| 9 | `logvideo` | **Log video**: Camera → Pro video gets the LOG button and LUT preview (10-bit HEVC) | any S23 Ultra on One UI 9 |
-| 10 | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |
-| 11 | `camerahdr` | **Camera HDR processing**: puts back the multi-frame HDR and low-light HDR steps One UI 9 removed from the S23 (see [docs/findings.md](docs/findings.md)). **Untested** | any S23 Ultra on One UI 9 (21 MB download) |
-| 12 | `audioeraser` | **Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices | firmware S918WVLU8GZIF (34 MB download) |
-| 13 | `colortone` | **Adaptive color tone**: Settings → Display, the screen's colour follows the room light | firmware S918WVLU8GZIF (1 MB download) |
-| 14 | `galaxyai` | The S24's **Now Brief**, **Creative Studio** and **Call Assist** | firmware S918WVLU8GZIF (219 MB download) |
+The tweaks are grouped in six categories. The installer and the module page let you pick a whole
+category or single tweaks.
+
+| # | Category | Tweak | What you get | Works on |
+|---|---|---|---|---|
+| 1 | Connectivity | `airdrop` | **AirDrop with iPhones, iPads and Macs.** Quick Share → *Share with Apple devices* | SM-S918W, firmware **S918WVLU8GZIF** only (the kernel modules are built for that exact kernel) |
+| 2 | Connectivity | `wifi7` | **Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes `airdrop` | same as `airdrop` |
+| 3 | Connectivity | `hotspot6g` | **6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz | any S23 Ultra on One UI 9 |
+| 4 | Camera | `logvideo` | **Log video**: Camera → Pro video gets the LOG button and LUT preview (10-bit HEVC) | any S23 Ultra on One UI 9 |
+| 5 | Camera | `camextras` | **Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** | any S23 Ultra on One UI 9 |
+| 6 | Camera | `camerahdr` | **Camera HDR processing**: puts back the multi-frame HDR and low-light HDR steps One UI 9 removed from the S23 (see [docs/findings.md](docs/findings.md)). **Untested** | any S23 Ultra on One UI 9 (21 MB download) |
+| 7 | Camera | `autoframe` | **4K auto framing** in video, as on the S24. **Untested** | any S23 Ultra on One UI 9 |
+| 8 | Display and graphics | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
+| 9 | Display and graphics | `colortone` | **Adaptive color tone**: Settings → Display, the screen's colour follows the room light | firmware S918WVLU8GZIF (1 MB download) |
+| 10 | Display and graphics | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |
+| 11 | Galaxy AI and Samsung apps | `galaxyai` | The S24's **Now Brief**, **Creative Studio** and **Call Assist** | firmware S918WVLU8GZIF (219 MB download) |
+| 12 | Galaxy AI and Samsung apps | `audioeraser` | **Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices | firmware S918WVLU8GZIF (34 MB download) |
+| 13 | Galaxy AI and Samsung apps | `settingssearch` | The S24's **Settings search** bar. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) | firmware S918WVLU8GZIF (10 MB download) |
+| 14 | Galaxy AI and Samsung apps | `callscreen` | **Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** | needs your own copy of Samsung Language Core 4.0.01.24 (see [Call screening](#call-screening)) |
+| 15 | Galaxy AI and Samsung apps | `bargein` | **Bixby barge-in**: talk over Bixby while it answers. **Untested** | any S23 Ultra on One UI 9 |
+| 16 | Battery and settings | `battery` | Settings → Battery → **Battery information** shows battery health and cycle count | any S23 Ultra on One UI 9 |
+| 17 | Battery and settings | `features` | **Auto power on/off** schedule, **louder VoIP calls** | any S23 Ultra on One UI 9 |
+| 18 | Carrier | `callrec` | **Call recording** in the Samsung Phone app | XAC (Canadian) firmware S918WVLU8GZIF |
+| 19 | Carrier | `india` | India (INS) carrier config: call recording, Smart IVR, message cards and more. The sales code stays XAC | XAC (Canadian) firmware S918WVLU8GZIF |
+
+Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
+only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
+Portrait video (they crash the camera).
 
 The installer asks which ones you want and greys out the ones your phone can't take.
 
-**Nothing is written to any partition.** Every change is a kernel module load, a RAM overlay, a bind mount or a runtime setting. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The one exception is two Google Play services flag overrides that `airdrop` adds (see [Undo](#undo)).
+**Nothing is written to any partition.** Every change is a kernel module load, a RAM overlay, a bind mount or a runtime setting. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), and Samsung Language Core, which `callscreen` installs as an app update (see [Undo](#undo)).
 
 **Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
 
@@ -166,7 +178,7 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 - **Log video**: in *Pro video*, tap **LOG** at the top. The S23's camera already records 10-bit; the tweak only turns on Samsung's switches for it.
 - **Vulkan**: Samsung's renderer ignores the S24's `ro.hwui.use_vulkan`; the tweak sets `debug.hwui.renderer=skiavk`. Check with `adb shell dumpsys gfxinfo com.android.systemui | grep Pipeline` (should say `Skia (Vulkan)`).
 
-## Downloaded tweaks: camerahdr, audioeraser, colortone, galaxyai
+## Downloaded tweaks: camerahdr, audioeraser, colortone, galaxyai, settingssearch
 
 These need files from Samsung firmware (from the S24's for the last three, and from the S23's own One UI 6
 firmware for `camerahdr`). Each one is a separate file in the GitHub release `payloads-S918WVLU8GZIF`,
@@ -185,14 +197,41 @@ it's kept in `/data/adb/s23tweaks/payload/` so it isn't downloaded again.
 - **galaxyai**: binds the S24 builds of the three apps over the S23's. While it's on, it replaces any
   Galaxy Store update of Personal Data Intelligence; after a reboot without it, Galaxy Store offers the
   update again.
+- **settingssearch**: binds the S24's Settings search app (same Samsung signature) over the S23's. The
+  new search bar shows; the natural-language answers stay off, because they need Samsung's Semantic
+  Search Core 4.x and both phones ship only a 1.0 placeholder.
+
+## Call screening
+
+The Phone app's Call screening needs Samsung Language Core. The S23 firmware has only a placeholder,
+and Galaxy Store refuses the S23 ("not compatible", 9908). `callscreen` installs the real one (version
+4.0.01.24, signed by Samsung like the placeholder) as an ordinary app update.
+
+- **What works:** the Call screening switch, *Screen call* on incoming calls, the greeting read to the
+  caller, and recording the caller's voice message.
+- **What doesn't:** the caller/purpose summary ("Something went wrong while summarizing this call") and
+  the AI replies to the caller. Samsung's language model inside Language Core is compiled only for the
+  S26's NPU. On the S23 it stops before anything reaches the NPU, so it fails safely.
+- **You supply the file.** The APK is 3.1 GB, too big for a GitHub release, so it isn't downloaded for
+  you. Get `com.samsung.android.offline.languagemodel` 4.0.01.24 (versionCode 400124010, MD5
+  `994620f3071706391d17ff132ea16c42`), then either run the installer with
+  `S23T_LANGCORE=/path/to/file.apk`, or copy it to the phone as
+  `/data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk` and pick the tweak on the module page.
+- **It stays after a reboot**, unlike the other tweaks. Remove it with
+  `adb shell pm uninstall-system-updates com.samsung.android.offline.languagemodel`.
 
 ## Undo
 
-Reboot. Everything goes back to stock except the two Play services flag overrides. They do nothing without the rest, but to remove them:
+Reboot. Everything goes back to stock except three things:
 
-```sh
-adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh unflag"
-```
+- The two Play services flag overrides (`airdrop`). They do nothing without the rest, but to remove them:
+  ```sh
+  adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh unflag"
+  ```
+- Director's view stays in Camera → More (`camextras` sets a camera app setting). Hide it there with
+  the edit button, or clear the Camera app's data.
+- Samsung Language Core (`callscreen`):
+  `adb shell pm uninstall-system-updates com.samsung.android.offline.languagemodel`
 
 ## Known limitations
 

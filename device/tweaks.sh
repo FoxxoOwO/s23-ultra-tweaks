@@ -18,12 +18,14 @@
 #   wifi7page         open Samsung's hidden "Wi-Fi 7 mode" settings page (Wi-Fi Labs)
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
-#         camerahdr audioeraser colortone galaxyai  (see README.md)
+#         camerahdr audioeraser colortone galaxyai camextras autoframe settingssearch bargein
+#         callscreen  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, a RAM (tmpfs) overlay, a bind
 # mount or a runtime setting, so a reboot always returns the phone to stock. The one exception is
 # the airdrop tweak's two Play services flag overrides, stored in Play services' own database
-# (harmless without the rest; "unflag" removes them).
+# (harmless without the rest; "unflag" removes them), camextras' camera app setting, and callscreen,
+# which installs Samsung Language Core as an ordinary app update (undo: pm uninstall-system-updates).
 # Never touched: the sales code (mps_code.dat, sales_code.dat, omc.info, persist.sys.matched_code).
 # Changing those can factory-reset the phone.
 
@@ -34,7 +36,7 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr audioeraser colortone galaxyai"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
@@ -47,7 +49,8 @@ PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/
 PAYLOADS="camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
 audioeraser audioeraser-S918WVLU8GZIF.tar.gz a11d2868b3d8ba0121554ea2a31bb65256e0c141c6033c4e6ddb4770f4d11704
 colortone colortone-S918WVLU8GZIF.tar.gz 4be28f16e3631f1e377ecec9ad2b5b78d1abf8c6a9b971435c7ac12604f75e40
-galaxyai galaxyai-S918WVLU8GZIF.tar.gz 5619aaee7580b985df300dcfca1fadc56bc774f60ebb2af9db975876dfe01c0e"
+galaxyai galaxyai-S918WVLU8GZIF.tar.gz 5619aaee7580b985df300dcfca1fadc56bc774f60ebb2af9db975876dfe01c0e
+settingssearch settingssearch-S918WVLU8GZIF.tar.gz bddfa32a08def256b7497730a0e7faecf7b1621655ce0cc85bec423843357042"
 SETTINGS=/system/priv-app/SecSettings/SecSettings.apk
 SETTINGS_STOCK_MD5=5b8afa24f17e090d57380b8ebbd3dcee   # SecSettings.apk on S918WVLU8GZIF
 SETTINGS_EAD_MD5=f499f2e574a47eca0414f470e1ae20e8     # the same with files/SecSettings-ead.patch applied
@@ -307,22 +310,56 @@ ff_apply() {
   log "feature flags on: $(printf '%s' "$ff_kv" | cut -d= -f1 | tr '\n' ' ')"
 }
 
-# Log video: the S24 camera settings that turn on Log recording and LUT preview in Pro video, on top
-# of the phone's own camera-feature.xml (the S23's sensor/HAL already records 10-bit Log).
-CF_ADD='<local name="SUPPORT_LOG_VIDEO" value="true"/>
+# Camera settings added on top of the phone's own camera-feature.xml (rebuilt from stock each apply):
+#  logvideo: the S24's Log recording and LUT preview in Pro video (the S23's sensor/HAL already
+#            records 10-bit Log)
+#  camextras: Super steady's horizontal lock (a third Super steady option, recorded fine on the S23)
+# Never add SUPPORT_BACK_WIDE_NORMAL_DUAL_PORTRAIT_VIDEO, SUPPORT_BACK_PORTRAIT_VIDEO_TELE_DUAL or
+# CAMERA_SUPPORT_SEAMLESS_PORTRAITVIDEO: on the S23 they crash the camera ("Zoom is not supported").
+CF_LOG='<local name="SUPPORT_LOG_VIDEO" value="true"/>
 <local name="SUPPORT_PREVIEW_LUT" value="true"/>'
+CF_HLOCK='<local name="SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK" value="true"/>'
+cf_add=""
 camfeat_apply() {
+  [ -n "$cf_add" ] || return 1
   mkdir -p $R; bound $CF && umount $CF
-  grep -q '</resources>' $CF || { log "logvideo: $CF has no </resources>; skipped"; return 1; }
+  grep -q '</resources>' $CF || { log "camera: $CF has no </resources>; camera settings skipped"; return 1; }
   grep -v '</resources>' $CF > $R/cf.new
-  printf '%s\n' "$CF_ADD" | while read -r l; do
+  printf '%s\n' "$cf_add" | while read -r l; do
+    [ -n "$l" ] || continue
     n=$(echo "$l" | sed 's/.*name="\([^"]*\)".*/\1/'); grep -q "name=\"$n\"" $CF || echo "    $l" >> $R/cf.new
   done
   echo '</resources>' >> $R/cf.new
   mv $R/cf.new $R/camera-feature.xml; chmod 644 $R/camera-feature.xml
   chcon u:object_r:system_file:s0 $R/camera-feature.xml
   mount --bind $R/camera-feature.xml $CF || fail "camera-feature bind mount"
-  log "logvideo: Log and LUT on in Pro video"
+  log "camera settings on: $(printf '%s\n' "$cf_add" | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' ')"
+}
+
+# Director's view (front and back camera at once; the S23 had it in 2023). One UI 9 still ships the
+# mode but hides it: modes marked enable="false" show only when the camera's own settings hold
+# <mode>=1. A camera app setting, kept in its data folder (a reboot doesn't undo it; Camera > More >
+# edit can hide the mode again). Not dual_recording_mode: the S24's Dual rec can't open the S23's
+# cameras ("Unable to open Camera").
+CAM_PREFS=/data/user/0/com.sec.android.app.camera/shared_prefs/com.sec.android.app.camera_preferences.xml
+directorsview_pref() {
+  if [ ! -f $CAM_PREFS ]; then
+    if [ "${S23T_BOOT:-0}" = 1 ]; then log "camextras: app storage is locked until first unlock; Director's view stays as the last apply left it"
+    else log "camextras: open the Camera app once, then apply again to show Director's view"; fi
+    return
+  fi
+  grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS && { log "camextras: Director's view already shown"; return; }
+  am force-stop com.sec.android.app.camera
+  mkdir -p $R $V/backup; [ -f $V/backup/camera_preferences.xml ] || cp $CAM_PREFS $V/backup/camera_preferences.xml
+  if grep -q 'name="directors_view_mode"' $CAM_PREFS; then
+    sed 's|<string name="directors_view_mode">[^<]*</string>|<string name="directors_view_mode">1</string>|' $CAM_PREFS > $R/camprefs.new
+  else
+    awk '/<\/map>/ { print "    <string name=\"directors_view_mode\">1</string>" } { print }' $CAM_PREFS > $R/camprefs.new
+  fi
+  grep -q '<string name="directors_view_mode">1</string>' $R/camprefs.new && grep -q '</map>' $R/camprefs.new ||
+    { rm -f $R/camprefs.new; log "camextras: couldn't edit the camera settings; Director's view skipped"; return; }
+  cat $R/camprefs.new > $CAM_PREFS; rm -f $R/camprefs.new   # cat keeps the file's owner and label
+  log "camextras: Director's view shown (Camera > More)"
 }
 
 # ---------- Payload tweaks: camerahdr, audioeraser, colortone, galaxyai (files in $D/payload/<tweak>) ----------
@@ -484,6 +521,44 @@ galaxyai_bind() {
   done
   log "galaxyai: S24 Now Brief (Personal Data Intelligence), Creative Studio and Call Assist on"
 }
+# Settings search: the S24's Settings search app (com.android.settings.intelligence, same signature).
+# Its new search bar shows; the semantic ("natural language") answers stay off, because they need
+# Samsung's Semantic Search Core 4.x and both phones ship only a 1.0 stub.
+SSI=priv-app/SecSettingsIntelligence
+settingssearch_stage() {
+  pl_check settingssearch SecSettingsIntelligence.apk || return 1
+  [ -f /system/$SSI/SecSettingsIntelligence.apk ] || { log "settingssearch: this phone has no /system/$SSI; skipped"; return 1; }
+  return 0
+}
+settingssearch_bind() {
+  bind_file $PL/settingssearch/SecSettingsIntelligence.apk /system/$SSI/SecSettingsIntelligence.apk system_file &&
+    rm -f /data/system/package_cache/*/SecSettingsIntelligence-16-*
+  log "settingssearch: S24 Settings search on"
+}
+
+# Call screening (Phone app). Needs Samsung Language Core (com.samsung.android.offline.languagemodel);
+# the firmware has a stub and Galaxy Store refuses the S23 (9908). Install the real one as an ordinary
+# update: Samsung-signed like the stub, so the installer accepts it. Persistent (survives reboot); undo
+# with pm uninstall-system-updates. The APK (3.1 GB, too big for a GitHub release) isn't downloaded:
+# put it in $V/dl/ (install.sh does, with S23T_LANGCORE=<file>). What works: screening, the greeting,
+# the voice message. What doesn't: the AI summary and AI replies, since Samsung's model only exists for
+# the S26's NPU; on the S23 it fails safely (no V73 stub, nothing reaches the DSP). See docs/findings.md.
+LC_PKG=com.samsung.android.offline.languagemodel
+LC_APK=languagecore-4.0.01.24.apk
+LC_MD5=994620f3071706391d17ff132ea16c42
+lc_installed() { dumpsys package $LC_PKG 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2; }
+callscreen_apply() {
+  v=$(lc_installed); [ "${v:-0}" -ge 400000000 ] && { log "callscreen: Language Core $v already installed"; return 0; }
+  [ -f $V/dl/$LC_APK ] || { log "callscreen: needs $V/dl/$LC_APK (Language Core 4.0.01.24); skipped"; return 1; }
+  [ "$(md5 $V/dl/$LC_APK)" = $LC_MD5 ] || { log "callscreen: $V/dl/$LC_APK doesn't match its checksum; skipped"; return 1; }
+  log "callscreen: installing Samsung Language Core 4.0.01.24 (3.1 GB, a minute or two)"
+  # pm can't read /data/adb; stage it where the installer can
+  cp $V/dl/$LC_APK /data/local/tmp/$LC_APK && chmod 644 /data/local/tmp/$LC_APK
+  r=$(pm install -r /data/local/tmp/$LC_APK 2>&1); rm -f /data/local/tmp/$LC_APK
+  case "$r" in *Success*) log "callscreen: Language Core installed; turn on Phone > Settings > Call screening" ;;
+    *) log "callscreen: install failed: $r" ;; esac
+}
+
 # payload_fetch: download and unpack the files of each picked tweak that has them, unless the
 # unpacked copy already matches the pinned checksum. A failed download skips that tweak, not the rest.
 dl() {   # dl <url> <file>: curl if the phone has it, else KernelSU's busybox wget
@@ -514,10 +589,12 @@ payload_apply() {
   has audioeraser && audioeraser_stage && { ran=0; ae=1; }
   has colortone && colortone_stage && { ran=0; ct=1; }
   has galaxyai && galaxyai_stage && { ran=0; gai=1; }
+  has settingssearch && settingssearch_stage && { ran=0; ssi=1; }
   layers_mount
   [ "${ae:-0}" = 1 ] && audioeraser_bind
   [ "${ct:-0}" = 1 ] && colortone_bind
   [ "${gai:-0}" = 1 ] && galaxyai_bind
+  [ "${ssi:-0}" = 1 ] && settingssearch_bind
   return $ran
 }
 
@@ -620,8 +697,16 @@ apply)
   fi
   if has logvideo; then
     ff_set CAMERA_CONFIG_LOG_VIDEO V1.0; ff_set GALLERY_SUPPORT_LOG_CORRECT_COLOR TRUE
-    camfeat_apply && restart=1
+    cf_add="$cf_add
+$CF_LOG"
   fi
+  has camextras && cf_add="$cf_add
+$CF_HLOCK"
+  camfeat_apply && restart=1
+  # 4K auto framing (untested): the S24's UHD setting for auto framing in video
+  has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
+  # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
+  has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
   has vulkan && { setprop debug.hwui.renderer skiavk; log "vulkan: apps render with Skia on Vulkan"; restart=1; }
   ff_apply && restart=1
@@ -629,6 +714,8 @@ apply)
   elif has callrec; then callrec_apply && restart=1; fi
   [ $restart = 1 ] && restart_framework
   has hotspot6g && hotspot6g_apply
+  has camextras && directorsview_pref
+  has callscreen && callscreen_apply
   has airdrop && airdrop_post
   touch /dev/s23tweaks_applied   # lets the boot apply know this boot already has them
   log "DONE"
@@ -659,6 +746,9 @@ probe)
   why_bat=$why_s23; [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/asoc ] && why_bat="this phone has no battery data in /efs/FactoryApp"
   pw() { echo "$why_s23"; }   # their files are downloaded when picked
   why_6g=$why_s23; [ -z "$why_6g" ] && [ ! -x /data/adb/ksu/bin/resetprop ] && why_6g="needs KernelSU's resetprop"
+  lcv=$(lc_installed)
+  why_lc=$why_s23; [ -z "$why_lc" ] && [ "${lcv:-0}" -lt 400000000 ] && [ ! -f $V/dl/$LC_APK ] &&
+    why_lc="needs the Language Core 4.0.01.24 APK (3.1 GB) in $V/dl/$LC_APK; see the README"
   act() { "$@" && echo true || echo false; }
   a_air=$(act eval '[ -d /sys/module/wonder ] && bound /system_ext/bin')
   a_bat=$(act mounted /sys/class/power_supply tmpfs)
@@ -668,7 +758,12 @@ probe)
   a_6g=$(act eval '[ "$(getprop ro.csc.countryiso_code)" = IN ]')
   a_w7=$(act eval 'bound $WPAS && bound $INI')
   a_dis=$(act eval 'bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<" $FF')
-  a_log=$(act bound $CF)
+  a_log=$(act eval 'bound $CF && grep -q SUPPORT_LOG_VIDEO $CF')
+  a_cx=$(act eval 'bound $CF && grep -q SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK $CF')
+  a_af=$(act eval 'grep -q "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>uhd<" $FF')
+  a_bi=$(act eval 'grep -q "<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<" $FF')
+  a_ss=$(act bound /system/$SSI/SecSettingsIntelligence.apk)
+  a_lc=$(act eval '[ "${lcv:-0}" -ge 400000000 ]')
   a_vk=$(act eval '[ "$(getprop debug.hwui.renderer)" = skiavk ]')
   a_ch=$(act eval "grep -q 'mfhdr.arcsoft.v4' $FF && [ -f /system/lib64/liblow_light_hdr.arcsoft.so ]")
   a_ae=$(act eval '[ -f /system/etc/fastScanner.tflite ]')
@@ -679,12 +774,14 @@ probe)
     "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}"
   printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(cat $V/choices 2>/dev/null)" \
     "$( [ -f $V/autostart ] && echo true || echo false)" "$( lock_alive && echo true || echo false)"
-  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
     "$(j features "$why_s23" $a_fea)" "$(j callrec "$why_csc" $a_rec)" "$(j india "$why_csc" $a_ind)" \
     "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)" \
     "$(j display "$why_s23" $a_dis)" "$(j logvideo "$why_s23" $a_log)" "$(j vulkan "$why_s23" $a_vk)" \
     "$(j camerahdr "$(pw camerahdr)" $a_ch)" "$(j audioeraser "$(pw audioeraser)" $a_ae)" \
-    "$(j colortone "$(pw colortone)" $a_ct)" "$(j galaxyai "$(pw galaxyai)" $a_gai)"
+    "$(j colortone "$(pw colortone)" $a_ct)" "$(j galaxyai "$(pw galaxyai)" $a_gai)" \
+    "$(j camextras "$why_s23" $a_cx)" "$(j autoframe "$why_s23" $a_af)" "$(j settingssearch "$(pw settingssearch)" $a_ss)" \
+    "$(j bargein "$why_s23" $a_bi)" "$(j callscreen "$why_lc" $a_lc)"
   ;;
 loop)
   # init can't start mosey_server (its .rc isn't loaded on this boot). moseyrun starts it the way
@@ -714,7 +811,12 @@ status)
   echo "features: $(bound $FF && grep -oE 'SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
   echo "battery:  $(mounted /sys/class/power_supply tmpfs && echo on || echo off)"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<' $FF && echo on || echo off)"
-  echo "logvideo: $(bound $CF && echo on || echo off)"
+  echo "logvideo: $(bound $CF && grep -q SUPPORT_LOG_VIDEO $CF && echo on || echo off)"
+  echo "camextras: horizon lock $(bound $CF && grep -q SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK $CF && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
+  echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
+  echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
+  echo "settingssearch: $(bound /system/$SSI/SecSettingsIntelligence.apk && echo S24 || echo stock)"
+  echo "callscreen: Language Core $(dumpsys package $LC_PKG 2>/dev/null | grep -m1 -oE 'versionName=[^ ]+' | cut -d= -f2)"
   echo "camerahdr: libraries $([ -f /system/lib64/liblow_light_hdr.arcsoft.so ] && echo on || echo off), list entries $(grep -q 'mfhdr.arcsoft.v4' $FF && echo on || echo off)"
   echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"

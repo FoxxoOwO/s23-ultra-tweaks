@@ -116,6 +116,16 @@ h1 { font-size: 22px; line-height: 1.2; margin: 0; font-weight: 650; letter-spac
 .tweak .desc { color: var(--text-2); font-size: 13.5px; margin-top: 2px; overflow-wrap: anywhere; }
 .tweak.off .name, .tweak.off .desc { opacity: .55; }
 .tweak .why { color: var(--warn); font-size: 13px; margin-top: 4px; }
+.cat {
+  display: flex; gap: 14px; align-items: center; padding: 10px 16px; min-height: 48px;
+  background: var(--surface-2); border-top: 1px solid var(--border); cursor: pointer; font-weight: 650;
+}
+.cat:first-child { border-top: 0; }
+.cat input[type=checkbox] {
+  flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--accent); cursor: inherit;
+}
+.cat.off { cursor: default; opacity: .55; }
+.cat .count { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 500; white-space: nowrap; }
 .badge {
   font-size: 11.5px; font-weight: 650; padding: 1px 8px; border-radius: 999px;
   background: var(--ok-soft); color: var(--ok); letter-spacing: .01em;
@@ -283,7 +293,7 @@ details .inner { padding: 0 16px 14px; }
 
     <div class="apply-bar">
       <button class="btn primary block" id="apply" type="button">Apply</button>
-      <p class="hint">Everything is undone by a reboot; with “Apply at every boot” on, it comes back about a minute after boot.</p>
+      <p class="hint">A reboot undoes everything except Call screening (an app install) and Director's view (a camera setting); with “Apply at every boot” on, the rest comes back about a minute after boot.</p>
     </div>
 
     <section class="card" aria-labelledby="h-status">
@@ -338,21 +348,34 @@ const BOOTLOG = STATE_DIR + "/boot.log";
 const POLL_MS = 1500;
 const DISMISS_KEY = "s23t.dismissed";
 
+const CATS = [
+  { id: "connect", name: "Connectivity" },
+  { id: "camera", name: "Camera" },
+  { id: "display", name: "Display and graphics" },
+  { id: "ai", name: "Galaxy AI and Samsung apps" },
+  { id: "system", name: "Battery and settings" },
+  { id: "carrier", name: "Carrier (XAC firmware only)" },
+];
 const TWEAKS = [
-  { id: "airdrop", name: "AirDrop", desc: "Quick Share → Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)" },
-  { id: "battery", name: "Battery health", desc: "Settings → Battery → Battery information shows health and cycle count" },
-  { id: "features", name: "Power schedule and louder calls", desc: "Auto power on/off schedule and louder VoIP calls" },
-  { id: "callrec", name: "Call recording", desc: "Call recording in the Samsung Phone app" },
-  { id: "india", name: "India carrier config", desc: "India (INS) carrier config: call recording, Smart IVR, message cards; the sales code stays XAC" },
-  { id: "hotspot6g", name: "6 GHz hotspot", desc: "6 GHz Mobile Hotspot (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz, needs WPA3" },
-  { id: "wifi7", name: "Wi-Fi 7 multi-link", desc: "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers; needs AirDrop" },
-  { id: "display", name: "Vividness and full-screen AOD", desc: "Vividness slider in Screen mode and the lock screen wallpaper on Always On Display" },
-  { id: "logvideo", name: "Log video", desc: "Log recording and LUT preview in Pro video (10-bit HEVC)" },
-  { id: "vulkan", name: "Vulkan rendering", desc: "Apps draw with Vulkan instead of OpenGL, as on the S24" },
-  { id: "camerahdr", name: "Camera HDR processing", desc: "Puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)" },
-  { id: "audioeraser", name: "Audio Eraser", desc: "Remove wind, noise, music or voices from videos in Gallery (34 MB download)" },
-  { id: "colortone", name: "Adaptive color tone", desc: "Display colour follows the room light, as on the S24 (1 MB download)" },
-  { id: "galaxyai", name: "Now Brief, Creative Studio, Call Assist", desc: "The S24's newer builds of these three Galaxy AI apps (219 MB download)" },
+  { id: "airdrop", cat: "connect", name: "AirDrop", desc: "Quick Share → Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)" },
+  { id: "wifi7", cat: "connect", name: "Wi-Fi 7 multi-link", desc: "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers; needs AirDrop" },
+  { id: "hotspot6g", cat: "connect", name: "6 GHz hotspot", desc: "6 GHz Mobile Hotspot (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz, needs WPA3" },
+  { id: "logvideo", cat: "camera", name: "Log video", desc: "Log recording and LUT preview in Pro video (10-bit HEVC)" },
+  { id: "camextras", cat: "camera", name: "Director's view and horizon lock", desc: "Director's view (front and back camera at once) and Super steady's horizontal lock" },
+  { id: "camerahdr", cat: "camera", name: "Camera HDR processing", desc: "Puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)" },
+  { id: "autoframe", cat: "camera", name: "4K auto framing", desc: "The S24's UHD setting for auto framing in video (untested)" },
+  { id: "display", cat: "display", name: "Vividness and full-screen AOD", desc: "Vividness slider in Screen mode and the lock screen wallpaper on Always On Display" },
+  { id: "colortone", cat: "display", name: "Adaptive color tone", desc: "Display colour follows the room light, as on the S24 (1 MB download)" },
+  { id: "vulkan", cat: "display", name: "Vulkan rendering", desc: "Apps draw with Vulkan instead of OpenGL, as on the S24" },
+  { id: "galaxyai", cat: "ai", name: "Now Brief, Creative Studio, Call Assist", desc: "The S24's newer builds of these three Galaxy AI apps (219 MB download)" },
+  { id: "audioeraser", cat: "ai", name: "Audio Eraser", desc: "Remove wind, noise, music or voices from videos in Gallery (34 MB download)" },
+  { id: "settingssearch", cat: "ai", name: "Settings search", desc: "The S24's new Settings search bar; natural-language answers stay off (10 MB download)" },
+  { id: "callscreen", cat: "ai", name: "Call screening", desc: "Installs Samsung Language Core: screening and voice messages work, the AI summary and replies don't. Stays after a reboot" },
+  { id: "bargein", cat: "ai", name: "Bixby barge-in", desc: "Talk over Bixby while it answers, as on the S24 (untested)" },
+  { id: "battery", cat: "system", name: "Battery health", desc: "Settings → Battery → Battery information shows health and cycle count" },
+  { id: "features", cat: "system", name: "Power schedule and louder calls", desc: "Auto power on/off schedule and louder VoIP calls" },
+  { id: "callrec", cat: "carrier", name: "Call recording", desc: "Call recording in the Samsung Phone app" },
+  { id: "india", cat: "carrier", name: "India carrier config", desc: "India (INS) carrier config: call recording, Smart IVR, message cards; the sales code stays XAC" },
 ];
 const NAME = Object.fromEntries(TWEAKS.map(t => [t.id, t.name]));
 const IDS = TWEAKS.map(t => t.id);
@@ -372,6 +395,11 @@ const WHERE = {
   audioeraser: ["Audio Eraser", "Gallery → open a video → Edit → speaker icon → Audio eraser."],
   colortone: ["Adaptive color tone", "Settings → Display → Adaptive color tone."],
   galaxyai: ["Now Brief", "Turn on Settings → Galaxy AI → Personal data intelligence, then swipe right on the home screen. Creative Studio is in the app drawer."],
+  camextras: ["Director's view", "Camera → More → Director's view. Horizon lock: Video → Super steady → Horizontal lock."],
+  autoframe: ["4K auto framing", "Untested: Video at UHD with Auto framing on. Turn it off if the camera misbehaves."],
+  settingssearch: ["Settings search", "Open Settings and tap the search bar."],
+  callscreen: ["Call screening", "Phone → Settings → Call screening. On the S23 the AI summary shows an error; screening and voice messages work."],
+  bargein: ["Bixby barge-in", "Untested: start talking while Bixby is answering."],
 };
 
 const CONFIRM_TEXT = "Wi-Fi and the hotspot drop for ~30 s (AirDrop/Wi-Fi 7), and the screen goes black for ~30 s while Android restarts. This page closes during that; reopen it to see the result.";
@@ -550,9 +578,32 @@ function initialSelection(p) {
   return s;
 }
 
+function catIds(cat, onlyAvailable) {
+  // india stays out of a category pick: it replaces call recording, which the category picks instead
+  return TWEAKS.filter(t => t.cat === cat && (!onlyAvailable || (available(t.id) && t.id !== "india"))).map(t => t.id);
+}
+function updateCats() {
+  for (const c of CATS) {
+    const cb = $("cat-" + c.id); if (!cb) continue;
+    const all = catIds(c.id, false), n = all.filter(i => S.sel.has(i)).length, picks = catIds(c.id, true);
+    cb.checked = picks.length > 0 && picks.every(i => S.sel.has(i));
+    cb.indeterminate = n > 0 && !cb.checked;
+    $("cat-n-" + c.id).textContent = n + " of " + all.length;
+  }
+}
+function onCat(cat, on) {
+  for (const id of on ? catIds(cat, true) : catIds(cat, false)) { if (S.sel.has(id) !== on) onPick(id, on, true); }
+  updateCats(); updateApply();
+}
 function renderTweaks() {
   const box = $("tweaks"); box.textContent = "";
-  for (const t of TWEAKS) {
+  for (const c of CATS) {
+    const picks = catIds(c.id, true);
+    const cb = h("input", { type: "checkbox", id: "cat-" + c.id, disabled: !picks.length,
+      "aria-label": "All of " + c.name, onchange: e => onCat(c.id, e.target.checked) });
+    box.append(h("label", { class: "cat" + (picks.length ? "" : " off"), for: "cat-" + c.id },
+      cb, h("span", { text: c.name }), h("span", { class: "count", id: "cat-n-" + c.id })));
+  for (const t of TWEAKS.filter(x => x.cat === c.id)) {
     const info = tweakInfo(t.id);
     const cb = h("input", { type: "checkbox", id: "tw-" + t.id, "aria-describedby": "tw-d-" + t.id,
       disabled: !info.available, onchange: e => onPick(t.id, e.target.checked) });
@@ -565,7 +616,8 @@ function renderTweaks() {
         !info.available && info.why ? h("div", { class: "why", text: "Not available: " + info.why }) : null));
     box.append(row);
   }
-  updateApply();
+  }
+  updateCats(); updateApply();
 }
 
 function setPick(id, on) {
@@ -575,13 +627,15 @@ function setPick(id, on) {
   const cb = $("tw-" + id); if (cb) cb.checked = on;
   return true;
 }
-function onPick(id, on) {
+function onPick(id, on, quiet) {
   on ? S.sel.add(id) : S.sel.delete(id);
+  { const cb = $("tw-" + id); if (cb) cb.checked = on; }
+  if (id === "callscreen" && on && !quiet) toast("Call screening installs Language Core; a reboot doesn't remove it");
   if (id === "wifi7" && on && setPick("airdrop", true)) toast("Wi-Fi 7 needs AirDrop, so AirDrop is on too");
   if (id === "airdrop" && !on && setPick("wifi7", false)) toast("Wi-Fi 7 needs AirDrop, so Wi-Fi 7 is off too");
   if (id === "india" && on && setPick("callrec", false)) toast("India carrier config already includes call recording");
   if (id === "callrec" && on && setPick("india", false)) toast("Call recording replaces the India carrier config");
-  updateApply();
+  updateCats(); updateApply();
 }
 function selectedIds() { return IDS.filter(i => S.sel.has(i)); }
 function updateApply() {
@@ -931,10 +985,10 @@ function installMock() {
   function probeJson() {
     const w7 = q.has("w7");
     const tw = (id, why) => ({ id, available: !why, why: why || "", active: !!st.active[id] });
-    return JSON.stringify({ version: "v1.0.0", module: true,
+    return JSON.stringify({ version: "v1.1.0", module: true,
       phone: { model: "SM-S918W", firmware: "S918WVLU8GZIF", csc: "XAC", android: "17", kernel: "5.15.197-android13-8-34343818-abS918WVLU8GZIF", gms: 264531035 },
       picked: st.picked, autostart: st.autostart, applying: !!st.run,
-      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "the AirDrop payload isn't installed"), tw("display"), tw("logvideo"), tw("vulkan"), tw("camerahdr"), tw("audioeraser"), tw("colortone"), tw("galaxyai")] });
+      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "the AirDrop payload isn't installed"), tw("display"), tw("logvideo"), tw("vulkan"), tw("camerahdr"), tw("audioeraser"), tw("colortone"), tw("galaxyai"), tw("camextras"), tw("autoframe"), tw("settingssearch"), tw("bargein"), tw("callscreen", "needs the Language Core 4.0.01.24 APK (3.1 GB) in /data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk; see the README")] });
   }
   function handle(cmd) {
     tick();
