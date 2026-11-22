@@ -740,6 +740,13 @@ restart_framework() {
   n=150; until p=$(pidof system_server) && [ -n "$p" ] && [ "$p" != "$old" ] && pm path android >/dev/null 2>&1; do
     n=$((n-1)); [ $n = 0 ] && fail "framework did not come back"; sleep 1; done
   sleep 10; log "framework back"
+  # The restart parsed the bound APKs and cached the result in package_cache, under the stock app's name
+  # and newer than the stock file. After a reboot (binds gone) Android would keep using that parse for
+  # the stock app, and the app crashes looking for the other build's resources. Drop those entries so
+  # the next boot parses the stock app again.
+  for a in $(awk '$2 ~ /\.apk$/ {print $2}' /proc/mounts | sort -u); do
+    n=${a%/*}; n=${n##*/}; rm -f /data/system/package_cache/*/$n-[0-9]*
+  done
 }
 
 case "$1" in
