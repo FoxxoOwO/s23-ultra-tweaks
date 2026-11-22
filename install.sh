@@ -57,7 +57,7 @@ can_airdrop=1; why_airdrop=""
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 
-ids=(airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan)
+ids=(airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr audioeraser colortone galaxyai)
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)"
       "Battery health page: Settings > Battery > Battery information shows health and cycles"
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
@@ -67,9 +67,13 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds 1)"
       "Vividness slider (Screen mode > Advanced settings) and lock screen wallpaper on Always On Display"
       "Log video: Log recording and LUT preview in Camera > Pro video"
-      "Vulkan rendering: apps draw with Vulkan instead of OpenGL")
-avail=($can_airdrop 1 1 $can_csc $can_csc 1 $can_airdrop 1 1 1)
-why=("$why_airdrop" "" "" "$why_csc" "$why_csc" "" "$why_airdrop" "" "" "")
+      "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
+      "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"
+      "Audio Eraser: remove wind, noise, music or voices from videos in Gallery (34 MB download)"
+      "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
+      "Galaxy AI apps: the S24's Now Brief, Creative Studio and Call Assist (219 MB download)")
+avail=($can_airdrop 1 1 $can_csc $can_csc 1 $can_airdrop 1 1 1 1 1 1 1)
+why=("$why_airdrop" "" "" "$why_csc" "$why_csc" "" "$why_airdrop" "" "" "" "" "" "" "")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
@@ -105,6 +109,7 @@ fi
 [ -n "$picked" ] || die "nothing picked"
 say "Applying: $picked"
 case " $picked " in *" airdrop "*) info "Wi-Fi (and the hotspot) drop for ~30 s while the driver is swapped." ;; esac
+case " $picked " in *" camerahdr "*|*" audioeraser "*|*" colortone "*|*" galaxyai "*) info "The phone downloads the files of the tweaks that need them from GitHub first (needs internet)." ;; esac
 info "The screen goes black for ~30 s while Android restarts its framework. Don't unplug the phone."
 r=$(ask "Continue? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && exit 0
 r=$(ask "Re-apply these automatically at every boot, with no computer? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && auto=off || auto=on
@@ -132,10 +137,19 @@ a shell "su -c 'mkdir -p $PHONE_DIR'"
 a push "$W/src/device/." /data/local/tmp/s23tweaks_new >/dev/null
 a shell "su -c 'cp -r /data/local/tmp/s23tweaks_new/. $PHONE_DIR/ && rm -rf /data/local/tmp/s23tweaks_new && chmod -R 755 $PHONE_DIR && chcon u:object_r:system_file:s0 $PHONE_DIR/airdrop/moseyrun 2>/dev/null; true'"
 fi
+# Tweaks with their own download (camerahdr audioeraser colortone galaxyai): the phone fetches them
+# from GitHub while applying. Development: S23T_PAYLOADS=<folder of *.tar.gz> pushes local copies.
+if [ -n "${S23T_PAYLOADS:-}" ]; then
+  a shell "su -c 'mkdir -p $PHONE_DIR/dl'"
+  for f in "$S23T_PAYLOADS"/*-S918WVLU8GZIF.tar.gz; do
+    case " $picked " in *" $(basename "$f" | sed 's/-S918WVLU8GZIF.tar.gz//') "*) ;; *) continue ;; esac
+    a push "$f" /data/local/tmp/ >/dev/null && a shell "su -c 'mv /data/local/tmp/$(basename "$f") $PHONE_DIR/dl/'"
+  done
+fi
 a shell "su -c 'sh $TW start \"$picked\"'" >/dev/null
 
 say "Applying (2-3 minutes)..."
-shown=0; end=$((SECONDS + 420))
+shown=0; end=$((SECONDS + 420)); case " $picked " in *" galaxyai "*|*" audioeraser "*|*" camerahdr "*) end=$((end + 900)) ;; esac   # downloads
 while [ $SECONDS -lt $end ]; do
   sleep 3
   out=$(a shell "su -c 'cat $PHONE_DIR/tweaks.log'" 2>/dev/null | tr -d '\r') || continue
@@ -152,6 +166,10 @@ case " $picked " in *" airdrop "*)
   info "Quick Share and pick 'Share with Apple devices'." ;; esac
 case " $picked " in *" battery "*) info "Battery: Settings > Battery > Battery information." ;; esac
 case " $picked " in *" wifi7 "*) info "Wi-Fi 7: multi-link works with Wi-Fi 7 routers that have MLO on. Settings > Wi-Fi > (network) shows Wi-Fi 7." ;; esac
+case " $picked " in *" camerahdr "*) info "Camera HDR: untested. Shoot a bright backlit scene and compare; turn it off if photos look worse." ;; esac
+case " $picked " in *" audioeraser "*) info "Audio Eraser: Gallery > a video > Edit > speaker icon > Audio eraser." ;; esac
+case " $picked " in *" colortone "*) info "Adaptive color tone: Settings > Display > Adaptive color tone." ;; esac
+case " $picked " in *" galaxyai "*) info "Now Brief: turn on Settings > Galaxy AI > Personal data intelligence. Creative Studio is in the app drawer." ;; esac
 case " $picked " in *" hotspot6g "*) info "6 GHz hotspot: Settings > Connections > Mobile Hotspot > Band > 6 GHz (security must be WPA3)." ;; esac
 if [ "$auto" = on ]; then
   info "At each boot DFRoot roots the phone by itself and the tweaks re-apply about a minute later (the screen"

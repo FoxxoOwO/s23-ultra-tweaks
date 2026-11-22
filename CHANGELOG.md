@@ -4,6 +4,8 @@
 
 - New tweaks: `display` (Vividness slider and full-screen AOD wallpaper), `logvideo` (Log recording and LUT preview in Pro video) and `vulkan` (Skia on Vulkan for apps).
 - Feature flags can now be set to values, replacing the stock ones (not only added as TRUE).
+- New tweaks with their own download, fetched by the phone only when picked: `camerahdr` (untested: puts back the multi-frame and low-light HDR camera processing One UI 9 removed), `audioeraser` (Audio Eraser in Gallery), `colortone` (Adaptive color tone) and `galaxyai` (S24 Now Brief, Creative Studio and Call Assist).
+- `docs/findings.md`: research notes, starting with the One UI 9 camera processing regression.
 
 ## v1.0.0
 

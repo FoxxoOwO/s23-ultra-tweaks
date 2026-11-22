@@ -14,6 +14,10 @@ Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One 
 | 8 | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
 | 9 | `logvideo` | **Log video**: Camera → Pro video gets the LOG button and LUT preview (10-bit HEVC) | any S23 Ultra on One UI 9 |
 | 10 | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |
+| 11 | `camerahdr` | **Camera HDR processing**: puts back the multi-frame HDR and low-light HDR steps One UI 9 removed from the S23 (see [docs/findings.md](docs/findings.md)). **Untested** | any S23 Ultra on One UI 9 (21 MB download) |
+| 12 | `audioeraser` | **Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices | firmware S918WVLU8GZIF (34 MB download) |
+| 13 | `colortone` | **Adaptive color tone**: Settings → Display, the screen's colour follows the room light | firmware S918WVLU8GZIF (1 MB download) |
+| 14 | `galaxyai` | The S24's **Now Brief**, **Creative Studio** and **Call Assist** | firmware S918WVLU8GZIF (219 MB download) |
 
 The installer asks which ones you want and greys out the ones your phone can't take.
 
@@ -161,6 +165,26 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 - **Always On Display**: *Lock screen and AOD → Always On Display* gets *Show Lock screen wallpaper*. *Erase background* only works with a photo wallpaper whose subject was cut out by the wallpaper editor (a "layered" wallpaper), not with the AI weather wallpaper.
 - **Log video**: in *Pro video*, tap **LOG** at the top. The S23's camera already records 10-bit; the tweak only turns on Samsung's switches for it.
 - **Vulkan**: Samsung's renderer ignores the S24's `ro.hwui.use_vulkan`; the tweak sets `debug.hwui.renderer=skiavk`. Check with `adb shell dumpsys gfxinfo com.android.systemui | grep Pipeline` (should say `Skia (Vulkan)`).
+
+## Downloaded tweaks: camerahdr, audioeraser, colortone, galaxyai
+
+These need files from Samsung firmware (from the S24's for the last three, and from the S23's own One UI 6
+firmware for `camerahdr`). Each one is a separate file in the GitHub release `payloads-S918WVLU8GZIF`,
+downloaded by the phone only when you pick that tweak. Its SHA-256 is pinned in `device/tweaks.sh`, and
+it's kept in `/data/adb/s23tweaks/payload/` so it isn't downloaded again.
+
+- **camerahdr** (untested): One UI 9 dropped the S23's ArcSoft multi-frame HDR and low-light HDR steps.
+  The camera app still has them and, without them, runs a pass-through step that leaves the photo
+  unprocessed. The tweak adds back the One UI 6 libraries and their entries in the camera's processing
+  list. Details and how to check it: [docs/findings.md](docs/findings.md).
+- **audioeraser**: the S23's video editor engine was built without the audio scanner. The tweak swaps in
+  the S24 engine and adds its sound-separation libraries and two models.
+- **colortone**: Samsung compiled the S23's Settings to hide the switch. The tweak patches one byte in
+  a RAM copy of Settings (`device/files/SecSettings-ead.patch`, checked by MD5) and adds the S24's
+  colour-tone service.
+- **galaxyai**: binds the S24 builds of the three apps over the S23's. While it's on, it replaces any
+  Galaxy Store update of Personal Data Intelligence; after a reboot without it, Galaxy Store offers the
+  update again.
 
 ## Undo
 

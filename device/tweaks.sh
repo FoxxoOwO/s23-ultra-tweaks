@@ -17,7 +17,8 @@
 #   boot              (internal) the automatic apply at boot
 #   wifi7page         open Samsung's hidden "Wi-Fi 7 mode" settings page (Wi-Fi Labs)
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
-# Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan  (see README.md)
+# Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
+#         camerahdr audioeraser colortone galaxyai  (see README.md)
 #
 # Nothing here writes to a partition. Every change is a module load, a RAM (tmpfs) overlay, a bind
 # mount or a runtime setting, so a reboot always returns the phone to stock. The one exception is
@@ -33,12 +34,23 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr audioeraser colortone galaxyai"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
 CF=/system/cameradata/camera-feature.xml
+PL=$V/payload; T24=/dev/s23tweaks_layers    # per-tweak downloads (unpacked in payload/<tweak>/) and their RAM layers
+# Tweaks whose files are a separate download, fetched by the phone only when picked: tweak, file in the
+# GitHub release $PAYLOAD_URL, SHA-256. A copy in $V/dl/ (the installer can push one) is used first.
+PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/payloads-S918WVLU8GZIF
+PAYLOADS="camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
+audioeraser audioeraser-S918WVLU8GZIF.tar.gz a11d2868b3d8ba0121554ea2a31bb65256e0c141c6033c4e6ddb4770f4d11704
+colortone colortone-S918WVLU8GZIF.tar.gz 4be28f16e3631f1e377ecec9ad2b5b78d1abf8c6a9b971435c7ac12604f75e40
+galaxyai galaxyai-S918WVLU8GZIF.tar.gz 5619aaee7580b985df300dcfca1fadc56bc774f60ebb2af9db975876dfe01c0e"
+SETTINGS=/system/priv-app/SecSettings/SecSettings.apk
+SETTINGS_STOCK_MD5=5b8afa24f17e090d57380b8ebbd3dcee   # SecSettings.apk on S918WVLU8GZIF
+SETTINGS_EAD_MD5=f499f2e574a47eca0414f470e1ae20e8     # the same with files/SecSettings-ead.patch applied
 XAC=/optics/configs/carriers/XAC/conf; PRISM=/prism/etc/carriers/XAC
 # md5 of the stock (encoded) XAC files on S918WVLU8GZIF: the CSC tweaks replace them, so they only
 # run when the phone has exactly these
@@ -313,6 +325,183 @@ camfeat_apply() {
   log "logvideo: Log and LUT on in Pro video"
 }
 
+# ---------- Payload tweaks: camerahdr, audioeraser, colortone, galaxyai (files in $D/payload/<tweak>) ----------
+# Linux stacks at most two overlays on a path, so the tweaks don't mount their own. Each one stages the
+# files the phone doesn't show yet into $T24/new/<folder> (stage, stage_text); layers_mount then puts one
+# overlay per folder on /system/<folder>. Overlays merge subfolders, so etc/permissions rides on the
+# /system/etc layer. An overlay hides the single-file binds made below it, so those (pl_binds) come
+# after it. Each step checks what the phone shows, not the mount table, so a re-apply only adds what's
+# missing.
+tlayer() { mkdir -p $T24; mounted $T24 tmpfs || mount -t tmpfs -o mode=755 s23tweaks_layers $T24; }
+same_size() { [ "$(stat -c %s "$1" 2>/dev/null)" = "$(stat -c %s "$2" 2>/dev/null)" ]; }
+# stage <folder under /system> <source file>: add the file to the next layer unless /system shows it
+stage() { [ -e /system/$1/${2##*/} ] && return 1; tlayer; mkdir -p $T24/new/$1; cp "$2" $T24/new/$1/ || fail "copy $2 to RAM"; }
+# stage_text <file under /system>: write stdin to the next layer in place of that file
+stage_text() { tlayer; mkdir -p $T24/new/${1%/*}; cat > $T24/new/$1; }
+layers_mount() {
+  [ -d $T24/new ] || return 1
+  n=1; while [ -e $T24/L$n ]; do n=$((n+1)); done
+  mv $T24/new $T24/L$n; L=$T24/L$n
+  find $L -type d -exec chmod 755 {} +; find $L -type f -exec chmod 644 {} +
+  chcon -R u:object_r:system_file:s0 $L; [ -d $L/lib64 ] && chcon -R u:object_r:system_lib_file:s0 $L/lib64
+  for d in $L/*; do d=${d##*/}
+    [ -d /system/$d ] || fail "no /system/$d"
+    mount -t overlay s23tweaks_$d$n -o ro,lowerdir=$L/$d:/system/$d /system/$d ||
+      fail "overlay on /system/$d (if tweaks were already added since the last reboot, reboot and apply again)"
+    log "RAM layer on /system/$d: $(cd $L/$d && find . -type f | sed 's|^\./||' | tr '\n' ' ')"
+  done
+  return 0
+}
+pl_check() {   # pl_check <tweak> <file>...: all present in payload/<tweak>?
+  t=$1; shift
+  for f in "$@"; do [ -f $PL/$t/$f ] || { log "$t: its download is missing $f; skipped"; return 1; }; done
+}
+# bind_file <source> <target> <label>: bind one file unless the target already shows the same size
+bind_file() {
+  same_size "$2" "$1" && return 1
+  chmod 644 "$1"; chcon u:object_r:$3:s0 "$1"
+  mount -o bind,ro "$1" "$2" || fail "bind $2"
+}
+
+# Camera HDR processing (untested; see docs/findings.md). One UI 9 dropped the S23's ArcSoft
+# multi-frame HDR and low-light HDR steps: their entries in CAMERA_CONFIG_VENDOR_LIB_INFO and both
+# libraries. The camera app still has both steps and, with them unlisted, runs a pass-through dummy
+# instead. Put back the 2023 (One UI 6, S918WVLS2BWKA) libraries, their public-library lines and the
+# two list entries. The flag file is cached per process, so this goes through the framework restart.
+CH_LIBS="libhigh_dynamic_range.arcsoft.so liblow_light_hdr.arcsoft.so"
+CH_MD5="c6b7aa034c3704dcfccc87ca32582dc6 656c3c400bb9ebf74a05e23865c334cb"
+CH_PUB=public.libraries-arcsoft.txt
+CH_KEY=CAMERA_CONFIG_VENDOR_LIB_INFO
+camerahdr_stage() {
+  set -- $CH_MD5
+  for f in $CH_LIBS; do
+    [ "$(md5sum $PL/camerahdr/$f 2>/dev/null | cut -d' ' -f1)" = "$1" ] || { log "camerahdr: its download is missing $f (or it's damaged); skipped"; return 1; }
+    shift
+  done
+  v=$(grep -o "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]*" $FF | cut -d'>' -f2)
+  [ -n "$v" ] || { log "camerahdr: $FF has no $CH_KEY; skipped"; return 1; }
+  case ",$v," in *,mfhdr.arcsoft.v4,*) ;; *) v="$v,mfhdr.arcsoft.v4" ;; esac
+  case ",$v," in *,llhdr.arcsoft.v4,*) ;; *) v="$v,llhdr.arcsoft.v4" ;; esac
+  ff_set $CH_KEY "$v"
+  for f in $CH_LIBS; do stage lib64 $PL/camerahdr/$f; done
+  if [ -f /system/etc/$CH_PUB ] && ! grep -q '^liblow_light_hdr.arcsoft.so' /system/etc/$CH_PUB; then
+    { cat /system/etc/$CH_PUB; printf '%s\n' $CH_LIBS; } | stage_text etc/$CH_PUB
+  fi
+  am force-stop com.sec.android.app.camera
+  log "camerahdr: One UI 6 multi-frame HDR and low-light HDR on"
+  return 0   # the list entry needs the framework restart that follows the flag file
+}
+
+# Audio Eraser (Gallery > video > Edit > Audio eraser). The S23's video editor engine was built with
+# its audio scanner compiled out ("AudioScanner is not supported"), and the S23 lacks the S24's
+# sound-separation libraries and models. Only Gallery's video editor loads the engine.
+AE_LIBS="libsbs.so libtensorflowlite_gpu_delegate.so libmultisourceseparator.so libmultisourceseparator.audio.samsung.so"
+AE_ETC="public.libraries-audio.samsung.txt mss_v0.23.0_VMWO_2_fp32.sorione fastScanner.tflite"
+VE=libveframework.videoeditor.samsung.so
+audioeraser_stage() {
+  pl_check audioeraser $AE_LIBS $AE_ETC $VE || return 1
+  ff_set AUDIO_CONFIG_MULTISOURCE_SEPARATOR '{FastScanning_6, SourceSeparator_4, Version_1.3.0}'
+  for f in $AE_LIBS; do stage lib64 $PL/audioeraser/$f; done
+  for f in $AE_ETC; do stage etc $PL/audioeraser/$f; done
+  return 0
+}
+audioeraser_bind() {
+  bind_file $PL/audioeraser/$VE /system/lib64/$VE system_lib_file && am force-stop com.sec.android.app.vepreload
+  log "audioeraser: S24 video editor engine, sound-separation libraries and models on"
+}
+
+# Adaptive Color Tone (Settings > Display). Samsung compiled the S23's Settings to report it as
+# unsupported (SecEADPreferenceController.getAvailabilityStatus() returns 3): patch that byte in a RAM
+# copy of Settings, and add the S24's colour-tone service (com.samsung.android.sead), which drives the
+# display from the S23's own colour light sensor.
+EAD=EnvironmentAdaptiveDisplay
+EAD_PERM=privapp-permissions-com.samsung.android.sead.xml
+colortone_stage() {
+  pl_check colortone $EAD.apk $EAD_PERM || return 1
+  [ -f $D/files/SecSettings-ead.patch ] || fail "colortone: files/SecSettings-ead.patch missing"
+  if [ ! -f /system/priv-app/$EAD/$EAD.apk ]; then
+    # the new /system/priv-app layer would hide the APK binds there; pl_binds puts them back
+    awk '$2 ~ "^/system/priv-app/" {print $2}' /proc/mounts | while read m; do umount $m; done
+    stage priv-app/$EAD $PL/colortone/$EAD.apk
+  fi
+  stage etc/permissions $PL/colortone/$EAD_PERM
+  return 0
+}
+colortone_bind() {
+  if [ -f $T24/SecSettings.apk ] && cmp -s $T24/SecSettings.apk $SETTINGS; then :
+  elif [ "$(md5sum $SETTINGS | cut -d' ' -f1)" != $SETTINGS_STOCK_MD5 ]; then
+    log "colortone: Settings isn't the S918WVLU8GZIF build, so the Adaptive color tone switch stays hidden"; return
+  else
+    tlayer; cp $SETTINGS $T24/SecSettings.apk
+    grep -v '^#' $D/files/SecSettings-ead.patch | while read off oct; do
+      printf "\\$oct" | dd of=$T24/SecSettings.apk bs=1 seek=$off conv=notrunc 2>/dev/null; done
+    [ "$(md5sum $T24/SecSettings.apk | cut -d' ' -f1)" = $SETTINGS_EAD_MD5 ] || { rm -f $T24/SecSettings.apk; fail "colortone: Settings patch gave the wrong file"; }
+    chmod 644 $T24/SecSettings.apk; chcon u:object_r:system_file:s0 $T24/SecSettings.apk
+    mount -o bind,ro $T24/SecSettings.apk $SETTINGS || fail "colortone: bind $SETTINGS"
+    am force-stop com.android.settings
+  fi
+  log "colortone: Adaptive color tone on (Settings > Display)"
+}
+
+# Now Brief, Creative Studio, Call Assist: the S24 firmware ships newer builds of these three apps.
+# Bind each S24 APK over the S23 firmware copy and drop its parse-cache entry (the cache is keyed on
+# the folder's time, so the new APK would be ignored), then the framework restart rescans them.
+# Samsung's installer refuses these platform-signed builds as normal updates. Side effect: a newer
+# firmware copy replaces any Galaxy Store update of Personal Data Intelligence; after a reboot without
+# this tweak, Galaxy Store offers its update again.
+GAI_APPS="priv-app/SamsungSmartSuggestions app/SketchBook priv-app/CallAssistant"
+galaxyai_stage() {
+  for p in $GAI_APPS; do n=${p#*/}
+    pl_check galaxyai $n.apk || return 1
+    [ -f /system/$p/$n.apk ] || { log "galaxyai: this phone has no /system/$p/$n.apk; skipped"; return 1; }
+  done
+  ff_set FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE TRUE; ff_set FRAMEWORK_CONFIG_NOW_NUDGE_VERSION 2
+  ff_set COMMON_CONFIG_AI_VERSION 20263
+  return 0
+}
+galaxyai_bind() {
+  for p in $GAI_APPS; do n=${p#*/}
+    bind_file $PL/galaxyai/$n.apk /system/$p/$n.apk system_file && rm -f /data/system/package_cache/*/$n-16-*
+  done
+  log "galaxyai: S24 Now Brief (Personal Data Intelligence), Creative Studio and Call Assist on"
+}
+# payload_fetch: download and unpack the files of each picked tweak that has them, unless the
+# unpacked copy already matches the pinned checksum. A failed download skips that tweak, not the rest.
+dl() {   # dl <url> <file>: curl if the phone has it, else KernelSU's busybox wget
+  if command -v curl >/dev/null; then curl -fsSL --retry 2 -o "$2" "$1"
+  else for b in /data/adb/ksu/bin/busybox /data/adb/magisk/busybox; do [ -x $b ] && { $b wget -q -O "$2" "$1"; return; }; done; return 1; fi
+}
+payload_fetch() {
+  echo "$PAYLOADS" | while read t f sum; do
+    has $t || continue
+    [ "$(cat $PL/$t/.sha256 2>/dev/null)" = "$sum" ] && continue
+    mkdir -p $V/dl; z=$V/dl/$f
+    if [ "$(sha256sum $z 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
+      log "$t: downloading its files ($f)"
+      rm -f $z; dl "$PAYLOAD_URL/$f" $z.part && mv $z.part $z || { rm -f $z.part; log "$t: download failed (no internet?); skipped"; continue; }
+      [ "$(sha256sum $z | cut -d' ' -f1)" = "$sum" ] || { rm -f $z; log "$t: the download doesn't match its checksum; skipped"; continue; }
+    fi
+    rm -rf $PL/$t $PL/$t.new; mkdir -p $PL/$t.new
+    tar -xzf $z -C $PL/$t.new || { rm -rf $PL/$t.new; log "$t: couldn't unpack $f; skipped"; continue; }
+    echo $sum > $PL/$t.new/.sha256; mv $PL/$t.new $PL/$t; rm -f $z
+    log "$t: files ready"
+  done
+}
+
+# stage everything, mount the layers, then the single-file binds; returns 0 if any payload tweak ran
+payload_apply() {
+  ran=1
+  has camerahdr && camerahdr_stage && ran=0
+  has audioeraser && audioeraser_stage && { ran=0; ae=1; }
+  has colortone && colortone_stage && { ran=0; ct=1; }
+  has galaxyai && galaxyai_stage && { ran=0; gai=1; }
+  layers_mount
+  [ "${ae:-0}" = 1 ] && audioeraser_bind
+  [ "${ct:-0}" = 1 ] && colortone_bind
+  [ "${gai:-0}" = 1 ] && galaxyai_bind
+  return $ran
+}
+
 # Settings > Battery > Battery information shows health only when an authenticated battery IC
 # (sec_auth) exists. Present one whose values mirror /efs/FactoryApp, so syncs are no-ops.
 battery_auth() {
@@ -394,6 +583,7 @@ apply)
   for x in $2; do case " $TWEAK_IDS " in *" $x "*) ;; *) fail "unknown tweak: $x" ;; esac; done
   echo "$2" > $V/choices
   has wifi7 && ! has airdrop && fail "wifi7 needs airdrop (the S24 Wi-Fi driver)"
+  payload_fetch   # before the AirDrop driver swap takes Wi-Fi down
   if has airdrop; then
     [ "$(uname -r)" = "$AIRDROP_KERNEL" ] || fail "airdrop needs kernel $AIRDROP_KERNEL (firmware S918WVLU8GZIF)"
     has wifi7 && wifi7_bind   # before the driver loads, so it reads the MLO settings
@@ -402,6 +592,7 @@ apply)
   fi
   restart=0
   has airdrop && airdrop_overlays && restart=1
+  payload_apply && restart=1   # camerahdr audioeraser colortone galaxyai: before the flag file
   has battery && { ff_tags="$ff_tags BATTERY_SUPPORT_BSOH_SETTINGS SETTINGS_ENABLE_EU_BATTERY_REGULATORY"; battery_auth; }
   has features && ff_tags="$ff_tags SETTINGS_SUPPORT_AUTO_POWER_ON_OFF AUDIO_SUPPORT_VOIP_SOUND_LOUDER"
   if has display; then  # Vividness slider (Screen mode > Advanced settings) and full-screen AOD wallpaper
@@ -447,6 +638,7 @@ probe)
   [ -z "$why_ad" ] && [ ! -f $D/airdrop/kiwi_v2.ko ] && why_ad="the AirDrop payload isn't installed"
   why_csc=$why_s23; [ -z "$why_csc" ] && [ "$csc" != XAC ] && why_csc="needs XAC (Canadian) firmware (this phone is $csc)"
   why_bat=$why_s23; [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/asoc ] && why_bat="this phone has no battery data in /efs/FactoryApp"
+  pw() { echo "$why_s23"; }   # their files are downloaded when picked
   why_6g=$why_s23; [ -z "$why_6g" ] && [ ! -x /data/adb/ksu/bin/resetprop ] && why_6g="needs KernelSU's resetprop"
   act() { "$@" && echo true || echo false; }
   a_air=$(act eval '[ -d /sys/module/wonder ] && bound /system_ext/bin')
@@ -459,15 +651,21 @@ probe)
   a_dis=$(act eval 'bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<" $FF')
   a_log=$(act bound $CF)
   a_vk=$(act eval '[ "$(getprop debug.hwui.renderer)" = skiavk ]')
+  a_ch=$(act eval "grep -q 'mfhdr.arcsoft.v4' $FF && [ -f /system/lib64/liblow_light_hdr.arcsoft.so ]")
+  a_ae=$(act eval '[ -f /system/etc/fastScanner.tflite ]')
+  a_ct=$(act bound $SETTINGS)
+  a_gai=$(act bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk)
   j() { printf '{"id":"%s","available":%s,"why":"%s","active":%s}' "$1" "$( [ -z "$2" ] && echo true || echo false)" "$2" "$3"; }
   printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s},' \
     "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}"
   printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(cat $V/choices 2>/dev/null)" \
     "$( [ -f $V/autostart ] && echo true || echo false)" "$( lock_alive && echo true || echo false)"
-  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
     "$(j features "$why_s23" $a_fea)" "$(j callrec "$why_csc" $a_rec)" "$(j india "$why_csc" $a_ind)" \
     "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)" \
-    "$(j display "$why_s23" $a_dis)" "$(j logvideo "$why_s23" $a_log)" "$(j vulkan "$why_s23" $a_vk)"
+    "$(j display "$why_s23" $a_dis)" "$(j logvideo "$why_s23" $a_log)" "$(j vulkan "$why_s23" $a_vk)" \
+    "$(j camerahdr "$(pw camerahdr)" $a_ch)" "$(j audioeraser "$(pw audioeraser)" $a_ae)" \
+    "$(j colortone "$(pw colortone)" $a_ct)" "$(j galaxyai "$(pw galaxyai)" $a_gai)"
   ;;
 loop)
   # init can't start mosey_server (its .rc isn't loaded on this boot). moseyrun starts it the way
@@ -498,6 +696,10 @@ status)
   echo "battery:  $(mounted /sys/class/power_supply tmpfs && echo on || echo off)"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<' $FF && echo on || echo off)"
   echo "logvideo: $(bound $CF && echo on || echo off)"
+  echo "camerahdr: libraries $([ -f /system/lib64/liblow_light_hdr.arcsoft.so ] && echo on || echo off), list entries $(grep -q 'mfhdr.arcsoft.v4' $FF && echo on || echo off)"
+  echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
+  echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
+  echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"
   echo "vulkan:   renderer $(getprop debug.hwui.renderer | grep . || echo default)"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  CSC country $(getprop ro.csc.countryiso_code)"
