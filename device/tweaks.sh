@@ -25,7 +25,7 @@
 # mount or a runtime setting, so a reboot always returns the phone to stock. The one exception is
 # the airdrop tweak's two Play services flag overrides, stored in Play services' own database
 # (harmless without the rest; "unflag" removes them), camextras' camera app setting, and callscreen,
-# which installs Samsung Language Core as an ordinary app update (undo: pm uninstall-system-updates).
+# which installs Samsung Language Core as an ordinary app (undo: pm uninstall <package>).
 # Never touched: the sales code (mps_code.dat, sales_code.dat, omc.info, persist.sys.matched_code).
 # Changing those can factory-reset the phone.
 
@@ -543,9 +543,9 @@ settingssearch_bind() {
 }
 
 # Call screening (Phone app). Needs Samsung Language Core (com.samsung.android.offline.languagemodel);
-# the firmware has a stub and Galaxy Store refuses the S23 (9908). Install the real one as an ordinary
-# update: Samsung-signed like the stub, so the installer accepts it. Persistent (survives reboot); undo
-# with pm uninstall-system-updates. Its 3.1 GB download comes in two parts (GitHub caps a file at 2 GB)
+# the S23 firmware has none and Galaxy Store refuses the S23 (9908). Install the real one (Samsung-signed)
+# as an ordinary app. Persistent (survives reboot); undo with pm uninstall $LC_PKG (not
+# uninstall-system-updates: it isn't an update of a system app here). Its 3.1 GB download comes in two parts (GitHub caps a file at 2 GB)
 # and is deleted once installed. What works: screening, the greeting,
 # the voice message. What doesn't: the AI summary and AI replies, since Samsung's model only exists for
 # the S26's NPU; on the S23 it fails safely (no V73 stub, nothing reaches the DSP). See docs/findings.md.

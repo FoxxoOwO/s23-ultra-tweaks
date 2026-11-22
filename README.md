@@ -203,9 +203,9 @@ it's kept in `/data/adb/s23tweaks/payload/` so it isn't downloaded again.
 
 ## Call screening
 
-The Phone app's Call screening needs Samsung Language Core. The S23 firmware has only a placeholder,
-and Galaxy Store refuses the S23 ("not compatible", 9908). `callscreen` installs the real one (version
-4.0.01.24, signed by Samsung like the placeholder) as an ordinary app update.
+The Phone app's Call screening needs Samsung Language Core. The S23 firmware doesn't have it, and
+Galaxy Store refuses the S23 ("not compatible", 9908). `callscreen` installs it (version 4.0.01.24,
+signed by Samsung) as an ordinary app.
 
 - **What works:** the Call screening switch, *Screen call* on incoming calls, the greeting read to the
   caller, and recording the caller's voice message.
@@ -216,7 +216,7 @@ and Galaxy Store refuses the S23 ("not compatible", 9908). `callscreen` installs
   two parts, checks each against its SHA-256, joins them, checks the APK's MD5, installs it and
   deletes the download. It needs about 7 GB free while it does this; use Wi-Fi.
 - **It stays after a reboot**, unlike the other tweaks. Remove it with
-  `adb shell pm uninstall-system-updates com.samsung.android.offline.languagemodel`.
+  `adb shell pm uninstall com.samsung.android.offline.languagemodel`.
 
 ## Undo
 
@@ -229,7 +229,7 @@ Reboot. Everything goes back to stock except three things:
 - Director's view stays in Camera → More (`camextras` sets a camera app setting). Hide it there with
   the edit button, or clear the Camera app's data.
 - Samsung Language Core (`callscreen`):
-  `adb shell pm uninstall-system-updates com.samsung.android.offline.languagemodel`
+  `adb shell pm uninstall com.samsung.android.offline.languagemodel`
 
 ## Known limitations
 

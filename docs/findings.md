@@ -194,13 +194,15 @@ AI replies to the caller don't, and can't with Samsung's model.
 
 - The Phone settings app (TelephonyUI) only checks that Samsung Language Core
   (`com.samsung.android.offline.languagemodel`) lists `CallScreeningResponse` in its `FUNCTION_INFO`
-  manifest metadata. The firmware ships only a stub (1.0.00.38), so turning the switch on opened Galaxy
-  Store, which refuses the S23 with "not compatible (9908)".
+  manifest metadata. The S23 firmware has no Language Core at all, so turning the switch on opened
+  Galaxy Store, which refuses the S23 with "not compatible (9908)". (The 1.0.00.38 stub seen during
+  testing came from a test overlay of S24 system apps; after a clean reboot the package is gone.)
 - Fix: install the real Language Core directly. **4.0.01.24** (versionCode 400124010, the Snapdragon S26
-  build from APKMirror, 3.1 GB, md5 `994620f3071706391d17ff132ea16c42`) is signed with the same Samsung cert
-  as the stub (SHA-256 `34df0e7a…5f900a42`), so `pm install -r` accepts it as an ordinary update.
-- **This is persistent, not RAM-only:** it's a /data/app update that survives reboot. Undo with
-  `pm uninstall-system-updates com.samsung.android.offline.languagemodel`.
+  build from APKMirror, 3.1 GB, md5 `994620f3071706391d17ff132ea16c42`) is Samsung-signed (SHA-256
+  `34df0e7a…5f900a42`, the S24 stub's cert too) and installs as an ordinary app.
+- **This is persistent, not RAM-only:** it's a /data/app install that survives reboot. Undo with
+  `pm uninstall com.samsung.android.offline.languagemodel` (`pm uninstall-system-updates` crashes with a
+  NullPointerException, because on the S23 it isn't an update of a system app).
 - No Galaxy Store spoofing is needed. The Store checks `deviceId` server-side, and the stub-download service
   answers "Application is not approved as stub" even for the S24 Ultra.
 
