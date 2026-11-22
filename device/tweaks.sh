@@ -26,6 +26,8 @@
 # Never touched: the sales code (mps_code.dat, sales_code.dat, omc.info, persist.sys.matched_code).
 # Changing those can factory-reset the phone.
 
+# KernelSU runs boot scripts in BusyBox standalone mode; make sure every tool here is Android's own
+unset ASH_STANDALONE; export PATH=/system/bin:/system/xbin:/vendor/bin:$PATH
 D=$(cd "$(dirname "$0")" && pwd)            # code: this script, files/, airdrop/ (the payload)
 V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, autostart flag
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
@@ -52,6 +54,20 @@ bound() { mount | grep -q " $1 "; }
 running() { ps -A -o ARGS | grep -q "[t]weaks.sh $1"; }
 has() { case " $TWEAKS " in *" $1 "*) return 0 ;; esac; return 1; }
 md5() { md5sum "$1" 2>/dev/null | cut -d' ' -f1; }
+# The apply lock is a directory holding the owner's pid. A lock whose owner is gone (killed apply)
+# counts as free, so a crash can't block every later apply until the next reboot.
+lock_alive() { lp=$(cat $APPLY_LOCK/pid 2>/dev/null); [ -n "$lp" ] && kill -0 "$lp" 2>/dev/null; }
+take_lock() {
+  if ! mkdir $APPLY_LOCK 2>/dev/null; then
+    lock_alive && return 1
+    rm -rf $APPLY_LOCK; mkdir $APPLY_LOCK 2>/dev/null || return 1
+  fi
+  echo $$ > $APPLY_LOCK/pid
+}
+# Started from KernelSU's app (module page, action button), this shell sits in that app's cgroup
+# (/apps/uid_N/pid_M). Android freezes or kills that whole group when the app is cached or dies,
+# which the framework restart in apply guarantees. Move to the root cgroup first; children follow.
+to_root_cgroup() { echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; }
 
 # kallsyms address of a symbol in a module (kptr_restrict is lowered only for the read)
 ksym() {
@@ -339,8 +355,10 @@ restart_framework() {
 case "$1" in
 apply)
   [ "$(id -u)" = 0 ] || { echo "needs root" >&2; exit 1; }
-  mkdir $APPLY_LOCK 2>/dev/null || { echo "another apply is already running (see $L)" >&2; exit 3; }
-  trap 'rmdir $APPLY_LOCK 2>/dev/null' EXIT
+  to_root_cgroup
+  if [ "${S23T_LOCKED:-0}" = 1 ] && [ -d $APPLY_LOCK ]; then echo $$ > $APPLY_LOCK/pid   # handed over by start
+  else take_lock || { echo "another apply is already running (see $L)" >&2; exit 3; }; fi
+  trap 'rm -rf $APPLY_LOCK' EXIT
   TWEAKS=" $2 "; : > $L
   log "applying:$TWEAKS"
   for x in $2; do case " $TWEAK_IDS " in *" $x "*) ;; *) fail "unknown tweak: $x" ;; esac; done
@@ -362,14 +380,18 @@ apply)
   [ $restart = 1 ] && restart_framework
   has hotspot6g && hotspot6g_apply
   has airdrop && airdrop_post
+  touch /dev/s23tweaks_applied   # lets the boot apply know this boot already has them
   log "DONE"
   ;;
 start)
   [ "$(id -u)" = 0 ] || { echo "needs root" >&2; exit 1; }
-  [ -d $APPLY_LOCK ] && { echo "another apply is already running (see $L)" >&2; exit 3; }
   [ -n "$2" ] || { echo "usage: tweaks.sh start \"<tweaks>\"" >&2; exit 2; }
+  to_root_cgroup
+  # take the lock here and hand it to apply, so two quick starts can't both go ahead
+  take_lock || { echo "another apply is already running (see $L)" >&2; exit 3; }
   : > $L
-  nsenter -t 1 -m -- setsid sh $D/tweaks.sh apply "$2" </dev/null >/dev/null 2>&1 &
+  S23T_LOCKED=1 nsenter -t 1 -m -- setsid sh $D/tweaks.sh apply "$2" </dev/null >/dev/null 2>&1 &
+  n=30; while [ $n -gt 0 ] && [ "$(cat $APPLY_LOCK/pid 2>/dev/null)" = $$ ]; do n=$((n-1)); sleep 0.1; done
   echo "started; progress in $L"
   ;;
 probe)
@@ -398,7 +420,7 @@ probe)
   printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s},' \
     "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}"
   printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(cat $V/choices 2>/dev/null)" \
-    "$( [ -f $V/autostart ] && echo true || echo false)" "$( [ -d $APPLY_LOCK ] && echo true || echo false)"
+    "$( [ -f $V/autostart ] && echo true || echo false)" "$( lock_alive && echo true || echo false)"
   printf '%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
     "$(j features "$why_s23" $a_fea)" "$(j callrec "$why_csc" $a_rec)" "$(j india "$why_csc" $a_ind)" \
     "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)"
@@ -448,13 +470,15 @@ autostart)
   case "$2" in
   on)
     # the module's own service.sh does the boot call; install.sh needs a service.d script
+    rm -f $V/boot.skip $V/boot.pending
     if [ $MODULE = 1 ]; then rm -f $S; touch $V/autostart; echo "autostart on: the saved tweaks ($(cat $V/choices 2>/dev/null)) re-apply at every boot"; exit 0; fi
     mkdir -p /data/adb/service.d
     cat > $S <<EOF
 #!/system/bin/sh
 # s23-ultra-tweaks: re-apply the saved tweaks at boot. KernelSU runs this once DFRoot has rooted the
 # phone. Remove with: sh $D/tweaks.sh autostart off
-[ -f $V/autostart ] && nsenter -t 1 -m -- setsid sh $D/tweaks.sh boot </dev/null >/dev/null 2>&1 &
+unset ASH_STANDALONE
+[ -f $V/autostart ] && /system/bin/nsenter -t 1 -m -- /system/bin/setsid /system/bin/sh $D/tweaks.sh boot </dev/null >/dev/null 2>&1 &
 EOF
     chmod 700 $S; touch $V/autostart; echo "autostart on: the saved tweaks ($(cat $V/choices 2>/dev/null)) re-apply at every boot" ;;
   off) rm -f $S $V/autostart $V/boot.pending $V/boot.skip; echo "autostart off" ;;
@@ -470,6 +494,12 @@ boot)
   # KernelSU can run boot scripts more than once per boot (seen with DFRoot's late load): only the
   # first call goes on
   mkdir /dev/s23tweaks_boot.lock 2>/dev/null || exit 0
+  to_root_cgroup
+  # The module replaces an earlier computer install: drop that copy's code (not its state). Safe
+  # only now, at boot, when nothing can still be running from it.
+  if [ $MODULE = 1 ] && [ "$D" != "$V" ] && [ -f $V/tweaks.sh ]; then
+    rm -rf $V/tweaks.sh $V/files $V/airdrop; rm -f /data/adb/service.d/s23tweaks.sh
+  fi
   n=600; until [ "$(getprop sys.boot_completed)" = 1 ]; do n=$((n-1)); [ $n = 0 ] && break; sleep 1; done
   sleep 30   # let Wi-Fi, Play services and the launcher settle before swapping the driver
   # Fail-safe against a boot loop: if the last boot's apply never finished (the phone rebooted in the
@@ -482,9 +512,11 @@ boot)
     note "Tweaks not applied at this boot: $why. Apply them from KernelSU > Modules > S23 Ultra Tweaks (or the installer), or reboot to try again."
     exit 0
   fi
+  [ -f /dev/s23tweaks_applied ] && { blog "skipped: already applied in this boot"; exit 0; }
   touch $V/boot.pending; sync; blog "applying: $t"
-  S23T_BOOT=1 sh $D/tweaks.sh apply "$t"
+  S23T_BOOT=1 sh $D/tweaks.sh apply "$t"; rc=$?
   rm -f $V/boot.pending
+  [ $rc = 3 ] && { blog "skipped: an apply was already running"; exit 0; }
   if grep -q DONE $L; then blog "done"; note "Applied: $t"
   else f=$(grep FAILED $L | tail -1 | cut -d' ' -f2-); blog "failed: $f"; note "Applying the tweaks failed: $f. Details: $L"; fi
   ;;

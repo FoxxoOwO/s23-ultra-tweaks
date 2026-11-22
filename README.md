@@ -22,17 +22,30 @@ The installer asks which ones you want and greys out the ones your phone can't t
 
 You need:
 
-1. **A Galaxy S23 Ultra** on One UI 9 with **USB debugging** on (Settings → About phone → Software information → tap *Build number* 7 times, then Settings → Developer options → *USB debugging*).
-2. **A computer** (macOS or Linux) with [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (`adb`) and a USB cable. Run `adb devices` once and accept the prompt on the phone.
-3. **Root, from two apps:**
-   - **DFRoot** (by diabl0w): <https://github.com/diabl0w/DFRoot>. It roots the stock, locked-bootloader firmware at runtime by loading KernelSU.
+1. **A Galaxy S23 Ultra** on One UI 9.
+2. **Root, from two apps:**
+   - **DFRoot** (by diabl0w): <https://github.com/diabl0w/DFRoot>. It roots the stock, locked-bootloader firmware at runtime by loading KernelSU, and does it again by itself at every boot.
    - **KernelSU manager, Samsung build `samsung-v2.2`**: <https://github.com/diabl0w/KernelSU/releases/tag/samsung-v2.2>. DFRoot needs it installed to load root.
 
-   Install both APKs, open DFRoot and tap **LAUNCH ROOT**. Then open KernelSU → **Superuser** and allow **Shell** (that is what `adb` uses).
+   Install both APKs, open DFRoot and tap **LAUNCH ROOT** once.
+3. **Only for the computer installer:** a computer (macOS or Linux) with [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (`adb`), a USB cable, and **USB debugging** on (Settings → About phone → Software information → tap *Build number* 7 times, then Settings → Developer options → *USB debugging*). Run `adb devices` once and accept the prompt on the phone, then in KernelSU → **Superuser** allow **Shell**.
 
 > Root has side effects. Some apps with anti-tamper checks refuse to run while the KernelSU manager app is installed (for example CRED in India). You do this at your own risk.
 
 ## Install
+
+### On the phone: KernelSU module (no computer)
+
+1. Download `s23-ultra-tweaks-v1.0.0.zip` from this repo's [Releases](https://github.com/dtechterminal/s23-ultra-tweaks/releases) on the phone.
+2. Open **KernelSU** → **Modules** → **Install** and pick the zip. It checks that this is an S23 Ultra and whether the AirDrop files match your firmware.
+3. **Reboot.** DFRoot roots the phone by itself during boot and KernelSU activates the module.
+4. Open **KernelSU** → **Modules** → **S23 Ultra Tweaks** → the page icon. Tick the tweaks you want, switch on **Apply at every boot** if you like, and tap **Apply**.
+
+The page greys out tweaks your phone can't take and says why. During the apply, Wi-Fi drops for ~30 s (AirDrop and Wi-Fi 7), and the screen goes black for ~30 s while Android restarts. The page closes during that; reopen it to see the result. The module's action button (▶) re-applies your saved picks.
+
+To remove it: KernelSU → Modules → S23 Ultra Tweaks → Remove, then reboot.
+
+### From a computer: installer script
 
 With the phone plugged in and rooted:
 
@@ -74,7 +87,7 @@ Without autostart, run the installer again after each reboot and press Enter to 
 To turn autostart off, run the installer and answer **n**, or:
 
 ```sh
-adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh autostart off"
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh autostart off"
 ```
 
 ### Using AirDrop
@@ -100,8 +113,10 @@ A watchdog script also runs. If the Wi-Fi firmware ever crashes, it saves the ke
 
 ## Status and logs
 
+The module page shows all of this. From a computer (if you used the computer installer instead of the module, the script is `/data/adb/s23tweaks/tweaks.sh`):
+
 ```sh
-adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh status"
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh status"
 adb shell su -c "cat /data/adb/s23tweaks/tweaks.log"
 adb shell su -c "cat /data/adb/s23tweaks/boot.log"     # automatic applies at boot
 ```
@@ -122,7 +137,7 @@ Tested so far: Wi-Fi runs and connects normally with the S24 supplicant, and the
 One UI has a **Wi-Fi 7 mode** page (an on/off switch and *Maximum multi link count*). On the S23 its menu entry is hard-coded as unsupported, so it never shows up. The page itself works. To open it:
 
 ```sh
-adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh wifi7page"
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh wifi7page"
 ```
 
 The switch stores `Settings.Secure sec_wifi_7_mode_enabled` (default 1 = on). Samsung's Wi-Fi service applies a change at the next Wi-Fi disconnect. It switches Wi-Fi 7 off anyway in countries on Samsung's blocklist.
@@ -142,7 +157,7 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 Reboot. Everything goes back to stock except the two Play services flag overrides. They do nothing without the rest, but to remove them:
 
 ```sh
-adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh unflag"
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh unflag"
 ```
 
 ## Known limitations

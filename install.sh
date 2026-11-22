@@ -12,7 +12,8 @@ VERSION=v1.0.0
 PAYLOAD=airdrop-payload-S918WVLU8GZIF.tar.gz
 PAYLOAD_SHA256=84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
-PHONE_DIR=/data/adb/s23tweaks
+PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
+MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
 
 say()  { printf '\033[1m%s\033[0m\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -69,6 +70,12 @@ why=("$why_airdrop" "" "" "$why_csc" "$why_csc" "" "$why_airdrop")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
+# With the KernelSU module installed (and active), drive its copy instead of installing a second one
+TW=$PHONE_DIR/tweaks.sh; use_module=0
+if [ "$(sh_ "su -c '[ -f $MODULE_DIR/tweaks.sh ] && [ ! -e $MODULE_DIR/remove ] && [ ! -e $MODULE_DIR/disable ] && echo yes'")" = yes ]; then
+  TW=$MODULE_DIR/tweaks.sh; use_module=1
+  info "The S23 Ultra Tweaks KernelSU module is installed; using it (no download needed)."
+fi
 last=$(sh_ "su -c 'cat $PHONE_DIR/choices 2>/dev/null'" || true)
 picked=""
 if [ -n "$last" ]; then
@@ -82,7 +89,7 @@ if [ -z "$picked" ]; then
   done
   info "4 and 5 both touch the carrier config; 5 already includes call recording."
   r=$(ask "Numbers separated by spaces, Enter for all available: ")
-  [ -n "$r" ] || r=$(for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && printf '%s ' $((i+1)); done)
+  [ -n "$r" ] || r=$(for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && printf '%s ' $((i+1)); done; true)
   for n in $r; do
     [[ "$n" =~ ^[1-9]$ ]] && [ "$n" -le ${#ids[@]} ] || die "not an option: $n"
     i=$((n-1)); [ "${avail[$i]}" = 1 ] || die "${ids[$i]} is unavailable on this phone: ${why[$i]}"
@@ -100,6 +107,7 @@ r=$(ask "Continue? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && exit 0
 r=$(ask "Re-apply these automatically at every boot, with no computer? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && auto=off || auto=on
 
 # ---- download ----
+if [ $use_module = 0 ]; then
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 say "Downloading $VERSION..."
 mkdir "$W/src"
@@ -120,7 +128,8 @@ say "Copying to the phone..."
 a shell "su -c 'mkdir -p $PHONE_DIR'"
 a push "$W/src/device/." /data/local/tmp/s23tweaks_new >/dev/null
 a shell "su -c 'cp -r /data/local/tmp/s23tweaks_new/. $PHONE_DIR/ && rm -rf /data/local/tmp/s23tweaks_new && chmod -R 755 $PHONE_DIR && chcon u:object_r:system_file:s0 $PHONE_DIR/airdrop/moseyrun 2>/dev/null; true'"
-a shell "su -c 'sh $PHONE_DIR/tweaks.sh start \"$picked\"'" >/dev/null
+fi
+a shell "su -c 'sh $TW start \"$picked\"'" >/dev/null
 
 say "Applying (2-3 minutes)..."
 shown=0; end=$((SECONDS + 420))
@@ -134,7 +143,7 @@ done
 case "${out:-}" in *DONE*) ;; *) die "timed out; check $PHONE_DIR/tweaks.log on the phone" ;; esac
 
 say "Done."
-a shell "su -c 'sh $PHONE_DIR/tweaks.sh autostart $auto'" | tr -d '\r' | sed 's/^/  /'
+a shell "su -c 'sh $TW autostart $auto'" | tr -d '\r' | sed 's/^/  /'
 case " $picked " in *" airdrop "*)
   info "AirDrop: on the Apple device set AirDrop to 'Everyone for 10 minutes'. On the S23 share something with"
   info "Quick Share and pick 'Share with Apple devices'." ;; esac

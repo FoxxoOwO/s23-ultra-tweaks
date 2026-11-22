@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>S23 Ultra Tweaks</title>
+<style>
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --text: #1b1f24;
+  --text-2: #5b6570;
+  --border: #dde2e7;
+  --accent: #0b63ce;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3eefc;
+  --ok: #1b7f3b;
+  --ok-soft: #e4f4e8;
+  --warn: #8a5a00;
+  --warn-soft: #fdf1d8;
+  --err: #b3261e;
+  --err-soft: #fbe7e5;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .06);
+  --radius: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418;
+    --surface: #1b1f24;
+    --surface-2: #252a31;
+    --text: #e6e9ed;
+    --text-2: #9aa4ae;
+    --border: #2f353d;
+    --accent: #7fb0ff;
+    --accent-ink: #0b1d36;
+    --accent-soft: #1d2d45;
+    --ok: #7fd49a;
+    --ok-soft: #173123;
+    --warn: #f0c46b;
+    --warn-soft: #342a14;
+    --err: #ff9b92;
+    --err-soft: #3a1d1b;
+    --shadow: none;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418;
+  --surface: #1b1f24;
+  --surface-2: #252a31;
+  --text: #e6e9ed;
+  --text-2: #9aa4ae;
+  --border: #2f353d;
+  --accent: #7fb0ff;
+  --accent-ink: #0b1d36;
+  --accent-soft: #1d2d45;
+  --ok: #7fd49a;
+  --ok-soft: #173123;
+  --warn: #f0c46b;
+  --warn-soft: #342a14;
+  --err: #ff9b92;
+  --err-soft: #3a1d1b;
+  --shadow: none;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px calc(32px + env(safe-area-inset-bottom)); }
+[hidden] { display: none !important; }
+
+header.top { padding: 8px 0 14px; }
+.title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+h1 { font-size: 22px; line-height: 1.2; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+.chip {
+  font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-2);
+}
+.phone { margin: 6px 0 0; color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); margin: 0 0 14px; overflow: hidden;
+}
+.card-pad { padding: 14px 16px; }
+.card h2 { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-2); margin: 0; padding: 14px 16px 6px; }
+.card p { margin: 0 0 8px; }
+.card p:last-child { margin-bottom: 0; }
+.muted { color: var(--text-2); }
+.small { font-size: 13px; }
+
+/* tweak rows */
+.tweak {
+  display: flex; gap: 14px; align-items: flex-start; padding: 12px 16px; min-height: 56px;
+  border-top: 1px solid var(--border); cursor: pointer;
+}
+.tweak:first-of-type { border-top: 0; }
+.tweak.off { cursor: default; }
+.tweak input[type=checkbox] {
+  flex: none; width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--accent); cursor: inherit;
+}
+.tweak .tx { flex: 1; min-width: 0; }
+.tweak .name { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tweak .desc { color: var(--text-2); font-size: 13.5px; margin-top: 2px; overflow-wrap: anywhere; }
+.tweak.off .name, .tweak.off .desc { opacity: .55; }
+.tweak .why { color: var(--warn); font-size: 13px; margin-top: 4px; }
+.badge {
+  font-size: 11.5px; font-weight: 650; padding: 1px 8px; border-radius: 999px;
+  background: var(--ok-soft); color: var(--ok); letter-spacing: .01em;
+}
+
+/* switch row */
+.row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; min-height: 56px; }
+.row .tx { flex: 1; min-width: 0; }
+.row .tx .name { font-weight: 600; }
+.switch {
+  -webkit-appearance: none; appearance: none; flex: none; position: relative; margin: 0;
+  width: 52px; height: 32px; border-radius: 999px; background: var(--surface-2);
+  border: 2px solid var(--border); cursor: pointer; transition: background .15s, border-color .15s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--text-2); transition: transform .15s, background .15s;
+}
+.switch:checked { background: var(--accent); border-color: var(--accent); }
+.switch:checked::after { transform: translateX(20px); background: var(--accent-ink); }
+.switch:disabled { opacity: .5; cursor: default; }
+.switch:focus-visible, .btn:focus-visible, .tweak input:focus-visible, summary:focus-visible {
+  outline: 3px solid var(--accent); outline-offset: 2px;
+}
+.switch-hit { display: flex; align-items: center; min-height: 44px; min-width: 52px; cursor: pointer; }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font: inherit; font-weight: 600;
+  cursor: pointer; text-align: center;
+}
+.btn:active { filter: brightness(.95); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { color: var(--err); }
+.btn.danger-fill { background: var(--err); border-color: var(--err); color: var(--surface); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--accent); min-height: 44px; padding: 0 10px; }
+.btn.block { display: flex; width: 100%; }
+.btns { display: grid; gap: 10px; padding: 0 16px 16px; }
+.apply-bar { margin: 0 0 14px; }
+.apply-bar .hint { margin: 8px 2px 0; font-size: 13px; color: var(--text-2); }
+
+/* notices */
+.notice { border-radius: var(--radius); padding: 14px 16px; margin: 0 0 14px; border: 1px solid transparent; }
+.notice h3 { margin: 0 0 4px; font-size: 16px; }
+.notice p { margin: 0 0 6px; }
+.notice ul { margin: 6px 0 0; padding-left: 20px; }
+.notice li { margin: 4px 0; }
+.notice.ok { background: var(--ok-soft); color: var(--text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.notice.ok h3 { color: var(--ok); }
+.notice.err { background: var(--err-soft); border-color: color-mix(in srgb, var(--err) 30%, transparent); }
+.notice.err h3 { color: var(--err); }
+.notice.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.notice.warn h3 { color: var(--warn); }
+.notice.info { background: var(--accent-soft); }
+.notice .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.notice-head { display: flex; align-items: flex-start; gap: 8px; }
+.notice-head h3 { flex: 1; }
+.x {
+  flex: none; width: 44px; height: 44px; margin: -12px -12px 0 0; border: 0; background: transparent;
+  color: var(--text-2); font-size: 22px; line-height: 1; border-radius: 50%; cursor: pointer;
+}
+
+pre {
+  margin: 8px 0 0; padding: 10px 12px; background: var(--surface-2); border-radius: 10px;
+  font: 12px/1.5 ui-monospace, "SF Mono", Menlo, "Roboto Mono", monospace; color: var(--text);
+  white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto;
+}
+details { border-top: 1px solid var(--border); }
+summary {
+  min-height: 48px; display: flex; align-items: center; padding: 0 16px; cursor: pointer;
+  font-weight: 600; list-style: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "▾"; margin-left: auto; color: var(--text-2); transition: transform .15s; }
+details[open] summary::after { transform: rotate(180deg); }
+details .inner { padding: 0 16px 14px; }
+.notice details { border-top: 0; margin-top: 6px; }
+.notice summary { padding: 0; min-height: 44px; color: var(--accent); }
+.notice details .inner { padding: 0; }
+
+.active-list { margin: 0; padding: 0 16px 12px; list-style: none; }
+.active-list li { padding: 4px 0; display: flex; gap: 8px; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+
+/* progress */
+.status-line { display: flex; align-items: center; gap: 12px; padding: 14px 16px; font-weight: 600; }
+.spinner {
+  width: 22px; height: 22px; flex: none; border-radius: 50%;
+  border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+.log { list-style: none; margin: 0; padding: 0 16px 14px; font-size: 13.5px; }
+.log li { padding: 6px 0 6px 18px; position: relative; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.log li:first-child { border-top: 0; }
+.log li::before { content: ""; position: absolute; left: 2px; top: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+.log li.last::before { background: var(--accent); }
+.log li.bad { color: var(--err); }
+.log li.bad::before { background: var(--err); }
+.log li.good { color: var(--ok); font-weight: 600; }
+.log li.good::before { background: var(--ok); }
+.log li.empty { color: var(--text-2); }
+.log li.empty::before { display: none; }
+
+/* dialog */
+.scrim {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .5); display: flex; align-items: flex-end;
+  justify-content: center; padding: 16px; z-index: 20;
+}
+@media (min-height: 560px) { .scrim { align-items: center; } }
+.dialog {
+  background: var(--surface); color: var(--text); border-radius: 20px; width: 100%; max-width: 440px;
+  padding: 20px 20px 16px; max-height: calc(100vh - 32px); overflow: auto;
+}
+.dialog h3 { margin: 0 0 10px; font-size: 19px; }
+.dialog p { margin: 0 0 10px; }
+.dialog .sel { color: var(--text-2); font-size: 14px; }
+.dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  background: #2b3036; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px;
+  max-width: calc(100vw - 32px); z-index: 30; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}
+.loading { display: flex; align-items: center; gap: 12px; padding: 24px 4px; color: var(--text-2); }
+.mockflag { position: fixed; top: 0; right: 0; background: var(--warn); color: var(--surface); font: 600 11px/1 system-ui; padding: 4px 8px; border-bottom-left-radius: 8px; z-index: 40; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="title-row">
+      <h1>S23 Ultra Tweaks</h1>
+      <span class="chip" id="version" hidden></span>
+    </div>
+    <p class="phone" id="phone"></p>
+  </header>
+
+  <div id="loading" class="loading" role="status"><div class="spinner" aria-hidden="true"></div><span>Reading the phone…</span></div>
+  <div id="fatal"></div>
+  <div id="banner"></div>
+  <div id="errors"></div>
+
+  <!-- Main view -->
+  <main id="main" hidden>
+    <section class="card" aria-labelledby="h-tweaks">
+      <h2 id="h-tweaks">Tweaks</h2>
+      <div id="tweaks"></div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <div class="tx">
+          <div class="name" id="as-label">Apply at every boot</div>
+          <div class="desc muted small" id="as-desc">Re-applies your last applied picks about a minute after boot.</div>
+        </div>
+        <label class="switch-hit">
+          <input type="checkbox" role="switch" class="switch" id="autostart" aria-labelledby="as-label" aria-describedby="as-desc">
+        </label>
+      </div>
+    </section>
+
+    <div class="apply-bar">
+      <button class="btn primary block" id="apply" type="button">Apply</button>
+      <p class="hint">Everything is undone by a reboot; with “Apply at every boot” on, it comes back about a minute after boot.</p>
+    </div>
+
+    <section class="card" aria-labelledby="h-status">
+      <h2 id="h-status">Status</h2>
+      <ul class="active-list" id="active-list"></ul>
+      <div class="btns">
+        <button class="btn" id="refresh" type="button">Refresh status</button>
+        <button class="btn" id="wifi7page" type="button">Open Wi-Fi 7 settings page</button>
+        <button class="btn danger" id="unflag" type="button">Remove Play services flags</button>
+      </div>
+      <details id="bootlog">
+        <summary>Boot log</summary>
+        <div class="inner"><pre id="bootlog-pre">Loading…</pre></div>
+      </details>
+    </section>
+  </main>
+
+  <!-- Progress view -->
+  <section id="progress" hidden>
+    <div class="card">
+      <h2 id="p-title">Applying</h2>
+      <div class="status-line" id="p-status" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div><span id="p-status-text">Starting…</span>
+      </div>
+      <div class="card-pad" id="p-note-box" style="padding-top:0">
+        <p class="muted small" id="p-note"></p>
+      </div>
+    </div>
+    <div id="p-result"></div>
+    <div class="card">
+      <h2>Progress</h2>
+      <ol class="log" id="p-log"></ol>
+    </div>
+    <button class="btn block" id="p-back" type="button" hidden>Back to tweaks</button>
+  </section>
+</div>
+
+<div id="dialog-root"></div>
+
+<script>
+/* ======================================================================
+   S23 Ultra Tweaks WebUI
+   Talks to the module only through `ksu.exec` (and `ksu.toast`).
+   ====================================================================== */
+"use strict";
+
+const MODDIR = "/data/adb/modules/s23_ultra_tweaks";
+const TW = "sh " + MODDIR + "/tweaks.sh";
+const STATE_DIR = "/data/adb/s23tweaks";
+const LOG = STATE_DIR + "/tweaks.log";
+const BOOTLOG = STATE_DIR + "/boot.log";
+const POLL_MS = 1500;
+const DISMISS_KEY = "s23t.dismissed";
+
+const TWEAKS = [
+  { id: "airdrop", name: "AirDrop", desc: "Quick Share → Share with Apple devices (S24 Wi-Fi driver + Google's Mosey)" },
+  { id: "battery", name: "Battery health", desc: "Settings → Battery → Battery information shows health and cycle count" },
+  { id: "features", name: "Power schedule and louder calls", desc: "Auto power on/off schedule and louder VoIP calls" },
+  { id: "callrec", name: "Call recording", desc: "Call recording in the Samsung Phone app" },
+  { id: "india", name: "India carrier config", desc: "India (INS) carrier config: call recording, Smart IVR, message cards; the sales code stays XAC" },
+  { id: "hotspot6g", name: "6 GHz hotspot", desc: "6 GHz Mobile Hotspot (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz, needs WPA3" },
+  { id: "wifi7", name: "Wi-Fi 7 multi-link", desc: "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers; needs AirDrop" },
+];
+const NAME = Object.fromEntries(TWEAKS.map(t => [t.id, t.name]));
+const IDS = TWEAKS.map(t => t.id);
+
+const WHERE = {
+  airdrop: ["AirDrop", "On the Apple device set AirDrop to Everyone for 10 minutes; on the S23 share → Quick Share → Share with Apple devices."],
+  battery: ["Battery health", "Settings → Battery → Battery information."],
+  features: ["Power schedule", "Search Settings for “power on/off” to find the schedule. Louder VoIP calls need no setting."],
+  callrec: ["Call recording", "Phone app → Settings → Record calls."],
+  india: ["Call recording", "Phone app → Settings → Record calls."],
+  hotspot6g: ["6 GHz hotspot", "Settings → Connections → Mobile Hotspot → Band → 6 GHz (security WPA3)."],
+  wifi7: ["Wi-Fi 7", "Multi-link needs a Wi-Fi 7 router with MLO on. The Wi-Fi 7 mode page is under Status."],
+};
+
+const CONFIRM_TEXT = "Wi-Fi and the hotspot drop for ~30 s (AirDrop/Wi-Fi 7), and the screen goes black for ~30 s while Android restarts. This page closes during that; reopen it to see the result.";
+
+/* ---------------- small helpers ---------------- */
+const $ = id => document.getElementById(id);
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "text") el.textContent = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : String(c));
+  return el;
+}
+function hasKsu() { return typeof window.ksu !== "undefined" && window.ksu && typeof window.ksu.exec === "function"; }
+function toast(msg) {
+  try { if (window.ksu && typeof ksu.toast === "function") { ksu.toast(String(msg)); return; } } catch (e) { /* fall through */ }
+}
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+function namesOf(ids) { return ids.map(i => NAME[i] || i).join(", "); }
+function validIds(ids) { return ids.filter(i => IDS.includes(i)); }
+
+/* ---------------- ksu.exec wrapper ---------------- */
+let cbn = 0;
+function exec(cmd, timeoutMs) {
+  timeoutMs = timeoutMs || 30000;
+  return new Promise(resolve => {
+    if (!hasKsu()) {
+      resolve({ errno: -1, stdout: "", stderr: "The KernelSU bridge (window.ksu) is not available.", noksu: true });
+      return;
+    }
+    const cb = "s23tcb" + (cbn++);
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      window[cb] = () => { delete window[cb]; };  // swallow a late answer
+      resolve({ errno: -2, stdout: "", stderr: "No answer after " + Math.round(timeoutMs / 1000) + " s from: " + cmd, timeout: true });
+    }, timeoutMs);
+    window[cb] = (errno, stdout, stderr) => {
+      delete window[cb];
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ errno: Number(errno), stdout: stdout == null ? "" : String(stdout), stderr: stderr == null ? "" : String(stderr) });
+    };
+    try { ksu.exec(cmd, "{}", cb); }
+    catch (e) {
+      settled = true; clearTimeout(timer); delete window[cb];
+      resolve({ errno: -3, stdout: "", stderr: "ksu.exec threw: " + (e && e.message || e) });
+    }
+  });
+}
+class ExecError extends Error {
+  constructor(title, r) { super(title); this.title = title; this.r = r || {}; }
+}
+function detailOf(r) {
+  if (!r) return "";
+  const parts = [];
+  if (r.stderr && r.stderr.trim()) parts.push(r.stderr.trim());
+  if (r.stdout && r.stdout.trim()) parts.push(r.stdout.trim());
+  if (r.errno != null && r.errno >= 0) parts.push("exit code " + r.errno);
+  return parts.join("\n") || "(no output)";
+}
+
+/* ---------------- module calls ---------------- */
+async function probe() {
+  const r = await exec(TW + " probe", 20000);
+  if (r.errno !== 0) throw new ExecError(r.timeout ? "Reading the phone's state timed out" : "Couldn't read the phone's state", r);
+  const line = r.stdout.trim().split("\n").filter(Boolean).pop() || "";
+  let j;
+  try { j = JSON.parse(line); } catch (e) { j = null; }
+  if (!j || !Array.isArray(j.tweaks)) throw new ExecError("The module's answer couldn't be read", { stderr: "probe printed:\n" + (r.stdout || "(nothing)") + (r.stderr ? "\n" + r.stderr : "") });
+  return j;
+}
+
+// tweaks.log plus enough clock data to tell whether it's from this boot
+async function readLog(timeoutMs) {
+  const cmd = "cat /proc/uptime; date +%s; stat -c %Y " + LOG + " 2>/dev/null || echo 0; echo ---; cat " + LOG + " 2>/dev/null; true";
+  const r = await exec(cmd, timeoutMs || 10000);
+  if (r.errno !== 0) throw new ExecError("Couldn't read the progress log", r);
+  const all = r.stdout.split("\n");
+  const sep = all.indexOf("---");
+  const head = all.slice(0, sep < 0 ? 3 : sep);
+  const uptime = parseFloat(head[0]) || 0, now = parseInt(head[1], 10) || 0, mtime = parseInt(head[2], 10) || 0;
+  const lines = (sep < 0 ? [] : all.slice(sep + 1)).map(l => l.replace(/\r$/, "")).filter(l => l.trim()).map(l => {
+    const m = l.match(/^(\d+(?:\.\d+)?)\s+(.*)$/);
+    return m ? { t: parseFloat(m[1]), msg: m[2] } : { t: null, msg: l };
+  });
+  return { uptime, now, mtime, lines, thisBoot: mtime > 0 && now > 0 && mtime >= now - uptime - 5 };
+}
+
+function parseLog(lines) {
+  let ids = [];
+  for (const l of lines) {
+    const m = l.msg.match(/^applying:\s*(.*)$/);
+    if (m) { ids = validIds(m[1].trim().split(/\s+/)); break; }
+  }
+  const last = lines.length ? lines[lines.length - 1].msg : "";
+  if (last === "DONE") return { ids, end: "done", last };
+  if (/^FAILED:/.test(last)) return { ids, end: "failed", reason: last.replace(/^FAILED:\s*/, ""), last };
+  return { ids, end: null, last };
+}
+
+/* ---------------- state ---------------- */
+const S = { probe: null, sel: new Set(), busy: false, pollTimer: null };
+
+/* ---------------- error cards ---------------- */
+function errorCard(title, detail, actions) {
+  const card = h("div", { class: "notice err", role: "alert" },
+    h("div", { class: "notice-head" }, h("h3", { text: title }),
+      actions === "fatal" ? null : h("button", { class: "x", type: "button", "aria-label": "Dismiss", onclick: () => card.remove(), text: "×" })),
+    detail ? h("pre", { text: detail }) : null);
+  if (Array.isArray(actions) && actions.length) card.append(h("div", { class: "actions" }, actions));
+  return card;
+}
+function showError(title, r) {
+  const box = $("errors");
+  box.prepend(errorCard(title, detailOf(r)));
+  box.scrollIntoView({ block: "nearest" });
+}
+function showFatal(e) {
+  $("loading").hidden = true; $("main").hidden = true; $("progress").hidden = true;
+  const box = $("fatal"); box.textContent = "";
+  if (!hasKsu()) {
+    box.append(errorCard("KernelSU isn't available",
+      "This page talks to the phone through KernelSU's WebUI bridge (window.ksu), and it isn't here.\n\nOpen it from the KernelSU app: Modules → S23 Ultra Tweaks → the WebUI button.", "fatal"));
+    return;
+  }
+  const c = errorCard(e.title || "Something went wrong", detailOf(e.r) || String(e.message || e), "fatal");
+  c.append(h("div", { class: "actions" }, h("button", { class: "btn", type: "button", text: "Try again", onclick: () => { box.textContent = ""; init(); } })));
+  box.append(c);
+}
+
+/* ---------------- confirm dialog ---------------- */
+function confirmDialog({ title, body, ok, danger }) {
+  return new Promise(resolve => {
+    const root = $("dialog-root");
+    const prevFocus = document.activeElement;
+    const close = v => { root.textContent = ""; document.removeEventListener("keydown", onKey); if (prevFocus && prevFocus.focus) prevFocus.focus(); resolve(v); };
+    const onKey = e => { if (e.key === "Escape") close(false); };
+    const okBtn = h("button", { class: "btn " + (danger ? "danger-fill" : "primary"), type: "button", text: ok || "OK", onclick: () => close(true) });
+    const dlg = h("div", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "dlg-t" },
+      h("h3", { id: "dlg-t", text: title }), body,
+      h("div", { class: "actions" }, h("button", { class: "btn ghost", type: "button", text: "Cancel", onclick: () => close(false) }), okBtn));
+    const scrim = h("div", { class: "scrim", onclick: e => { if (e.target === scrim) close(false); } }, dlg);
+    root.append(scrim);
+    document.addEventListener("keydown", onKey);
+    okBtn.focus();
+  });
+}
+
+/* ---------------- header ---------------- */
+function renderHeader(p) {
+  const v = $("version");
+  if (p.version) { v.textContent = p.version; v.hidden = false; }
+  const ph = p.phone || {};
+  $("phone").textContent = [ph.model, ph.firmware, ph.csc, ph.android ? "Android " + ph.android : ""].filter(Boolean).join(" · ");
+}
+
+/* ---------------- main view ---------------- */
+function tweakInfo(id) { return (S.probe && S.probe.tweaks || []).find(t => t.id === id) || { id, available: false, why: "not reported by the module", active: false }; }
+function available(id) { return !!tweakInfo(id).available; }
+
+function initialSelection(p) {
+  let ids = validIds(String(p.picked || "").trim().split(/\s+/).filter(Boolean));
+  if (!ids.length) ids = IDS.filter(i => i !== "india" && available(i));
+  ids = ids.filter(available);
+  const s = new Set(ids);
+  if (s.has("wifi7")) { if (available("airdrop")) s.add("airdrop"); else s.delete("wifi7"); }
+  if (s.has("india")) s.delete("callrec");
+  return s;
+}
+
+function renderTweaks() {
+  const box = $("tweaks"); box.textContent = "";
+  for (const t of TWEAKS) {
+    const info = tweakInfo(t.id);
+    const cb = h("input", { type: "checkbox", id: "tw-" + t.id, "aria-describedby": "tw-d-" + t.id,
+      disabled: !info.available, onchange: e => onPick(t.id, e.target.checked) });
+    cb.checked = S.sel.has(t.id);
+    const row = h("label", { class: "tweak" + (info.available ? "" : " off"), for: "tw-" + t.id },
+      cb,
+      h("div", { class: "tx" },
+        h("div", { class: "name" }, h("span", { text: t.name }), info.active ? h("span", { class: "badge", text: "Active" }) : null),
+        h("div", { class: "desc", id: "tw-d-" + t.id, text: t.desc }),
+        !info.available && info.why ? h("div", { class: "why", text: "Not available: " + info.why }) : null));
+    box.append(row);
+  }
+  updateApply();
+}
+
+function setPick(id, on) {
+  if (on && !available(id)) return false;
+  if (S.sel.has(id) === on) return false;
+  on ? S.sel.add(id) : S.sel.delete(id);
+  const cb = $("tw-" + id); if (cb) cb.checked = on;
+  return true;
+}
+function onPick(id, on) {
+  on ? S.sel.add(id) : S.sel.delete(id);
+  if (id === "wifi7" && on && setPick("airdrop", true)) toast("Wi-Fi 7 needs AirDrop, so AirDrop is on too");
+  if (id === "airdrop" && !on && setPick("wifi7", false)) toast("Wi-Fi 7 needs AirDrop, so Wi-Fi 7 is off too");
+  if (id === "india" && on && setPick("callrec", false)) toast("India carrier config already includes call recording");
+  if (id === "callrec" && on && setPick("india", false)) toast("Call recording replaces the India carrier config");
+  updateApply();
+}
+function selectedIds() { return IDS.filter(i => S.sel.has(i)); }
+function updateApply() {
+  const n = selectedIds().length, b = $("apply");
+  b.disabled = n === 0 || S.busy;
+  b.textContent = n ? "Apply " + n + (n === 1 ? " tweak" : " tweaks") : "Pick at least one tweak";
+}
+
+function renderAutostart() {
+  const p = S.probe, sw = $("autostart");
+  sw.checked = !!p.autostart;
+  const picked = validIds(String(p.picked || "").trim().split(/\s+/).filter(Boolean));
+  $("as-desc").textContent = picked.length
+    ? "Re-applies your last applied picks (" + namesOf(picked) + ") about a minute after boot."
+    : "Re-applies your last applied picks about a minute after boot. Nothing has been applied yet.";
+}
+
+function renderStatus() {
+  const ul = $("active-list"); ul.textContent = "";
+  const act = (S.probe.tweaks || []).filter(t => t.active).map(t => t.id);
+  if (!act.length) ul.append(h("li", { class: "muted", text: "Nothing is active right now." }));
+  else for (const id of act) ul.append(h("li", {}, h("span", { class: "dot", "aria-hidden": "true" }), h("span", { text: NAME[id] || id })));
+  if (S.probe.module === false) ul.append(h("li", { class: "muted small", text: "Running from install.sh's copy, not the module." }));
+}
+
+function showMain() {
+  stopPolling();
+  $("loading").hidden = true; $("progress").hidden = true; $("main").hidden = false;
+}
+
+/* ---------------- result banner (survives the WebView being killed) ---------------- */
+function whereList(ids) {
+  const seen = new Set(), items = [];
+  for (const id of ids) {
+    const w = WHERE[id]; if (!w) continue;
+    const key = w[1]; if (seen.has(key)) continue; seen.add(key);
+    items.push(h("li", {}, h("strong", { text: w[0] + ": " }), w[1]));
+  }
+  return items.length ? h("ul", {}, items) : null;
+}
+function logPre(lines) {
+  return h("details", {}, h("summary", { text: "Show log" }),
+    h("div", { class: "inner" }, h("pre", { text: lines.map(l => l.msg).join("\n") || "(empty)" })));
+}
+function ago(sec) {
+  if (sec < 90) return "just now";
+  if (sec < 3600) return Math.round(sec / 60) + " min ago";
+  return Math.round(sec / 3600) + " h ago";
+}
+function maybeBanner(lg) {
+  const box = $("banner"); box.textContent = "";
+  if (!lg || !lg.thisBoot || !lg.lines.length) return;
+  const st = parseLog(lg.lines);
+  const key = lg.mtime + "|" + st.last;
+  if (store(DISMISS_KEY) === key) return;
+  const when = lg.now && lg.mtime ? " " + ago(Math.max(0, lg.now - lg.mtime)) : "";
+  let cls, title, body = [];
+  if (st.end === "done") {
+    cls = "ok"; title = "Last apply finished" + when;
+    if (st.ids.length) body.push(h("p", { text: "Applied: " + namesOf(st.ids) + "." }));
+    const wl = whereList(st.ids); if (wl) body.push(h("p", { class: "small", text: "Where to find them:" }), wl);
+  } else if (st.end === "failed") {
+    cls = "err"; title = "Last apply failed" + when;
+    body.push(h("p", { text: st.reason || "(no reason given)" }));
+  } else {
+    cls = "warn"; title = "The last apply didn't finish";
+    body.push(h("p", { text: "It stopped after: " + (st.last || "(nothing)") }));
+  }
+  body.push(logPre(lg.lines));
+  const card = h("div", { class: "notice " + cls, role: "status" },
+    h("div", { class: "notice-head" }, h("h3", { text: title }),
+      h("button", { class: "x", type: "button", "aria-label": "Dismiss", text: "×", onclick: () => { store(DISMISS_KEY, key); card.remove(); } })),
+    body);
+  box.append(card);
+}
+
+/* ---------------- progress view ---------------- */
+let pollN = 0, pollFails = 0, startedAt = 0;
+function stopPolling() { if (S.pollTimer) clearTimeout(S.pollTimer); S.pollTimer = null; }
+
+function showProgress(opts) {
+  opts = opts || {};
+  stopPolling();
+  $("banner").textContent = "";
+  $("loading").hidden = true; $("main").hidden = true; $("progress").hidden = false;
+  $("p-result").textContent = ""; $("p-back").hidden = true; $("p-log").textContent = "";
+  setStatus("running", opts.resumed ? "An apply is running…" : "Starting…");
+  $("p-note").textContent = (opts.note ? opts.note + " " : "") + CONFIRM_TEXT;
+  $("p-note-box").hidden = false; $("p-title").textContent = "Applying";
+  S.progressIds = opts.ids || [];
+  pollN = 0; pollFails = 0; startedAt = Date.now();
+  window.scrollTo(0, 0);
+  poll();
+}
+function setStatus(kind, text) {
+  const box = $("p-status"); box.textContent = "";
+  if (kind === "running") box.append(h("div", { class: "spinner", "aria-hidden": "true" }));
+  box.append(h("span", { id: "p-status-text", text }));
+  box.style.color = kind === "done" ? "var(--ok)" : kind === "failed" ? "var(--err)" : kind === "stopped" ? "var(--warn)" : "";
+}
+function renderLog(lines, st) {
+  const ol = $("p-log"); ol.textContent = "";
+  if (!lines.length) { ol.append(h("li", { class: "empty", text: "Waiting for the first log line…" })); return; }
+  lines.forEach((l, i) => {
+    const isLast = i === lines.length - 1;
+    let cls = isLast ? "last" : "";
+    if (/^FAILED:/.test(l.msg) || /: warning:/.test(l.msg)) cls += " bad";
+    if (l.msg === "DONE") cls += " good";
+    ol.append(h("li", { class: cls.trim(), text: l.msg === "DONE" ? "Done" : l.msg }));
+  });
+}
+async function poll() {
+  S.pollTimer = null;
+  let lg;
+  try { lg = await readLog(10000); pollFails = 0; }
+  catch (e) {
+    pollFails++;
+    setStatus("running", "Can't read the log right now (" + (e.r && e.r.timeout ? "no answer" : "error") + "), retrying…");
+    if (pollFails >= 20) { setStatus("stopped", "The progress log can't be read"); finishView(); showErrorIn($("p-result"), e); return; }
+    S.pollTimer = setTimeout(poll, POLL_MS);
+    return;
+  }
+  const st = parseLog(lg.lines);
+  renderLog(lg.lines, st);
+  const ids = st.ids.length ? st.ids : S.progressIds;
+  if (st.end === "done") { done(ids, lg); return; }
+  if (st.end === "failed") { failed(st.reason, lg); return; }
+  // elapsed from the log's own clock, so it stays right after the page was killed and reopened
+  const t0 = lg.lines.length && lg.lines[0].t != null ? lg.lines[0].t : null;
+  const secs = Math.max(0, Math.round(t0 != null && lg.uptime ? lg.uptime - t0 : (Date.now() - startedAt) / 1000));
+  setStatus("running", (st.last ? "Working… " : "Starting… ") + "(" + secs + " s)");
+  pollN++;
+  // Every ~12 s make sure the apply is still alive (it may have been killed without logging).
+  if (pollN % 8 === 0) {
+    try {
+      const p = await probe();
+      if (!p.applying) {
+        const again = await readLog(10000);
+        const st2 = parseLog(again.lines);
+        renderLog(again.lines, st2);
+        if (st2.end === "done") { done(st2.ids.length ? st2.ids : ids, again); return; }
+        if (st2.end === "failed") { failed(st2.reason, again); return; }
+        setStatus("stopped", "The apply stopped before it finished");
+        finishView();
+        $("p-result").append(h("div", { class: "notice warn" }, h("h3", { text: "The apply stopped" }),
+          h("p", { text: "It ended without DONE or FAILED. Last step: " + (st2.last || "(nothing logged)") }),
+          h("p", { class: "small", text: "Try again, or reboot to go back to stock." })));
+        return;
+      }
+    } catch (e) { /* the framework may be restarting; keep polling */ }
+  }
+  S.pollTimer = setTimeout(poll, POLL_MS);
+}
+function finishView(title) {
+  $("p-back").hidden = false;
+  $("p-note-box").hidden = true;
+  $("p-title").textContent = title || "Apply";
+  store(DISMISS_KEY, "");  // a fresh result: let the banner show again if the page reloads
+}
+function done(ids, lg) {
+  setStatus("done", "Done");
+  finishView();
+  if (lg) store(DISMISS_KEY, lg.mtime + "|DONE");  // already seen here, no banner on reload
+  const wl = whereList(ids);
+  $("p-result").append(h("div", { class: "notice ok", role: "status" },
+    h("h3", { text: "Tweaks applied" }),
+    ids.length ? h("p", { text: namesOf(ids) + "." }) : null,
+    wl ? h("p", { class: "small", text: "Where to find them:" }) : null, wl));
+}
+function failed(reason, lg) {
+  setStatus("failed", "Failed");
+  finishView();
+  if (lg) store(DISMISS_KEY, lg.mtime + "|FAILED: " + reason);
+  $("p-result").append(h("div", { class: "notice err", role: "alert" },
+    h("h3", { text: "The apply failed" }), h("p", { text: reason || "(no reason given)" }),
+    h("p", { class: "small", text: "Anything already applied stays until a reboot." })));
+}
+function showErrorIn(box, e) { box.append(errorCard(e.title || "Error", detailOf(e.r))); }
+
+/* ---------------- actions ---------------- */
+async function onApply() {
+  const ids = selectedIds();
+  if (!ids.length || S.busy) return;
+  const body = h("div", {}, h("p", { class: "sel", text: "Applying: " + namesOf(ids) + "." }), h("p", { text: CONFIRM_TEXT }));
+  if (!(await confirmDialog({ title: "Apply tweaks?", body, ok: "Apply" }))) return;
+  S.busy = true; updateApply();
+  const r = await exec(TW + ' start "' + ids.join(" ") + '"', 20000);
+  S.busy = false; updateApply();
+  if (r.errno === 3) { toast("An apply is already running"); showProgress({ resumed: true, note: "An apply was already running, so this shows its progress." }); return; }
+  if (r.errno !== 0) { showError(r.timeout ? "Starting the apply timed out" : "Couldn't start the apply", r); return; }
+  showProgress({ ids });
+}
+
+async function onAutostart(e) {
+  const sw = e.target, want = sw.checked;
+  sw.disabled = true;
+  const r = await exec(TW + " autostart " + (want ? "on" : "off"), 15000);
+  sw.disabled = false;
+  if (r.errno !== 0) { sw.checked = !want; showError("Couldn't change “Apply at every boot”", r); return; }
+  const out = r.stdout.trim().split("\n").pop() || "";
+  const on = /^autostart on/.test(out) ? true : /^autostart off/.test(out) ? false : want;
+  sw.checked = on; S.probe.autostart = on;
+  toast(out || (on ? "autostart on" : "autostart off"));
+}
+
+async function refresh(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Refreshing…"; }
+  try {
+    const p = await probe();
+    S.probe = p; renderHeader(p);
+    if (p.applying) { showProgress({ resumed: true }); return; }
+    renderTweaks(); renderAutostart(); renderStatus();
+  } catch (e) { showError(e.title, e.r); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = "Refresh status"; } }
+}
+
+async function onWifi7Page(e) {
+  const b = e.target; b.disabled = true;
+  const r = await exec(TW + " wifi7page", 15000);
+  b.disabled = false;
+  if (r.errno !== 0) { showError("Couldn't open the Wi-Fi 7 page", r); return; }
+  toast("Opening Wi-Fi 7 settings");
+}
+
+async function onUnflag(e) {
+  const body = h("div", {},
+    h("p", { text: "This removes the two Google Play services flag overrides that AirDrop adds. It undoes part of AirDrop: Share with Apple devices stops working until AirDrop is applied again." }),
+    h("p", { text: "It's only needed when you're removing the module for good. A reboot already undoes everything else. Play services restarts." }));
+  if (!(await confirmDialog({ title: "Remove Play services flags?", body, ok: "Remove", danger: true }))) return;
+  const b = e.target; b.disabled = true; b.textContent = "Removing…";
+  const r = await exec(TW + " unflag", 60000);
+  b.disabled = false; b.textContent = "Remove Play services flags";
+  if (r.errno !== 0) { showError("Couldn't remove the flags", r); return; }
+  toast(r.stdout.trim().split("\n").pop() || "Done");
+}
+
+async function onBootLog(e) {
+  if (!e.target.open) return;
+  const pre = $("bootlog-pre"); pre.textContent = "Loading…";
+  const r = await exec("cat " + BOOTLOG + " 2>/dev/null; true", 10000);
+  if (r.errno !== 0) { pre.textContent = "Couldn't read the boot log:\n" + detailOf(r); return; }
+  pre.textContent = r.stdout.trim() || "No automatic applies yet (the boot log is empty).";
+}
+
+/* ---------------- start ---------------- */
+async function init() {
+  stopPolling();
+  $("loading").hidden = false; $("main").hidden = true; $("progress").hidden = true;
+  if (!hasKsu()) { showFatal(new Error("no ksu")); return; }
+  let p;
+  try { p = await probe(); } catch (e) { showFatal(e); return; }
+  S.probe = p; renderHeader(p);
+  S.sel = initialSelection(p);
+  renderTweaks(); renderAutostart(); renderStatus();
+  if (p.applying) { showProgress({ resumed: true, note: "An apply is running." }); return; }
+  showMain();
+  try { maybeBanner(await readLog(10000)); } catch (e) { /* the banner is optional */ }
+}
+
+function wire() {
+  $("apply").addEventListener("click", onApply);
+  $("autostart").addEventListener("change", onAutostart);
+  $("refresh").addEventListener("click", e => refresh(e.target));
+  $("wifi7page").addEventListener("click", onWifi7Page);
+  $("unflag").addEventListener("click", onUnflag);
+  $("bootlog").addEventListener("toggle", onBootLog);
+  $("p-back").addEventListener("click", async () => {
+    showMain(); $("banner").textContent = "";
+    await refresh(null);
+    S.sel = initialSelection(S.probe); renderTweaks();
+  });
+}
+
+/* ======================================================================
+   DEV MOCK — only when window.ksu is missing AND the URL has ?mock.
+   ?mock            normal apply, ends in DONE (~10 s)
+   ?mock=fail       apply ends in FAILED
+   ?mock=applying   page opens mid-apply
+   ?mock=done       a DONE result from this boot is in the log (banner)
+   add &w7          to make Wi-Fi 7 available
+   State persists in sessionStorage, so reloading mid-apply resumes.
+   ====================================================================== */
+function installMock() {
+  const q = new URLSearchParams(location.search);
+  const mode = q.get("mock") || "ok";
+  const KEY = "s23t.mock." + location.search;
+  const now = () => Date.now();
+  let st = null;
+  try { st = JSON.parse(sessionStorage.getItem(KEY) || "null"); } catch (e) { st = null; }
+  if (!st) {
+    st = { bootAt: now() - 812000, picked: "airdrop battery", autostart: false, active: {}, run: null, oldLog: null, unflagged: false };
+    if (mode === "applying") st.run = { at: now() - 4000, ids: ["airdrop", "battery"], fail: false };
+    if (mode === "done") st.oldLog = { at: now() - 180000, ids: ["airdrop", "battery", "hotspot6g"] };
+    if (mode === "done") ["airdrop", "battery", "hotspot6g"].forEach(i => st.active[i] = true);
+  }
+  const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* ignore */ } };
+  save();
+
+  function script(ids, fail) {
+    const has = i => ids.includes(i), out = [];
+    let t = 0; const add = (dt, m) => { t += dt; out.push([t, m]); };
+    add(0, "applying: " + ids.join(" ") + " ");
+    if (has("airdrop")) {
+      add(0.6, "airdrop: swapping in the S24 Wi-Fi driver and firmware (Wi-Fi drops for ~30 s)");
+      add(1.6, "Wi-Fi back on");
+      add(0.6, "airdrop: kernel side loaded (wonder: connected to wlan0)");
+      if (has("wifi7")) add(0.5, "wifi7: Wi-Fi running with the S24 supplicant (Wi-Fi standard: 11be)");
+      add(0.5, "airdrop: Mosey added to /system_ext (RAM overlay)");
+    }
+    if (has("battery")) add(0.5, "battery: auth IC presented");
+    if (has("battery") || has("features")) add(0.4, "feature flags on: " + (has("battery") ? "BATTERY_SUPPORT_BSOH_SETTINGS " : "") + (has("features") ? "SETTINGS_SUPPORT_AUTO_POWER_ON_OFF AUDIO_SUPPORT_VOIP_SOUND_LOUDER" : ""));
+    if (has("india")) add(0.5, "india: INS carrier config on (sales code stays XAC)");
+    else if (has("callrec")) add(0.5, "callrec: call recording on (Phone app > Settings > Record calls)");
+    if (fail) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(2.0, "FAILED: something went wrong in the mock (framework did not come back)"); return out; }
+    if (["airdrop", "battery", "features", "callrec", "india"].some(has)) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(3.0, "framework back"); }
+    if (has("hotspot6g")) add(0.5, "hotspot6g: CSC country CA -> IN; Mobile hotspot > Band now offers 6 GHz (needs WPA3)");
+    if (has("airdrop")) { add(0.4, "airdrop: mosey_server running"); add(0.4, "airdrop: Play services Nearby flags on (2 of 2 overrides present)"); }
+    add(0.4, "DONE");
+    return out;
+  }
+  // Lines visible now, plus finalize the run when its script has ended.
+  function tick() {
+    const r = st.run;
+    if (!r) return;
+    const sc = script(r.ids, r.fail), el = (now() - r.at) / 1000;
+    if (el >= sc[sc.length - 1][0]) {
+      if (!r.fail) { st.active = {}; r.ids.forEach(i => st.active[i] = true); if (r.ids.includes("india")) delete st.active.callrec; }
+      st.oldLog = { at: r.at, ids: r.ids, fail: r.fail }; st.run = null; save();
+    }
+  }
+  function logText() {
+    const src = st.run || st.oldLog; if (!src) return { text: "", mtime: 0 };
+    const sc = script(src.ids, src.fail), el = st.run ? (now() - src.at) / 1000 : Infinity;
+    const vis = sc.filter(([t]) => t <= el);
+    const base = (src.at - st.bootAt) / 1000;
+    const lastT = vis.length ? vis[vis.length - 1][0] : 0;
+    return { text: vis.map(([t, m]) => (base + t).toFixed(2) + " " + m).join("\n") + (vis.length ? "\n" : ""),
+             mtime: Math.floor((src.at + lastT * 1000) / 1000) };
+  }
+  function probeJson() {
+    const w7 = q.has("w7");
+    const tw = (id, why) => ({ id, available: !why, why: why || "", active: !!st.active[id] });
+    return JSON.stringify({ version: "v1.0.0", module: true,
+      phone: { model: "SM-S918W", firmware: "S918WVLU8GZIF", csc: "XAC", android: "17", kernel: "5.15.197-android13-8-34343818-abS918WVLU8GZIF", gms: 264531035 },
+      picked: st.picked, autostart: st.autostart, applying: !!st.run,
+      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "the AirDrop payload isn't installed")] });
+  }
+  function handle(cmd) {
+    tick();
+    let m;
+    if (/tweaks\.sh probe$/.test(cmd)) return [0, probeJson() + "\n", "", 900];
+    if ((m = cmd.match(/tweaks\.sh start "([^"]*)"$/))) {
+      if (st.run) return [3, "", "another apply is already running (see " + LOG + ")\n", 300];
+      const ids = m[1].trim().split(/\s+/).filter(Boolean);
+      st.run = { at: now(), ids, fail: mode === "fail" }; st.picked = ids.join(" "); st.oldLog = null; save();
+      return [0, "started; progress in " + LOG + "\n", "", 400];
+    }
+    if ((m = cmd.match(/tweaks\.sh autostart (on|off)$/))) {
+      st.autostart = m[1] === "on"; save();
+      return [0, st.autostart ? "autostart on: the saved tweaks (" + st.picked + ") re-apply at every boot\n" : "autostart off\n", "", 400];
+    }
+    if (/tweaks\.sh autostart$/.test(cmd)) return [0, "autostart " + (st.autostart ? "on" : "off") + "\n", "", 200];
+    if (/tweaks\.sh unflag$/.test(cmd)) return [0, "Play services flag overrides removed\n", "", 1500];
+    if (/tweaks\.sh wifi7page$/.test(cmd)) return [0, "Starting: Intent { cmp=com.android.settings/.Settings$WifiLabsSettingsActivity }\n", "", 300];
+    if (cmd.includes("/proc/uptime") && cmd.includes("tweaks.log")) {
+      const lt = logText(), up = ((now() - st.bootAt) / 1000).toFixed(2);
+      return [0, up + " 3000.00\n" + Math.floor(now() / 1000) + "\n" + (lt.mtime || 0) + "\n---\n" + lt.text, "", 150];
+    }
+    if (cmd.includes("boot.log")) return [0, st.autostart ? "2026-11-22 08:01:12 applying: " + st.picked + "\n2026-11-22 08:02:05 done\n" : "", "", 200];
+    return [127, "", "mock: unknown command: " + cmd + "\n", 100];
+  }
+  window.ksu = {
+    exec(cmd, opts, cb) {
+      const [errno, out, err, delay] = handle(cmd);
+      setTimeout(() => { if (typeof window[cb] === "function") window[cb](errno, out, err); }, delay);
+    },
+    toast(msg) {
+      const t = h("div", { class: "toast", role: "status", text: msg });
+      document.querySelectorAll(".toast").forEach(x => x.remove());
+      document.body.append(t);
+      setTimeout(() => t.remove(), 2500);
+    },
+  };
+  document.body.append(h("div", { class: "mockflag", text: "MOCK" + (mode !== "ok" ? ": " + mode : "") }));
+}
+/* ====================== end of dev mock ====================== */
+
+if (typeof window.ksu === "undefined" && /[?&]mock(=|&|$)/.test(location.search)) installMock();
+wire();
+init();
+</script>
+</body>
+</html>
