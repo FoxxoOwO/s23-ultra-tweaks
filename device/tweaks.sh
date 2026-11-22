@@ -329,8 +329,8 @@ camfeat_apply() {
 # Linux stacks at most two overlays on a path, so the tweaks don't mount their own. Each one stages the
 # files the phone doesn't show yet into $T24/new/<folder> (stage, stage_text); layers_mount then puts one
 # overlay per folder on /system/<folder>. Overlays merge subfolders, so etc/permissions rides on the
-# /system/etc layer. An overlay hides the single-file binds made below it, so those (pl_binds) come
-# after it. Each step checks what the phone shows, not the mount table, so a re-apply only adds what's
+# /system/etc layer. An overlay hides whatever is mounted inside its folder, so layers_mount puts
+# those mounts back on top (keep_mounts), and the tweaks' own single-file binds come after it. Each step checks what the phone shows, not the mount table, so a re-apply only adds what's
 # missing.
 tlayer() { mkdir -p $T24; mounted $T24 tmpfs || mount -t tmpfs -o mode=755 s23tweaks_layers $T24; }
 same_size() { [ "$(stat -c %s "$1" 2>/dev/null)" = "$(stat -c %s "$2" 2>/dev/null)" ]; }
@@ -338,6 +338,26 @@ same_size() { [ "$(stat -c %s "$1" 2>/dev/null)" = "$(stat -c %s "$2" 2>/dev/nul
 stage() { [ -e /system/$1/${2##*/} ] && return 1; tlayer; mkdir -p $T24/new/$1; cp "$2" $T24/new/$1/ || fail "copy $2 to RAM"; }
 # stage_text <file under /system>: write stdin to the next layer in place of that file
 stage_text() { tlayer; mkdir -p $T24/new/${1%/*}; cat > $T24/new/$1; }
+# An overlay on a folder hides whatever is mounted inside it (other modules' files, earlier binds).
+# keep_mounts parks each such mount on a spare path first; keep_restore mounts it back on top of the
+# new layer, parents before children, in the order the kernel lists them.
+keep_mounts() {
+  K=$T24/keep; rm -rf $K; mkdir -p $K; i=0
+  awk -v p="$1/" 'index($2, p) == 1 && $2 !~ /\\/ && !seen[$2]++ {print $2}' /proc/mounts > $T24/keep.list
+  while read m; do i=$((i+1))
+    if [ -d "$m" ]; then mkdir $K/$i; else : > $K/$i; fi
+    mount --bind "$m" $K/$i || fail "keep $m"
+  done < $T24/keep.list
+}
+keep_restore() {
+  i=0
+  while read m; do i=$((i+1))
+    mount --bind $K/$i "$m" || fail "put back $m"
+    umount $K/$i
+  done < $T24/keep.list
+  [ $i = 0 ] || log "kept $i mounts inside the new layer: $(tr '\n' ' ' < $T24/keep.list)"
+  rm -rf $K $T24/keep.list
+}
 layers_mount() {
   [ -d $T24/new ] || return 1
   n=1; while [ -e $T24/L$n ]; do n=$((n+1)); done
@@ -346,8 +366,10 @@ layers_mount() {
   chcon -R u:object_r:system_file:s0 $L; [ -d $L/lib64 ] && chcon -R u:object_r:system_lib_file:s0 $L/lib64
   for d in $L/*; do d=${d##*/}
     [ -d /system/$d ] || fail "no /system/$d"
+    keep_mounts /system/$d
     mount -t overlay s23tweaks_$d$n -o ro,lowerdir=$L/$d:/system/$d /system/$d ||
-      fail "overlay on /system/$d (if tweaks were already added since the last reboot, reboot and apply again)"
+      { keep_restore; fail "overlay on /system/$d (if tweaks were already added since the last reboot, reboot and apply again)"; }
+    keep_restore
     log "RAM layer on /system/$d: $(cd $L/$d && find . -type f | sed 's|^\./||' | tr '\n' ' ')"
   done
   return 0
@@ -419,17 +441,14 @@ EAD_PERM=privapp-permissions-com.samsung.android.sead.xml
 colortone_stage() {
   pl_check colortone $EAD.apk $EAD_PERM || return 1
   [ -f $D/files/SecSettings-ead.patch ] || fail "colortone: files/SecSettings-ead.patch missing"
-  if [ ! -f /system/priv-app/$EAD/$EAD.apk ]; then
-    # the new /system/priv-app layer would hide the APK binds there; pl_binds puts them back
-    awk '$2 ~ "^/system/priv-app/" {print $2}' /proc/mounts | while read m; do umount $m; done
-    stage priv-app/$EAD $PL/colortone/$EAD.apk
-  fi
+  [ -f /system/priv-app/$EAD/$EAD.apk ] || stage priv-app/$EAD $PL/colortone/$EAD.apk
   stage etc/permissions $PL/colortone/$EAD_PERM
   return 0
 }
 colortone_bind() {
-  if [ -f $T24/SecSettings.apk ] && cmp -s $T24/SecSettings.apk $SETTINGS; then :
-  elif [ "$(md5sum $SETTINGS | cut -d' ' -f1)" != $SETTINGS_STOCK_MD5 ]; then
+  sm=$(md5sum $SETTINGS | cut -d' ' -f1)
+  if [ "$sm" = $SETTINGS_EAD_MD5 ]; then :   # already patched (an earlier apply this boot)
+  elif [ "$sm" != $SETTINGS_STOCK_MD5 ]; then
     log "colortone: Settings isn't the S918WVLU8GZIF build, so the Adaptive color tone switch stays hidden"; return
   else
     tlayer; cp $SETTINGS $T24/SecSettings.apk
