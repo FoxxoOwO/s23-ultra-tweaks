@@ -131,7 +131,7 @@ adb shell su -c "sh /data/local/tmp/s23tweaks/tweaks.sh unflag"
 
 ## Building the kernel modules
 
-You only need this to change the modules or to support other firmware. You need Docker (an x86-64 image; it runs under emulation on Apple Silicon), AOSP clang `clang-r450784e`, and Samsung's kernel sources from <https://opensource.samsung.com>:
+You only need this to change the modules or to support other firmware. To port everything to another firmware, see [AGENTS.md](AGENTS.md). You need Docker (an x86-64 image; it runs under emulation on Apple Silicon), AOSP clang `clang-r450784e`, and Samsung's kernel sources from <https://opensource.samsung.com>:
 
 - `SM-S918B_17_Opensource.zip` (S23 Ultra): extract `Kernel.tar.gz` to `/work/s23` in a Docker volume.
 - `SM-S928B_17_Opensource.zip` (S24 Ultra): extract `Kernel.tar.gz` to `/work/s24`. The driver, Wondertap and `wonder` sources are under `vendor/qcom/opensource/wlan`.
