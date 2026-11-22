@@ -67,6 +67,8 @@ A fail-safe prevents boot loops. If a boot's apply never finished (the phone reb
 
 If DFRoot didn't root the phone at boot (no notification after a few minutes), open DFRoot and tap **LAUNCH ROOT**. The tweaks then apply by themselves.
 
+**Don't want root at every boot?** In DFRoot's settings, turn off **Start at Boot**. The phone then boots stock, with no KernelSU loaded, until you tap **LAUNCH ROOT**. With autostart on, the tweaks apply by themselves a minute after you tap it, still with no computer. So you get root, and the tweaks, only when you ask for them.
+
 Without autostart, run the installer again after each reboot and press Enter to reuse your last picks.
 
 To turn autostart off, run the installer and answer **n**, or:
