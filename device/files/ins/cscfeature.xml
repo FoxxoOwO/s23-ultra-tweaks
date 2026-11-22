@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='utf-8'?>
+<SamsungMobileFeature>
+  <Version>ED00004</Version>
+  <Country>INDIA</Country>
+  <CountryISO>IN</CountryISO>
+  <SalesCode>INS</SalesCode>
+  <FeatureSet>
+    <CscFeature_Common_ConfigSvcProviderForUnknownNumber>whitepages,whitepages,off</CscFeature_Common_ConfigSvcProviderForUnknownNumber>
+    <CscFeature_Contact_ConfigImsOpStyle>INS</CscFeature_Contact_ConfigImsOpStyle>
+    <CscFeature_Contact_SupportDuoVideoCall>TRUE</CscFeature_Contact_SupportDuoVideoCall>
+    <CscFeature_FMRadio_RecordingVolumeAs>11</CscFeature_FMRadio_RecordingVolumeAs>
+    <CscFeature_Framework_ConfigActionForMultiPowerPress>PanicMode</CscFeature_Framework_ConfigActionForMultiPowerPress>
+    <CscFeature_GMS_SetClientIDBaseCr>android-samsung-ss</CscFeature_GMS_SetClientIDBaseCr>
+    <CscFeature_GMS_SetClientIDBaseMs>android-samsung-rvo1</CscFeature_GMS_SetClientIDBaseMs>
+    <CscFeature_GMS_SetClientIDBasePg2>android-samsung-terr1-deos-21-w1</CscFeature_GMS_SetClientIDBasePg2>
+    <CscFeature_GMS_SetClientIDBasePg3>android-samsung-terr1-gio3x1230</CscFeature_GMS_SetClientIDBasePg3>
+    <CscFeature_GMS_SetClientIDBaseVs>android-samsung-rvo1</CscFeature_GMS_SetClientIDBaseVs>
+    <CscFeature_Setting_ConfigAboutDeviceItems>fcc=disabled;</CscFeature_Setting_ConfigAboutDeviceItems>
+    <CscFeature_Setting_SupportRegulatoryInfo>TRUE</CscFeature_Setting_SupportRegulatoryInfo>
+    <CscFeature_SetupWizard_SupportEsimAsPrimary>TRUE</CscFeature_SetupWizard_SupportEsimAsPrimary>
+    <CscFeature_SystemUI_ConfigOpBrandingForIndicatorIcon>INU_4G</CscFeature_SystemUI_ConfigOpBrandingForIndicatorIcon>
+    <CscFeature_VT_ConfigCapability>three_widget</CscFeature_VT_ConfigCapability>
+    <CscFeature_VT_SupportAddCall>TRUE</CscFeature_VT_SupportAddCall>
+    <CscFeature_VT_SupportMerge>TRUE</CscFeature_VT_SupportMerge>
+    <CscFeature_VoiceCall_ConfigOpStyleForBixbyTextCall>true,en-IN,default_off,consent_com</CscFeature_VoiceCall_ConfigOpStyleForBixbyTextCall>
+    <CscFeature_VoiceCall_ConfigOpStyleForLiveTranslate>true,en-IN,hi-IN,default_on</CscFeature_VoiceCall_ConfigOpStyleForLiveTranslate>
+    <CscFeature_VoiceCall_ConfigOpStyleForLogs>CnapLog</CscFeature_VoiceCall_ConfigOpStyleForLogs>
+    <CscFeature_VoiceCall_ConfigRecording>RecordingAllowedByMenu,disclaimer_india</CscFeature_VoiceCall_ConfigRecording>
+    <CscFeature_VoiceCall_TunnigCallWaitingToneAs>70</CscFeature_VoiceCall_TunnigCallWaitingToneAs>
+    <CscFeature_VoiceCall_SupportVoiceRecordingDuringHoldCall>TRUE</CscFeature_VoiceCall_SupportVoiceRecordingDuringHoldCall>
+    <CscFeature_VoiceCall_SupportSmartIvr>TRUE</CscFeature_VoiceCall_SupportSmartIvr>
+    <CscFeature_Message_SupportUsefulcard>TRUE</CscFeature_Message_SupportUsefulcard>
+    <CscFeature_Message_SupportSuggestedCategory>TRUE</CscFeature_Message_SupportSuggestedCategory>
+  </FeatureSet>
+</SamsungMobileFeature>

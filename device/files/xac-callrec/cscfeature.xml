@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<SamsungMobileFeature>
+  <Version>ED00003</Version>
+  <Country>CANADA</Country>
+  <CountryISO>CA</CountryISO>
+  <SalesCode>XAC</SalesCode>
+  <FeatureSet>
+    <CscFeature_Audio_SupportSafeMediaVolumeDialog>FALSE</CscFeature_Audio_SupportSafeMediaVolumeDialog>
+    <CscFeature_Camera_CameraFlicker>60hz</CscFeature_Camera_CameraFlicker>
+    <CscFeature_Common_ConfigSvcProviderForUnknownNumber>whitepages,whitepages,whitepages</CscFeature_Common_ConfigSvcProviderForUnknownNumber>
+    <CscFeature_Contact_ConfigDuoVideoCall>duoonly,</CscFeature_Contact_ConfigDuoVideoCall>
+    <CscFeature_Contact_ConfigImsOpStyle>XAC</CscFeature_Contact_ConfigImsOpStyle>
+    <CscFeature_Contact_ConfigOpStyleVariation>CAN</CscFeature_Contact_ConfigOpStyleVariation>
+    <CscFeature_Contact_SupportDuoVideoCall>TRUE</CscFeature_Contact_SupportDuoVideoCall>
+    <CscFeature_GMS_SetClientIDBaseCr>android-samsung-rvo1</CscFeature_GMS_SetClientIDBaseCr>
+    <CscFeature_GMS_SetClientIDBaseMs>android-samsung-rvo1</CscFeature_GMS_SetClientIDBaseMs>
+    <CscFeature_GMS_SetClientIDBasePg2>android-samsung-terr1-deos-21-w1</CscFeature_GMS_SetClientIDBasePg2>
+    <CscFeature_GMS_SetClientIDBasePg3>android-samsung-terr1-gio3x1230</CscFeature_GMS_SetClientIDBasePg3>
+    <CscFeature_GMS_SetClientIDBaseVs>android-samsung-rvo1</CscFeature_GMS_SetClientIDBaseVs>
+    <CscFeature_Message_SupportSuggestedCategory>TRUE</CscFeature_Message_SupportSuggestedCategory>
+    <CscFeature_Setting_ConfigAboutDeviceItems>modelnumberDSsuffix=disabled;</CscFeature_Setting_ConfigAboutDeviceItems>
+    <CscFeature_Setting_ConfigTypeHelp>1</CscFeature_Setting_ConfigTypeHelp>
+    <CscFeature_Setting_SupportHAC>TRUE</CscFeature_Setting_SupportHAC>
+    <CscFeature_SetupWizard_ConfigStepSequenceType>IntroNoSimLock</CscFeature_SetupWizard_ConfigStepSequenceType>
+    <CscFeature_SystemUI_ConfigMaxRssiLevel>5</CscFeature_SystemUI_ConfigMaxRssiLevel>
+    <CscFeature_SystemUI_ConfigOpBranding5GIcon>UseEnlargedIcon</CscFeature_SystemUI_ConfigOpBranding5GIcon>
+    <CscFeature_SystemUI_ConfigOpBrandingForIndicatorIcon>OYA</CscFeature_SystemUI_ConfigOpBrandingForIndicatorIcon>
+    <CscFeature_SystemUI_ConfigOverrideDataIcon>LTE</CscFeature_SystemUI_ConfigOverrideDataIcon>
+    <CscFeature_VT_ConfigCapability>three_widget</CscFeature_VT_ConfigCapability>
+    <CscFeature_VoiceCall_ConfigOpStyleForBixbyTextCall>true,en-US,default_on,consent_com</CscFeature_VoiceCall_ConfigOpStyleForBixbyTextCall>
+    <CscFeature_VoiceCall_ConfigOpStyleForLogs>CnapLog</CscFeature_VoiceCall_ConfigOpStyleForLogs>
+    <CscFeature_VoiceCall_SupportTTY>TRUE</CscFeature_VoiceCall_SupportTTY>
+    <CscFeature_Web_ConfigDefaultBrowser>chrome</CscFeature_Web_ConfigDefaultBrowser>
+    <CscFeature_VoiceCall_ConfigRecording>RecordingAllowed</CscFeature_VoiceCall_ConfigRecording>
+    <CscFeature_VoiceCall_SupportVoiceRecordingDuringHoldCall>TRUE</CscFeature_VoiceCall_SupportVoiceRecordingDuringHoldCall>
+    <CscFeature_VoiceCall_SupportSmartIvr>TRUE</CscFeature_VoiceCall_SupportSmartIvr>
+    <CscFeature_Message_SupportUsefulcard>TRUE</CscFeature_Message_SupportUsefulcard>
+  </FeatureSet>
+</SamsungMobileFeature>

@@ -1,0 +1,2 @@
+FROM s23kbuild
+RUN apt-get update && apt-get install -y --no-install-recommends clang-16 && rm -rf /var/lib/apt/lists/*
