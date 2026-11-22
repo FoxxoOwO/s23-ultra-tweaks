@@ -220,16 +220,24 @@ signed by Samsung) as an ordinary app.
 
 ## Undo
 
-Reboot. Everything goes back to stock except three things:
+**Remove the module** (KernelSU → Modules → S23 Ultra Tweaks → Uninstall) and reboot. During that
+boot the module cleans up after itself once the phone is unlocked:
 
-- The two Play services flag overrides (`airdrop`). They do nothing without the rest, but to remove them:
-  ```sh
-  adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh unflag"
-  ```
-- Director's view stays in Camera → More (`camextras` sets a camera app setting). Hide it there with
-  the edit button, or clear the Camera app's data.
-- Samsung Language Core (`callscreen`):
-  `adb shell pm uninstall com.samsung.android.offline.languagemodel`
+- removes AirDrop's two Play services flag overrides;
+- uninstalls Samsung Language Core and its Call screening settings, if `callscreen` installed it;
+- puts the Camera app's Director's view setting back the way it was (`camextras`);
+- drops Android's cached manifests of the apps the tweaks swap, so the stock apps are re-read;
+- deletes `/data/adb/s23tweaks` (downloads, logs, backups) and the boot script.
+
+The mounts themselves were already undone by the reboot. If the computer installer also has its own
+copy in `/data/adb/s23tweaks`, removing the module leaves that copy alone. To clean up by hand:
+
+```sh
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh cleanup"
+```
+
+Without removing anything, a plain reboot puts the phone back to stock except for those persistent
+items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
 
 ## Known limitations
 

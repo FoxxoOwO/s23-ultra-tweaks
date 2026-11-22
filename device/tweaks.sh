@@ -392,7 +392,9 @@ directorsview_pref() {
   fi
   grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS && { log "camextras: Director's view already shown"; return; }
   am force-stop com.sec.android.app.camera
-  mkdir -p $R $V/backup; [ -f $V/backup/camera_preferences.xml ] || cp $CAM_PREFS $V/backup/camera_preferences.xml
+  mkdir -p $R $V/backup $V/undo; [ -f $V/backup/camera_preferences.xml ] || cp $CAM_PREFS $V/backup/camera_preferences.xml
+  # for "cleanup": the value before the first change, or "absent"
+  [ -f $V/undo/directors_view ] || { v=$(sed -n 's|.*<string name="directors_view_mode">\([^<]*\)</string>.*|\1|p' $CAM_PREFS); echo "${v:-absent}" > $V/undo/directors_view; }
   if grep -q 'name="directors_view_mode"' $CAM_PREFS; then
     sed 's|<string name="directors_view_mode">[^<]*</string>|<string name="directors_view_mode">1</string>|' $CAM_PREFS > $R/camprefs.new
   else
@@ -612,7 +614,7 @@ callscreen_apply() {
   # streamed through stdin: the installer can't read files under /data/adb
   r=$(pm install -r -S $(stat -c %s $A) < $A 2>&1)
   case "$r" in
-    *Success*) rm -rf $PL/callscreen; log "callscreen: Language Core installed; turn on Phone > Settings > Call screening" ;;
+    *Success*) rm -rf $PL/callscreen; mkdir -p $V/undo; touch $V/undo/languagecore; log "callscreen: Language Core installed; turn on Phone > Settings > Call screening" ;;
     *) log "callscreen: install failed: $r" ;;
   esac
 }
@@ -906,6 +908,34 @@ status)
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  CSC country $(getprop ro.csc.countryiso_code)"
   echo "csc:      $(bound $XAC/system/cscfeature.xml && grep -oE '<SalesCode>[A-Z]+' $XAC/system/cscfeature.xml | cut -c12- || echo stock)"
+  ;;
+cleanup)
+  # Undo everything that outlives a reboot, then delete the state folder. module/uninstall.sh runs this
+  # from a copy in /dev when the module is removed. It waits for Android and the first unlock, since
+  # the Play services database and the Camera settings sit in app storage that's locked until then.
+  n=0; until [ "$(getprop sys.boot_completed)" = 1 ] && [ "$(getprop sys.user.0.ce_available)" = true ] &&
+    pm path android >/dev/null 2>&1; do n=$((n+1)); [ $n -gt 4320 ] && exit 1; sleep 5; done
+  say() { /system/bin/log -t s23tweaks "cleanup: $*" 2>/dev/null; echo "$*"; }   # Android's log: log() here is ours
+  [ -x $AIR/sqlite3 ] && sh "$0" unflag >/dev/null 2>&1 && say "Play services flag overrides removed"
+  if [ -f $V/undo/languagecore ] && pm path $LC_PKG >/dev/null 2>&1; then
+    pm uninstall $LC_PKG >/dev/null 2>&1 && say "Language Core uninstalled"
+    for k in call_screening call_screening_auto_screening_onoff call_screening_voice call_screening_voice_speech_rate; do
+      settings delete system $k >/dev/null 2>&1; done
+  fi
+  if [ -f $V/undo/directors_view ] && [ -f $CAM_PREFS ]; then
+    v=$(cat $V/undo/directors_view); am force-stop com.sec.android.app.camera; mkdir -p $R
+    if [ "$v" = absent ]; then grep -v 'name="directors_view_mode"' $CAM_PREFS > $R/camprefs.new
+    else sed "s|<string name=\"directors_view_mode\">[^<]*</string>|<string name=\"directors_view_mode\">$v</string>|" $CAM_PREFS > $R/camprefs.new; fi
+    grep -q '</map>' $R/camprefs.new && cat $R/camprefs.new > $CAM_PREFS && say "Camera setting restored"
+  fi
+  # parsed manifests of the apps the tweaks swap, in case a restart cached one; Android re-parses them
+  for n in SamsungSmartSuggestions SketchBook CallAssistant SecSettingsIntelligence SecSettings EnvironmentAdaptiveDisplay MoseyApp; do
+    rm -f /data/system/package_cache/*/$n-[0-9]*; done
+  rm -f /data/adb/service.d/s23tweaks.sh
+  cd /; rm -rf $V
+  say "done; the next reboot removes what's still mounted"
+  case "$0" in /dev/*) rm -f "$0" ;; esac
+  exit 0
   ;;
 unflag)
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db; SQ=$AIR/sqlite3; W=$R/gms
