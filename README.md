@@ -25,7 +25,7 @@ category or single tweaks.
 | 16 | Battery and settings | `battery` | Settings → Battery → **Battery information** shows battery health and cycle count | any S23 Ultra on One UI 9 |
 | 17 | Battery and settings | `features` | **Auto power on/off** schedule, **louder VoIP calls** | any S23 Ultra on One UI 9 |
 | 18 | Carrier | `callrec` | **Call recording** in the Samsung Phone app | XAC (Canadian) firmware S918WVLU8GZIF |
-| 19 | Carrier | `india` | India (INS) carrier config: call recording, Smart IVR, message cards and more. The sales code stays XAC | XAC (Canadian) firmware S918WVLU8GZIF |
+| 19 | Carrier | `india` | **India carrier config for Airtel / Jio SIMs**: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, the Carrier category picks this instead of `callrec` | XAC (Canadian) firmware S918WVLU8GZIF |
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
 only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom

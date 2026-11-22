@@ -375,7 +375,7 @@ const TWEAKS = [
   { id: "battery", cat: "system", name: "Battery health", desc: "Settings → Battery → Battery information shows health and cycle count" },
   { id: "features", cat: "system", name: "Power schedule and louder calls", desc: "Auto power on/off schedule and louder VoIP calls" },
   { id: "callrec", cat: "carrier", name: "Call recording", desc: "Call recording in the Samsung Phone app" },
-  { id: "india", cat: "carrier", name: "India carrier config", desc: "India (INS) carrier config: call recording, Smart IVR, message cards; the sales code stays XAC" },
+  { id: "india", cat: "carrier", name: "India carrier config (Airtel, Jio)", desc: "For Indian SIMs: the Indian carrier settings with the Use 5G standalone networks switch, call recording, Smart IVR and message cards; the sales code stays XAC" },
 ];
 const NAME = Object.fromEntries(TWEAKS.map(t => [t.id, t.name]));
 const IDS = TWEAKS.map(t => t.id);
@@ -385,7 +385,7 @@ const WHERE = {
   battery: ["Battery health", "Settings → Battery → Battery information."],
   features: ["Power schedule", "Search Settings for “power on/off” to find the schedule. Louder VoIP calls need no setting."],
   callrec: ["Call recording", "Phone app → Settings → Record calls."],
-  india: ["Call recording", "Phone app → Settings → Record calls."],
+  india: ["5G standalone and call recording", "Settings → Connections → Mobile networks → Use 5G standalone networks; Phone app → Settings → Record calls."],
   hotspot6g: ["6 GHz hotspot", "Settings → Connections → Mobile Hotspot → Band → 6 GHz (security WPA3)."],
   wifi7: ["Wi-Fi 7", "Multi-link needs a Wi-Fi 7 router with MLO on. The Wi-Fi 7 mode page is under Status."],
   display: ["Vividness", "Settings → Display → Screen mode → Advanced settings (hidden while Eye comfort shield is on). AOD: Lock screen and AOD → Always On Display → Show Lock screen wallpaper."],
@@ -570,7 +570,7 @@ function available(id) { return !!tweakInfo(id).available; }
 
 function initialSelection(p) {
   let ids = validIds(String(p.picked || "").trim().split(/\s+/).filter(Boolean));
-  if (!ids.length) ids = IDS.filter(i => i !== "india" && available(i));
+  if (!ids.length) ids = IDS.filter(i => i !== carrierSkip() && available(i));
   ids = ids.filter(available);
   const s = new Set(ids);
   if (s.has("wifi7")) { if (available("airdrop")) s.add("airdrop"); else s.delete("wifi7"); }
@@ -578,9 +578,12 @@ function initialSelection(p) {
   return s;
 }
 
+// india and callrec replace each other. With an Indian SIM (MCC 404/405) picks take the India config,
+// otherwise plain call recording.
+function simIndia() { return /^40[45]/.test(String((S.probe && S.probe.phone && S.probe.phone.sim) || "")); }
+function carrierSkip() { return simIndia() ? "callrec" : "india"; }
 function catIds(cat, onlyAvailable) {
-  // india stays out of a category pick: it replaces call recording, which the category picks instead
-  return TWEAKS.filter(t => t.cat === cat && (!onlyAvailable || (available(t.id) && t.id !== "india"))).map(t => t.id);
+  return TWEAKS.filter(t => t.cat === cat && (!onlyAvailable || (available(t.id) && t.id !== carrierSkip()))).map(t => t.id);
 }
 function updateCats() {
   for (const c of CATS) {
@@ -986,7 +989,7 @@ function installMock() {
     const w7 = q.has("w7");
     const tw = (id, why) => ({ id, available: !why, why: why || "", active: !!st.active[id] });
     return JSON.stringify({ version: "v1.1.0", module: true,
-      phone: { model: "SM-S918W", firmware: "S918WVLU8GZIF", csc: "XAC", android: "17", kernel: "5.15.197-android13-8-34343818-abS918WVLU8GZIF", gms: 264531035 },
+      phone: { model: "SM-S918W", firmware: "S918WVLU8GZIF", csc: "XAC", android: "17", kernel: "5.15.197-android13-8-34343818-abS918WVLU8GZIF", gms: 264531035, sim: new URLSearchParams(location.search).get("sim") || "40445" },
       picked: st.picked, autostart: st.autostart, applying: !!st.run,
       tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "needs firmware S918WVLU8GZIF (this phone runs S918WVLU7GZE1)"), tw("display"), tw("logvideo"), tw("vulkan"), tw("camerahdr"), tw("audioeraser"), tw("colortone"), tw("galaxyai"), tw("camextras"), tw("autoframe"), tw("settingssearch"), tw("bargein"), tw("callscreen", "needs the Language Core 4.0.01.24 APK (3.1 GB) in /data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk; see the README")] });
   }

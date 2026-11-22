@@ -853,8 +853,9 @@ probe)
   a_ct=$(act bound $SETTINGS)
   a_gai=$(act bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk)
   j() { printf '{"id":"%s","available":%s,"why":"%s","active":%s}' "$1" "$( [ -z "$2" ] && echo true || echo false)" "$2" "$3"; }
-  printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s},' \
-    "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}"
+  sim=$(getprop gsm.sim.operator.numeric | cut -d, -f1)   # MCC+MNC of the first SIM; 404/405 = India
+  printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s,"sim":"%s"},' \
+    "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}" "$sim"
   printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(cat $V/choices 2>/dev/null)" \
     "$( [ -f $V/autostart ] && echo true || echo false)" "$( lock_alive && echo true || echo false)"
   printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \

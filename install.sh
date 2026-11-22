@@ -55,6 +55,9 @@ can_airdrop=1; why_airdrop=""
 [ "$kernel" = "$AIRDROP_KERNEL" ] || { can_airdrop=0; why_airdrop="needs firmware S918WVLU8GZIF (this phone runs $build)"; }
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
+# an Indian SIM (MCC 404/405) makes the carrier picks take the India config instead of plain call recording
+sim=$(sh_ getprop gsm.sim.operator.numeric | cut -d, -f1); sim_india=0; carrier_skip=india
+case "$sim" in 404*|405*) sim_india=1; carrier_skip=callrec ;; esac
 
 # Language Core for callscreen: a 3.1 GB download, so the phone needs about 7 GB free while it installs
 can_lc=1; why_lc=""
@@ -90,7 +93,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Battery health page: Settings > Battery > Battery information shows health and cycles"
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "Call recording in the Samsung Phone app"
-      "India (INS) carrier config: call recording, Smart IVR, message cards; sales code stays XAC")
+      "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards; sales code stays XAC")
 avail=($can_airdrop $can_airdrop 1  1 1 1 1  1 1 1  1 1 1 $can_lc 1  1 1  $can_csc $can_csc)
 why=("$why_airdrop" "$why_airdrop" ""  "" "" "" ""  "" "" ""  "" "" "" "$why_lc" ""  "" ""  "$why_csc" "$why_csc")
 
@@ -118,17 +121,18 @@ if [ -z "$picked" ]; then
     done
   done
   info "Pick whole categories by letter and single tweaks by number, e.g. \"A B 16\"."
-  info "Category F picks call recording only; ${#ids[@]} (India) already includes it."
+  if [ $sim_india = 1 ]; then info "Indian SIM: category F picks ${#ids[@]} (India config, includes call recording)."
+  else info "Category F picks call recording only; ${#ids[@]} (India config, for Indian SIMs) already includes it."; fi
   r=$(ask "Letters/numbers separated by spaces, Enter for all available: ")
   add() { case " $picked " in *" $1 "*) ;; *) picked="$picked $1" ;; esac; }
   if [ -z "$r" ]; then
-    for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != india ] && add "${ids[$i]}"; done
+    for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && add "${ids[$i]}"; done
   fi
   for n in $r; do
     n=$(printf '%s' "$n" | tr '[:lower:]' '[:upper:]')
     if [[ "$n" =~ ^[A-F]$ ]]; then
       for i in "${!ids[@]}"; do
-        [ "${cat[$i]}" = "$n" ] && [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != india ] && add "${ids[$i]}"
+        [ "${cat[$i]}" = "$n" ] && [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && add "${ids[$i]}"
       done
       continue
     fi
