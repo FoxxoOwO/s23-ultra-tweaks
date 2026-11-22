@@ -361,16 +361,16 @@ keep_restore() {
 layers_mount() {
   [ -d $T24/new ] || return 1
   n=1; while [ -e $T24/L$n ]; do n=$((n+1)); done
-  mv $T24/new $T24/L$n; L=$T24/L$n
-  find $L -type d -exec chmod 755 {} +; find $L -type f -exec chmod 644 {} +
-  chcon -R u:object_r:system_file:s0 $L; [ -d $L/lib64 ] && chcon -R u:object_r:system_lib_file:s0 $L/lib64
-  for d in $L/*; do d=${d##*/}
+  mv $T24/new $T24/L$n; LD=$T24/L$n   # not L: that is the log file
+  find $LD -type d -exec chmod 755 {} +; find $LD -type f -exec chmod 644 {} +
+  chcon -R u:object_r:system_file:s0 $LD; [ -d $LD/lib64 ] && chcon -R u:object_r:system_lib_file:s0 $LD/lib64
+  for d in $LD/*; do d=${d##*/}
     [ -d /system/$d ] || fail "no /system/$d"
     keep_mounts /system/$d
-    mount -t overlay s23tweaks_$d$n -o ro,lowerdir=$L/$d:/system/$d /system/$d ||
+    mount -t overlay s23tweaks_$d$n -o ro,lowerdir=$LD/$d:/system/$d /system/$d ||
       { keep_restore; fail "overlay on /system/$d (if tweaks were already added since the last reboot, reboot and apply again)"; }
     keep_restore
-    log "RAM layer on /system/$d: $(cd $L/$d && find . -type f | sed 's|^\./||' | tr '\n' ' ')"
+    log "RAM layer on /system/$d: $(cd $LD/$d && find . -type f | sed 's|^\./||' | tr '\n' ' ')"
   done
   return 0
 }
