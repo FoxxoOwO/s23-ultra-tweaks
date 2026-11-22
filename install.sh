@@ -12,7 +12,7 @@ VERSION=v1.0.0
 PAYLOAD=airdrop-payload-S918WVLU8GZIF.tar.gz
 PAYLOAD_SHA256=84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
 AIRDROP_KERNEL=5.15.197-android13-8-34343818-abS918WVLU8GZIF
-PHONE_DIR=/data/local/tmp/s23tweaks
+PHONE_DIR=/data/adb/s23tweaks
 
 say()  { printf '\033[1m%s\033[0m\n' "$*"; }
 info() { printf '  %s\n' "$*"; }
@@ -67,6 +67,8 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
 avail=($can_airdrop 1 1 $can_csc $can_csc 1 $can_airdrop)
 why=("$why_airdrop" "" "" "$why_csc" "$why_csc" "" "$why_airdrop")
 
+# pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
+sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
 last=$(sh_ "su -c 'cat $PHONE_DIR/choices 2>/dev/null'" || true)
 picked=""
 if [ -n "$last" ]; then
@@ -95,6 +97,7 @@ say "Applying: $picked"
 case " $picked " in *" airdrop "*) info "Wi-Fi (and the hotspot) drop for ~30 s while the driver is swapped." ;; esac
 info "The screen goes black for ~30 s while Android restarts its framework. Don't unplug the phone."
 r=$(ask "Continue? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && exit 0
+r=$(ask "Re-apply these automatically at every boot, with no computer? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && auto=off || auto=on
 
 # ---- download ----
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
@@ -114,7 +117,7 @@ case " $picked " in *" airdrop "*|*" wifi7 "*)
 
 # ---- push and run ----
 say "Copying to the phone..."
-a shell "su -c 'mkdir -p $PHONE_DIR && chmod 777 $PHONE_DIR'"
+a shell "su -c 'mkdir -p $PHONE_DIR'"
 a push "$W/src/device/." /data/local/tmp/s23tweaks_new >/dev/null
 a shell "su -c 'cp -r /data/local/tmp/s23tweaks_new/. $PHONE_DIR/ && rm -rf /data/local/tmp/s23tweaks_new && chmod -R 755 $PHONE_DIR && chcon u:object_r:system_file:s0 $PHONE_DIR/airdrop/moseyrun 2>/dev/null; true'"
 a shell "su -c 'nsenter -t 1 -m -- setsid sh $PHONE_DIR/tweaks.sh apply \"$picked\" </dev/null >/dev/null 2>&1 &'"
@@ -131,12 +134,18 @@ done
 case "${out:-}" in *DONE*) ;; *) die "timed out; check $PHONE_DIR/tweaks.log on the phone" ;; esac
 
 say "Done."
+a shell "su -c 'sh $PHONE_DIR/tweaks.sh autostart $auto'" | tr -d '\r' | sed 's/^/  /'
 case " $picked " in *" airdrop "*)
   info "AirDrop: on the Apple device set AirDrop to 'Everyone for 10 minutes'. On the S23 share something with"
   info "Quick Share and pick 'Share with Apple devices'." ;; esac
 case " $picked " in *" battery "*) info "Battery: Settings > Battery > Battery information." ;; esac
 case " $picked " in *" wifi7 "*) info "Wi-Fi 7: multi-link works with Wi-Fi 7 routers that have MLO on. Settings > Wi-Fi > (network) shows Wi-Fi 7." ;; esac
 case " $picked " in *" hotspot6g "*) info "6 GHz hotspot: Settings > Connections > Mobile Hotspot > Band > 6 GHz (security must be WPA3)." ;; esac
-info "All of this lasts until the next reboot. After a reboot: DFRoot > LAUNCH ROOT, then run this again."
+if [ "$auto" = on ]; then
+  info "At each boot DFRoot roots the phone by itself and the tweaks re-apply about a minute later (the screen"
+  info "goes black for ~30 s once). A notification says when they're on. To stop: run this again and answer n."
+else
+  info "All of this lasts until the next reboot. Run this again after a reboot (it offers your last picks)."
+fi
 }
 main "$@"

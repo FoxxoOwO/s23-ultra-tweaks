@@ -1,10 +1,13 @@
-# s23-ultra-tweaks, phone side. install.sh pushes this folder to /data/local/tmp/s23tweaks and runs
-# it as root in init's mount namespace, detached (the framework restart would kill an adb shell):
-#   su -c "nsenter -t 1 -m -- setsid sh /data/local/tmp/s23tweaks/tweaks.sh apply 'airdrop battery' </dev/null >/dev/null 2>&1 &"
+# s23-ultra-tweaks, phone side. install.sh copies this folder to /data/adb/s23tweaks (root-only) and
+# runs it as root in init's mount namespace, detached (the framework restart would kill an adb shell):
+#   su -c "nsenter -t 1 -m -- setsid sh /data/adb/s23tweaks/tweaks.sh apply 'airdrop battery' </dev/null >/dev/null 2>&1 &"
 # Commands:
 #   apply "<tweaks>"  apply the listed tweaks; progress goes to tweaks.log in this folder
 #   status            print what is active
 #   unflag            remove the two Play services flag overrides that the airdrop tweak adds
+#   autostart on|off  re-apply the saved tweaks at every boot (KernelSU runs /data/adb/service.d
+#                     scripts once DFRoot has rooted the phone, which DFRoot does by itself at boot)
+#   boot              (internal) what the boot script runs
 #   wifi7page         open Samsung's hidden "Wi-Fi 7 mode" settings page (Wi-Fi Labs)
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7  (see README.md)
@@ -200,7 +203,13 @@ gms_flags() {
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db
   SNAP=$G/files/phenotype/shared/com.google.android.gms.nearby.pb
   SQ=$D/airdrop/sqlite3; W=$R/gms; rm -rf $W; mkdir -p $W $D/backup
-  [ -f $DB ] || { log "airdrop: Play services database not found; flags not set"; return; }
+  if [ ! -f $DB ]; then
+    # Before the first unlock after a boot, app storage is still encrypted. The overrides set on an
+    # earlier run are stored in Play services' database and stay in effect, so nothing is lost.
+    if [ "${S23T_BOOT:-0}" = 1 ]; then log "airdrop: Play services storage is locked until first unlock; flags from the earlier run stay on"
+    else log "airdrop: Play services database not found; flags not set"; fi
+    return
+  fi
   # edit a copy (opening the live WAL database as root would leave root-owned -wal/-shm files)
   am force-stop com.google.android.gms
   cp $DB $W/p.db; [ -f $DB-wal ] && cp $DB-wal $W/p.db-wal
@@ -353,13 +362,14 @@ guard)
   while sleep 1; do
     [ "$(hangs)" -gt "$base" ] || continue
     log "Wi-Fi firmware crashed: saving the kernel log and rebooting"
+    echo "the Wi-Fi firmware crashed before the last reboot (log saved in $D)" > $D/boot.skip
     ps -A -o PID,ARGS | grep "[t]weaks.sh loop" | while read pid rest; do kill $pid; done
     pkill mosey_server; sleep 3; dmesg > $D/fwcrash_$(cut -d. -f1 /proc/uptime).txt; sync
     reboot
   done
   ;;
 status)
-  echo "saved choices: $(cat $D/choices 2>/dev/null)"
+  echo "saved choices: $(cat $D/choices 2>/dev/null); $(sh $D/tweaks.sh autostart)"
   echo "airdrop:  modules [$(grep -oE '^(wonder|bwfix) ' /proc/modules | tr -d '\n')]," \
        "Mosey $(bound /system_ext/bin && echo on || echo off), daemon $(running loop && echo running || echo stopped)," \
        "$(service check com.google.android.moseyservice.IMoseyService/default | sed 's/.*: //')"
@@ -378,6 +388,46 @@ unflag)
   am force-stop com.google.android.gms; cat $W/p.db > $DB && rm -f $DB-wal $DB-shm; rm -rf $W
   echo "Play services flag overrides removed"
   ;;
+autostart)
+  S=/data/adb/service.d/s23tweaks.sh
+  case "$2" in
+  on)
+    mkdir -p /data/adb/service.d
+    cat > $S <<EOF
+#!/system/bin/sh
+# s23-ultra-tweaks: re-apply the saved tweaks at boot. KernelSU runs this once DFRoot has rooted the
+# phone. Remove with: sh $D/tweaks.sh autostart off
+[ -f $D/autostart ] && nsenter -t 1 -m -- setsid sh $D/tweaks.sh boot </dev/null >/dev/null 2>&1 &
+EOF
+    chmod 700 $S; touch $D/autostart; echo "autostart on: the saved tweaks ($(cat $D/choices 2>/dev/null)) re-apply at every boot" ;;
+  off) rm -f $S $D/autostart $D/boot.pending $D/boot.skip; echo "autostart off" ;;
+  *) [ -f $D/autostart ] && [ -f $S ] && echo "autostart on" || echo "autostart off" ;;
+  esac
+  ;;
+boot)
+  B=$D/boot.log
+  blog() { echo "$(date '+%F %T') $*" >> $B; }
+  note() { cmd notification post -S bigtext -t "S23 tweaks" s23tweaks "$1" >/dev/null 2>&1; }
+  [ -f $D/autostart ] || exit 0
+  t=$(cat $D/choices 2>/dev/null); [ -n "$t" ] || exit 0
+  n=600; until [ "$(getprop sys.boot_completed)" = 1 ]; do n=$((n-1)); [ $n = 0 ] && break; sleep 1; done
+  sleep 30   # let Wi-Fi, Play services and the launcher settle before swapping the driver
+  # Fail-safe against a boot loop: if the last boot's apply never finished (the phone rebooted in the
+  # middle) or the Wi-Fi firmware crashed, skip this boot once and say so.
+  why=""
+  [ -f $D/boot.pending ] && why="the last automatic apply didn't finish"
+  [ -f $D/boot.skip ] && why=$(cat $D/boot.skip)
+  if [ -n "$why" ]; then
+    rm -f $D/boot.pending $D/boot.skip; blog "skipped: $why"
+    note "Tweaks not applied at this boot: $why. Run the installer to apply them, or reboot to try again."
+    exit 0
+  fi
+  touch $D/boot.pending; sync; blog "applying: $t"
+  S23T_BOOT=1 sh $D/tweaks.sh apply "$t"
+  rm -f $D/boot.pending
+  if grep -q DONE $L; then blog "done"; note "Applied: $t"
+  else f=$(grep FAILED $L | tail -1 | cut -d' ' -f2-); blog "failed: $f"; note "Applying the tweaks failed: $f. Details: $L"; fi
+  ;;
 wifi7page)
   # Samsung ships this page on the S23, but its entry in Wi-Fi Labs is hard-coded as unsupported
   # (WifiLabs7ModeSettingsController.getAvailabilityStatus() returns 3). The page itself has no
@@ -385,5 +435,5 @@ wifi7page)
   am start -n com.android.settings/.SubSettings \
     --es :settings:show_fragment com.samsung.android.settings.wifi.develop.WifiLabs7ModeSettingsFragment
   ;;
-*) echo "usage: tweaks.sh apply \"<tweaks>\" | status | unflag | wifi7page"; exit 2 ;;
+*) echo "usage: tweaks.sh apply \"<tweaks>\" | status | unflag | autostart on|off | wifi7page"; exit 2 ;;
 esac

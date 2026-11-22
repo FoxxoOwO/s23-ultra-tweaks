@@ -14,7 +14,9 @@ Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One 
 
 The installer asks which ones you want and greys out the ones your phone can't take.
 
-**Nothing is written to any partition.** Every change is a kernel module load, a RAM overlay, a bind mount or a runtime setting. A reboot puts the phone back to stock, so you run the installer again after each reboot (it remembers your picks). The one exception is two Google Play services flag overrides that `airdrop` adds (see [Undo](#undo)).
+**Nothing is written to any partition.** Every change is a kernel module load, a RAM overlay, a bind mount or a runtime setting. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The one exception is two Google Play services flag overrides that `airdrop` adds (see [Undo](#undo)).
+
+**Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
 
 ## Before you start
 
@@ -48,11 +50,30 @@ What happens:
 
 - It checks the phone model, firmware, root and Play services version, then shows the menu.
 - It downloads the tweaks. `airdrop` and `wifi7` also download a 20 MB payload from this repo's release, which is checked against a SHA-256 pinned in `install.sh`.
-- It copies everything to `/data/local/tmp/s23tweaks` on the phone and applies your picks.
+- It copies everything to `/data/adb/s23tweaks` on the phone (a root-only folder) and applies your picks.
+- It asks whether to re-apply them automatically at every boot.
 - With `airdrop`, Wi-Fi and the hotspot drop for about 30 s while the driver is swapped.
 - The screen goes black for about 30 s while Android restarts its framework. Leave the cable in.
 
-**After every reboot:** open DFRoot → **LAUNCH ROOT**, then run the installer again and press Enter to reuse your last picks.
+### After a reboot
+
+If you said yes to *re-apply automatically at every boot*, there's nothing to do and no computer is needed:
+
+1. DFRoot roots the phone by itself during boot (its boot receiver runs the same exploit as **LAUNCH ROOT**).
+2. KernelSU then runs the scripts in `/data/adb/service.d/`, and the installer put one there.
+3. About a minute after boot, the tweaks re-apply: Wi-Fi drops for ~30 s and the screen goes black for ~30 s once. A notification says when they're on.
+
+A fail-safe prevents boot loops. If a boot's apply never finished (the phone rebooted in the middle), or the Wi-Fi firmware crashed, the next boot skips the tweaks once and a notification says why. Reboot again or run the installer to bring them back.
+
+If DFRoot didn't root the phone at boot (no notification after a few minutes), open DFRoot and tap **LAUNCH ROOT**. The tweaks then apply by themselves.
+
+Without autostart, run the installer again after each reboot and press Enter to reuse your last picks.
+
+To turn autostart off, run the installer and answer **n**, or:
+
+```sh
+adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh autostart off"
+```
 
 ### Using AirDrop
 
@@ -78,8 +99,9 @@ A watchdog script also runs. If the Wi-Fi firmware ever crashes, it saves the ke
 ## Status and logs
 
 ```sh
-adb shell su -c "sh /data/local/tmp/s23tweaks/tweaks.sh status"
-adb shell su -c "cat /data/local/tmp/s23tweaks/tweaks.log"
+adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh status"
+adb shell su -c "cat /data/adb/s23tweaks/tweaks.log"
+adb shell su -c "cat /data/adb/s23tweaks/boot.log"     # automatic applies at boot
 ```
 
 ## Wi-Fi 7 multi-link (MLO)
@@ -98,7 +120,7 @@ Tested so far: Wi-Fi runs and connects normally with the S24 supplicant, and the
 One UI has a **Wi-Fi 7 mode** page (an on/off switch and *Maximum multi link count*). On the S23 its menu entry is hard-coded as unsupported, so it never shows up. The page itself works. To open it:
 
 ```sh
-adb shell su -c "sh /data/local/tmp/s23tweaks/tweaks.sh wifi7page"
+adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh wifi7page"
 ```
 
 The switch stores `Settings.Secure sec_wifi_7_mode_enabled` (default 1 = on). Samsung's Wi-Fi service applies a change at the next Wi-Fi disconnect. It switches Wi-Fi 7 off anyway in countries on Samsung's blocklist.
@@ -118,7 +140,7 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 Reboot. Everything goes back to stock except the two Play services flag overrides. They do nothing without the rest, but to remove them:
 
 ```sh
-adb shell su -c "sh /data/local/tmp/s23tweaks/tweaks.sh unflag"
+adb shell su -c "sh /data/adb/s23tweaks/tweaks.sh unflag"
 ```
 
 ## Known limitations
@@ -128,6 +150,24 @@ adb shell su -c "sh /data/local/tmp/s23tweaks/tweaks.sh unflag"
 - The Wi-Fi link to the PCIe bus stays at Gen2, so very large transfers may be slower than on an S24.
 - `callrec` and `india` replace three carrier config files. They only apply when those files exactly match the S918WVLU8GZIF XAC ones (checked by MD5), and never touch the sales code (`mps_code.dat`, `sales_code.dat`, `omc.info`). Changing the sales code can factory-reset the phone.
 - Tested on one phone: SM-S918W, S918WVLU8GZIF, Android 17, Play services 26.45.
+
+## Other firmware: let your AI agent build it
+
+The kernel modules only load on the exact kernel they were built for. If your S23 Ultra runs different firmware, the installer marks `airdrop` and `wifi7` as unavailable. You can build your own modules by handing the job to an AI coding agent (Claude Code, Codex, Cursor and similar):
+
+1. Clone this repo and open the agent in it, on a computer with Docker and your phone connected over USB (rooted, USB debugging on).
+2. Tell it something like:
+
+   > Read AGENTS.md and build the kernel modules and payload for my phone's firmware. Show me every script before you run it on the phone.
+
+[AGENTS.md](AGENTS.md) tells the agent:
+
+- **Rules for working on your phone:** show every script before running it, never write to a partition, and never touch the sales code.
+- **What to download:** the Samsung kernel source for your firmware, the matching compiler, and the S24 firmware the payload files come from.
+- **How to rebuild:** regenerate the symbol-version data from your phone's own modules, re-derive the values that change per firmware, and rebuild the payload.
+- **How to test** safely on the phone, step by step.
+
+It takes a few hours of mostly downloading and compiling. The Samsung source and the S24 firmware together are about 25 GB. The rest of the tweaks (`battery`, `features`, `hotspot6g`) don't need any of this.
 
 ## Building the kernel modules
 
