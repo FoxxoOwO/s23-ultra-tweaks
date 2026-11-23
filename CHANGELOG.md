@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Camera settings are set, not just added** (`logvideo`, `camextras`): a camera setting the phone's own camera-feature.xml already had was left alone, so a model that ships `SUPPORT_LOG_VIDEO` as `false` would keep Log off while the tweak reported it on. The tweak now replaces such a line, and its status checks the value.
 - **New tweak `tenbit`**: apps can record 10-bit HDR (HLG10) video with the front cameras. The S23's camera driver gave the 10-bit capability and profile list to rear cameras only, so Android refused 10-bit streams on the selfie cameras. The tweak finds the three places in the phone's own driver by their instructions (they match in One UI 6 and One UI 9 builds, at different offsets), patches a copy, and binds it from storage. It keeps the copy only if the camera driver stays up and a front camera then lists 10-bit; otherwise the stock driver goes back. Tested on S918WVLU8GZIF with a Camera2 app on front cameras 1 and 3: HEVC Main 10, BT.2020, HLG, with true 10-bit samples. Samsung Camera photo and video still work.
 - **New tweak `hdr2023`**: the 2023 (One UI 6) ArcSoft hybrid HDR and bracketed HDR engines instead of today's, for anyone who prefers the older HDR look. 28 MB download; a Camera category or "all" pick leaves it out. Bracketed HDR is tested; hybrid HDR (ordinary daylight) isn't.
 - **4K auto framing** (`autoframe`) works on SM-S918W: front camera, auto framing on, then Video size → UHD records 3840×2160. Auto framing keeps its own video size, which starts at FHD.

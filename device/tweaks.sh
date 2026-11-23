@@ -382,9 +382,12 @@ camfeat_apply() {
   mkdir -p $R; bound $CF && umount $CF
   grep -q '</resources>' $CF || { log "camera: $CF has no </resources>; camera settings skipped"; return 1; }
   grep -v '</resources>' $CF > $R/cf.new
+  # a setting the stock file already has (possibly value="false" on some models) gets our line instead
   printf '%s\n' "$cf_add" | while read -r l; do
     [ -n "$l" ] || continue
-    n=$(echo "$l" | sed 's/.*name="\([^"]*\)".*/\1/'); grep -q "name=\"$n\"" $CF || echo "    $l" >> $R/cf.new
+    n=$(echo "$l" | sed 's/.*name="\([^"]*\)".*/\1/')
+    grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
+    echo "    $l" >> $R/cf.new
   done
   echo '</resources>' >> $R/cf.new
   mv $R/cf.new $R/camera-feature.xml; chmod 644 $R/camera-feature.xml
@@ -953,8 +956,8 @@ is_on() {
     hotspot6g) [ "$(getprop ro.csc.countryiso_code)" = IN ] ;;
     wifi7) bound $WPAS && bound $INI ;;
     display) bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<" $FF 2>/dev/null ;;
-    logvideo) bound $CF && grep -q SUPPORT_LOG_VIDEO $CF 2>/dev/null ;;
-    camextras) bound $CF && grep -q SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK $CF 2>/dev/null ;;
+    logvideo) bound $CF && grep -q 'name="SUPPORT_LOG_VIDEO" value="true"' $CF 2>/dev/null ;;
+    camextras) bound $CF && grep -q 'name="SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK" value="true"' $CF 2>/dev/null ;;
     autoframe) grep -q "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>uhd<" $FF 2>/dev/null ;;
     bargein) grep -q "<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<" $FF 2>/dev/null ;;
     settingssearch) bound /system/$SSI/SecSettingsIntelligence.apk ;;
