@@ -5,6 +5,12 @@ Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One 
 The tweaks come in six categories. The module page lets you pick a whole category or single tweaks.
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
+**What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.3.1**: horizontal lock levels the viewfinder too and corrects up to about 20° instead of 8°, with its [limits](#horizontal-lock) spelled out. AirDrop and Wi-Fi 7 can try a custom kernel (opt-in, untested; see [Known limitations](#known-limitations)).
+- **v1.3.0**: 24 fps in standard Video (`cam24fps`). AirDrop finds Apple devices again after Mosey updates itself from Google Play. No more SmartSuggestions crashes during an apply. HideKSU checks the framework file's MD5 instead of the firmware name.
+- **v1.2.9**: HideKSU, so root-aware apps like CRED stop crashing with the KernelSU manager installed.
+- **v1.2.8**: Always On Display brightness follows the room light, and AirDrop's crash guard uses far less CPU.
+
 ### 🌐 Connectivity
 
 - 📲 **1 · AirDrop** with iPhones, iPads and Macs: Quick Share → *Share with Apple devices*. **Tested end to end** · `airdrop`
@@ -16,7 +22,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 ### 📷 Camera
 
 - 🎞️ **4 · Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23's can't · `logvideo`
-- 🎬 **5 · Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock**, which levels small tilts, up to about 20°, in the viewfinder and the recording (the S23's own Qualcomm stabilizer, switched on and with its 8° correction cap lifted in patched copies of its EIS libraries, bound from storage). It isn't the S26's 360° lock: the S23's crop margin limits the correction, and it smooths, so it trails quick moves · `camextras`
+- 🎬 **5 · Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock**, which keeps the horizon level for small tilts (up to about 20°) in the viewfinder and the recording. Not the S26's 360° lock; see [its limits](#horizontal-lock) · `camextras`
 - 🌗 **6 · Camera HDR processing**: puts back the multi-frame and low-light HDR steps One UI 9 removed from the S23 ([details](docs/findings.md)). **Untested** · `camerahdr`
   - 21 MB download
 - 🕰️ **7 · 2023 ArcSoft HDR**: One UI 6's hybrid and bracketed HDR engines instead of today's. Bracketed HDR tested, hybrid HDR (ordinary daylight) **untested**. Not included when you pick the whole Camera category · `hdr2023`
@@ -211,6 +217,22 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 
 <a id="display-log-video-and-vulkan"></a>
 
+<a id="horizontal-lock"></a>
+
+## 🎬 Horizontal lock
+
+Camera → Video → Super steady (the running-person icon) → **Super steady with horizontal lock**.
+
+The S23's Qualcomm stabilizer has horizon levelling built in, but the S23 never shipped the feature: Samsung's driver never switches it on, and the camera tuning caps the correction at 8°. `camextras` patches copies of the four EIS libraries (node and stabilizer, for the recording and for the viewfinder) to switch levelling on in this mode and raise the cap to 30°. The copies are bound from storage, and each patch is found by its instructions, so other builds with the same code get it too.
+
+What it does and doesn't do, measured on the phone (gyroscope against the recorded video):
+
+- **Levels small tilts.** Up to about 20° the horizon stays level, in the viewfinder and the recording. Before, the picture turned with the phone.
+- **About 20° at most.** Super steady keeps about 20% of the image as spare crop margin, and rotating the picture uses it up. Past about 20° the rest of the tilt shows. There are no black corners: the stabilizer stops at the edge of its margin.
+- **Not 360°.** The Galaxy S26's horizontal lock levels through a full turn because it crops the picture much tighter. The S23 would need its crop margin raised to about 100%, which this tweak doesn't do. Qualcomm's levelling also snaps to the nearest 90° orientation, so if you turn the phone further, the picture turns with it.
+- **Trails quick moves.** The correction is smoothed, so fast twists show briefly before the picture settles.
+- **Ultrawide only.** Super steady normally records with the ultrawide (0.6×). If it switches to the main 1× camera, the margin is too small for levelling to show.
+
 ## 🎨 Display, Log video and Vulkan
 
 - **Always On Display**: *Lock screen and AOD → Always On Display* gets *Show Lock screen wallpaper*. *Erase background* only works with a photo wallpaper whose subject was cut out by the wallpaper editor (a "layered" wallpaper), not with the AI weather wallpaper.
@@ -296,9 +318,10 @@ items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
 
 - **AirDrop needs One UI 9 build GZIF** (S918WVLU8GZIF, S918BXXUAGZIF, S918U1UEU8GZIF, S918USQU8GZIF or S918NKSU8GZIF). The modules are built on the S918W kernel. The other four have the same Wi-Fi drivers and the same kernel symbol CRCs, checked with `tools/kocompat.py` and `tools/modcmp.py` against their firmware files, but only the S918W and S918B have been tested on a phone. A different build needs the modules rebuilt (below).
   - **Custom kernels** (untested, opt-in): on one of those builds with a non-Samsung 5.15 android13 kernel, `su -c touch /data/adb/s23tweaks/allow-any-kernel` lets AirDrop and Wi-Fi 7 try anyway. The kernel needs `CONFIG_MODVERSIONS` and must not force module signatures. It still refuses the modules if any kernel symbol they use has a different CRC, and the module then puts the stock Wi-Fi driver back. Delete the file to go back to the check.
+- **Horizontal lock levels only up to about 20°** and isn't the S26's 360° lock (see [Horizontal lock](#horizontal-lock)).
 - The Wi-Fi link to the PCIe bus stays at Gen2, so very large transfers may be slower than on an S24.
 - `callrec` and `india` replace three carrier config files. They only apply when those files exactly match the S918WVLU8GZIF XAC ones (checked by MD5). On EUX firmware S918BXXUAGZIF `callrec` replaces one file, `cscfeature.xml`, under the same MD5 check. Neither tweak ever touches the sales code (`mps_code.dat`, `sales_code.dat`, `omc.info`). Changing the sales code can factory-reset the phone.
-- Tested on an SM-S918W (S918WVLU8GZIF, XAC, Android 17, Play services 26.45). On an SM-S918B (S918BXXUAGZIF, EUX) `airdrop`, `wifi7` (without a multi-link connection), `colortone`, `callrec` and `battery` have also been tested. On an SM-S918U1 (S918U1UEU8GZIF, XAA) `logvideo` records Log in HEVC, and `tenbit` found its three changes in that build's own camera driver. Reports from other models are welcome.
+- Tested on an SM-S918W (S918WVLU8GZIF, XAC, Android 17, Play services 26.45). On an SM-S918B (S918BXXUAGZIF, EUX) `airdrop`, `wifi7` (without a multi-link connection), `colortone`, `callrec` and `battery` have also been tested. A contributor tested `cam24fps` on an S918B (S918BXXUAGZIF). On an SM-S918U1 (S918U1UEU8GZIF, XAA) `logvideo` records Log in HEVC, and `tenbit` found its three changes in that build's own camera driver. Reports from other models are welcome.
 
 <a id="other-firmware-let-your-ai-agent-build-it"></a>
 
