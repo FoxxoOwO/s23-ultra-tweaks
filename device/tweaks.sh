@@ -544,17 +544,17 @@ hdr2023_bind() {   # after layers_mount: an overlay on /system/lib64 would hide 
 # driver (CamX, /vendor/lib64/hw/camera.qcom.so) builds the 10-bit profile list, the recommended profile
 # and the TEN_BIT capability only for rear cameras, so Android refuses 10-bit streams on the selfie
 # cameras, though their sensors and pipeline produce them (Samsung Camera records HDR10+ selfie video).
-# Make a copy of the stock driver with 4 changes (77 bytes): the profile list and recommended profile no
-# longer skip front cameras, and a jump to 15 new instructions in the zero padding after .plt appends
-# TEN_BIT (18) to a front camera's capability list (not the secure-only ids 4 and 90, which list one
-# capability). Bound from /data; the copy is made on the phone and checked against its known MD5. The
-# camera driver service is restarted around the bind; if it doesn't stay up, the bind comes off again.
+# Make a copy of the phone's own driver with 3 changes, found by their instructions (not fixed offsets,
+# so any build with the same CamX code works): the profile list and recommended profile no longer skip
+# front cameras, and a jump to 15 new instructions in the zero padding at the end of the code segment
+# appends TEN_BIT (18) to a front camera's capability list (not the secure-only cameras, which list one
+# capability). Bound from /data with the camera driver stopped. It stays only if the driver keeps
+# running and a front camera then really lists TEN_BIT; otherwise the stock driver goes back.
 TB_LIB=/vendor/lib64/hw/camera.qcom.so
-TB_STOCK=c240797dced91dd2a67ce2a3ef6204a4    # S918WVLU8GZIF
-TB_MD5=e951eaa508a692fdd098bae5176a2c97
-TB_PATCH="0x168a9a4:3d0d0014 0x168aa48:1f2003d5 0x1690234:5bd60a14
-0x1945ba0:a9c302d1290140b93f050071410100545f090071030100545f4d0071c8000054690a4091298101914b0280522b492a384a050011fc030a2a9829f517"
 TB_SVC=sec-camera-provider
+# Cave code, in words: if facing ([x29-0xb0]) is front and the list (w10 entries at x19+0x2060) has
+# 2..19 entries, append 18; then the replaced "mov w28, w10" (the jump back is added per file)
+TB_CAVE="d102c3a9 b9400129 7100053f 54000141 7100095f 54000103 71004d5f 540000c8 91400a69 91018129 5280024b 382a492b 1100054a 2a0a03fc"
 tb_pid() { pidof vendor.samsung.hardware.camera.provider-service_64; }
 tb_restart() {   # stop the camera driver, run "$@" while it's down, start it, wait until it stays up
   am force-stop com.sec.android.app.camera
@@ -565,23 +565,75 @@ tb_restart() {   # stop the camera driver, run "$@" while it's down, start it, w
 }
 tb_unbind() { while bound $TB_LIB; do umount $TB_LIB || return 1; done; }
 tb_bind() { tb_unbind && mount -o bind,ro $V/tenbit.so $TB_LIB; }
+tb_front10() {   # does a front camera list DYNAMIC_RANGE_TEN_BIT right now?
+  dumpsys media.camera | awk '
+    function done_cam() { if (front && ten) ok = 1; front = 0; ten = 0 }
+    /static information:/ { done_cam() }
+    /android\.lens\.facing \(/ { getline l; front = (l ~ /FRONT/) }
+    /android\.request\.availableCapabilities \(/ { getline l; ten = (l ~ /DYNAMIC_RANGE_TEN_BIT/) }
+    END { done_cam(); exit !ok }'
+}
+tb_rd() { od -An -v -tx$3 -j $(($2)) -N $3 "$1" | tr -d ' \n'; }   # FILE OFFSET BYTES: little-endian value, hex
+tb_wr() {   # FILE OFFSET WORD
+  w=$(($3)); printf "$(printf '\\x%02x\\x%02x\\x%02x\\x%02x' $((w & 255)) $((w >> 8 & 255)) $((w >> 16 & 255)) $((w >> 24 & 255)))" |
+    dd of="$1" bs=1 seek=$(($2)) conv=notrunc 2>/dev/null
+}
+tb_b() { echo $((0x14000000 | ((($2) - ($1)) / 4 & 0x3ffffff))); }   # FROM TO: "b TO" placed at FROM
+# tb_find FILE: the offset of each change, as "A 0x..", "B 0x..", "C 0x..", one line for every match
+#  A  ldr w3,[x21]; ldrsw x7,[x27,#0x2674]; cmp w3,#1; str x7,[x19,#0x2060]; b.ne    (recommended profile)
+#  B  ldr w8,[x21]; mov w0,wzr; cmp w8,#1; b.eq; ldr w7,[x27,#0x2670]                (profile list)
+#  C  mov w11,#8; mov w10,#1; strb w11,[x22]; mov w28,w10; add x2,x19,#2,lsl#12; adrp x4; add x2,x2,#0x60
+tb_find() {
+  od -An -v -tx4 -w4 "$1" | awk '
+    $1 ~ /^54.....1$/ && p1 == "f9103267" && p2 == "7100047f" && p3 == "b9a67767" && p4 == "b94002a3" { printf "A 0x%x\n", (NR - 1) * 4 }
+    $1 == "b9667367" && p1 ~ /^54.....0$/ && p2 == "7100051f" && p3 == "2a1f03e0" && p4 == "b94002a8" { printf "B 0x%x\n", (NR - 2) * 4 }
+    $1 == "91018042" && p2 == "91400a62" && p3 == "2a0a03fc" && p4 == "390002cb" && p5 == "5280002a" && p6 == "5280010b" { printf "C 0x%x\n", (NR - 4) * 4 }
+    { p6 = p5; p5 = p4; p4 = p3; p3 = p2; p2 = p1; p1 = $1 }'
+}
+# tb_patch STOCK OUT: write the patched copy; says why not on failure
+tb_patch() {
+  F=$1; O=$2; m=$(tb_find $F)
+  for k in A B C; do [ "$(echo "$m" | grep -c "^$k ")" = 1 ] || { echo "its camera driver's code differs (change $k found $(echo "$m" | grep -c "^$k ") times)"; return 1; }; done
+  set -- $m; A=$2; B=$4; C=$6
+  # the code segment: the PT_LOAD with PF_X. The cave goes right after its file contents, in the zero
+  # padding of its last page (mapped executable with it)
+  ph=$((0x$(tb_rd $F 0x20 8))); n=$((0x$(tb_rd $F 0x38 2))); sz=$((0x$(tb_rd $F 0x36 2))); X=""
+  while [ $n -gt 0 ]; do
+    if [ $((0x$(tb_rd $F $ph 4))) = 1 ] && [ $((0x$(tb_rd $F $((ph + 4)) 4) & 1)) = 1 ]; then
+      X=$((0x$(tb_rd $F $((ph + 8)) 8))); XE=$((X + 0x$(tb_rd $F $((ph + 0x20)) 8))); break; fi
+    ph=$((ph + sz)); n=$((n - 1))
+  done
+  [ -n "$X" ] || { echo "no code segment found"; return 1; }
+  for o in $A $B $C; do [ $((o)) -ge $X ] && [ $((o)) -lt $XE ] || { echo "a change falls outside the code segment"; return 1; }; done
+  K=$(((XE + 3) & ~3)); KE=$((K + 60))
+  [ $KE -le $(((XE + 4095) & ~4095)) ] && [ "$(od -An -v -tx1 -j $K -N 60 $F | tr -s ' ' '\n' | grep -c '^00$')" = 60 ] ||
+    { echo "no free room at the end of its code"; return 1; }
+  w=$((0x$(tb_rd $F $A 4))); i=$((w >> 5 & 0x7ffff)); [ $i -ge $((0x40000)) ] && i=$((i - 0x80000))
+  cp $F $O || { echo "no room for a copy"; return 1; }
+  tb_wr $O $A $(tb_b 0 $((i * 4)))            # b.ne -> b
+  tb_wr $O $B 0xd503201f                       # b.eq -> nop
+  tb_wr $O $C $(tb_b $C $K)                    # mov w28, w10 -> b cave
+  o=$K; for x in $TB_CAVE; do tb_wr $O $o 0x$x; o=$((o + 4)); done
+  tb_wr $O $o $(tb_b $o $((C + 4)))            # back
+  printf 'changes at 0x%x 0x%x 0x%x, cave 0x%x' $A $B $C $K
+}
 tenbit_apply() {
-  if bound $TB_LIB; then [ "$(md5 $TB_LIB)" = $TB_MD5 ] && { log "tenbit: already on"; return 0; }
+  if bound $TB_LIB; then [ "$(md5 $TB_LIB)" = "$(md5 $V/tenbit.so)" ] && { log "tenbit: already on"; return 0; }
     log "tenbit: something else is bound over $TB_LIB; skipped"; return 1; fi
-  [ "$(md5 $TB_LIB)" = $TB_STOCK ] || { log "tenbit: this camera driver isn't S918WVLU8GZIF's; skipped"; return 1; }
-  if [ "$(md5 $V/tenbit.so)" != $TB_MD5 ]; then
-    cp $TB_LIB $V/tenbit.tmp || { log "tenbit: no room for the 27 MB copy; skipped"; return 1; }
-    for x in $TB_PATCH; do
-      printf "$(echo ${x#*:} | sed 's/../\\x&/g')" | dd of=$V/tenbit.tmp bs=1 seek=$((${x%%:*})) conv=notrunc 2>/dev/null
-    done
-    [ "$(md5 $V/tenbit.tmp)" = $TB_MD5 ] || { rm -f $V/tenbit.tmp; log "tenbit: patching failed; skipped"; return 1; }
-    mv $V/tenbit.tmp $V/tenbit.so
+  tb_front10 && { log "tenbit: the front cameras already offer 10-bit; nothing to do"; return 0; }
+  s=$(md5 $TB_LIB)
+  if [ "$(cat $V/tenbit.src 2>/dev/null)" != "$s" ] || [ ! -f $V/tenbit.so ]; then   # (re)make it for this driver
+    rm -f $V/tenbit.so $V/tenbit.src
+    r=$(tb_patch $TB_LIB $V/tenbit.tmp) || { rm -f $V/tenbit.tmp; log "tenbit: $r; skipped"; return 1; }
+    mv $V/tenbit.tmp $V/tenbit.so; echo $s > $V/tenbit.src; log "tenbit: patched copy made ($r)"
   fi
   chown 0:0 $V/tenbit.so; chmod 644 $V/tenbit.so; chcon u:object_r:vendor_file:s0 $V/tenbit.so
-  if tb_restart tb_bind && bound $TB_LIB; then
+  if tb_restart tb_bind && bound $TB_LIB && tb_front10; then
     log "tenbit: front cameras offer 10-bit HDR (HLG10) video to apps"
   else
-    tb_restart tb_unbind; log "tenbit: the camera driver didn't stay up with the change; put the stock one back"; return 1
+    tb_restart tb_unbind
+    log "tenbit: with the change the camera driver didn't stay up or the front cameras still lacked 10-bit; stock driver back"
+    return 1
   fi
 }
 
@@ -879,7 +931,7 @@ why_not() {
       [ -n "$(ead_row)" ] || echo "needs firmware $(ead_builds) (it patches that build's Settings app; this phone runs $build)" ;;
     hotspot6g) [ -x /data/adb/ksu/bin/resetprop ] || echo "needs KernelSU's resetprop" ;;
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
-    tenbit) bound $TB_LIB || [ "$(md5 $TB_LIB)" = $TB_STOCK ] || echo "needs the camera driver of S918WVLU8GZIF (this phone runs $build)" ;;
+    tenbit) [ -f $TB_LIB ] || echo "this phone has no $TB_LIB" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     galaxyai)
@@ -912,7 +964,7 @@ is_on() {
     audioeraser) [ -f /system/etc/fastScanner.tflite ] ;;
     hdr2023) bound /system/lib64/libae_bracket_hdr.arcsoft.so && bound /system/lib64/libhybrid_high_dynamic_range.arcsoft.so ;;
     colortone) bound $SETTINGS ;;
-    tenbit) bound $TB_LIB && [ "$(md5 $TB_LIB)" = $TB_MD5 ] ;;
+    tenbit) bound $TB_LIB && [ "$(md5 $TB_LIB)" = "$(md5 $V/tenbit.so)" ] ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
     *) return 1 ;;
   esac
@@ -1043,7 +1095,7 @@ status)
   echo "callscreen: Language Core $(dumpsys package $LC_PKG 2>/dev/null | grep -m1 -oE 'versionName=[^ ]+' | cut -d= -f2)"
   echo "camerahdr: libraries $([ -f /system/lib64/liblow_light_hdr.arcsoft.so ] && echo on || echo off), list entries $(grep -q 'mfhdr.arcsoft.v4' $FF && echo on || echo off)"
   echo "hdr2023:  $(same_size /system/lib64/libae_bracket_hdr.arcsoft.so $PL/hdr2023/libae_bracket_hdr.arcsoft.so && same_size /system/lib64/libhybrid_high_dynamic_range.arcsoft.so $PL/hdr2023/libhybrid_high_dynamic_range.arcsoft.so && echo "2023 engines" || echo stock)"
-  echo "tenbit:   front-camera 10-bit $(bound $TB_LIB && [ "$(md5 $TB_LIB)" = $TB_MD5 ] && echo on || echo off)"
+  echo "tenbit:   front-camera 10-bit $(is_on tenbit && echo on || echo off)"
   echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"

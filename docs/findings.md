@@ -306,6 +306,17 @@ camera-info struct at `x29-0xb0` whose first field is the facing (1 = front, as 
   least 2 entries and room for one more, they append 18, then do the replaced `mov` and jump back.
   Cameras 4 and 90 list only `SECURE_IMAGE_DATA` and are left alone.
 
+### Finding them on any build
+
+The tweak doesn't use fixed offsets. `tb_find` scans the driver word by word (`od | awk`, about 14 s on
+the phone, once per driver version) for each spot's instructions. Every word must match exactly except
+the PC-relative ones (`b.cond`, `adrp`), so the struct offsets and registers the cave relies on are
+confirmed by the match. Each spot must match exactly once. The cave goes right after the executable
+`PT_LOAD`'s file contents, and must fit in that segment's last 4 KB page and be all zeros. The 2023
+driver (One UI 6, S918WVLS2BWKA) matches all three at different offsets (0x1686124, 0x16861c8,
+0x168b9b4, cave 0x1941598), and its patched copy disassembles correctly. After the bind, the tweak
+checks `dumpsys media.camera` for a front camera with TEN_BIT and goes back to stock if there's none.
+
 A first attempt kept the old copy of the library mapped while the bind changed underneath it. The
 restarted camera driver then failed `hw_get_module` (-2) and crash-looped until the bind came off.
 Stopping the service (`setprop ctl.stop sec-camera-provider`) before touching the bind avoids that.
