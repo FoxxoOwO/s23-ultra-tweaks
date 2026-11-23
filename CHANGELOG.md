@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.6
 
 - **`callscreen` installs Samsung Language Core again.** It streamed the 3.1 GB APK into `pm install -S <size>`, whose size is a 32-bit number, so every install failed with "Failed transaction". It now installs a temporary copy from `/data/local/tmp` (needs 3.5 GB free for a minute). With Language Core 4.0.01.24, Call screening's **AI summary works**; the README said it didn't, from a test with another build.
 - **Super steady's horizontal lock levels the horizon** (`camextras`). Until now the option showed up but the picture still turned with the phone: the S23's camera driver treats it as plain Super steady. Its stabilizer (Qualcomm EIS v3) can level the horizon, but the S23 build never switches it on (it reads the wrong tag). `camextras` now patches 8 instructions in a copy of the phone's own EIS library so horizontal lock turns levelling on, and binds the copy from storage; the camera driver restarts once during the apply. The code is found by its instructions, so other firmware with the same code works too; if it differs, the option still shows but won't level, and the log says so. Tested on S918WVLU8GZIF.
