@@ -13,7 +13,7 @@ category or single tweaks.
 | 4 | Camera | `logvideo` | **Log video**: Camera → Pro video gets the LOG button and LUT preview (10-bit HEVC) | any S23 Ultra on One UI 9 |
 | 5 | Camera | `camextras` | **Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** | any S23 Ultra on One UI 9 |
 | 6 | Camera | `camerahdr` | **Camera HDR processing**: puts back the multi-frame HDR and low-light HDR steps One UI 9 removed from the S23 (see [docs/findings.md](docs/findings.md)). **Untested** | any S23 Ultra on One UI 9 (21 MB download) |
-| 7 | Camera | `autoframe` | **4K auto framing** in video, as on the S24. **Untested** | any S23 Ultra on One UI 9 |
+| 7 | Camera | `autoframe` | **4K auto framing** in video, as on the S24. **Reported to make the camera fail** (S918B), so a Camera category pick leaves it out | any S23 Ultra on One UI 9 |
 | 8 | Display and graphics | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
 | 9 | Display and graphics | `colortone` | **Adaptive color tone**: Settings → Display, the screen's colour follows the room light | firmware S918WVLU8GZIF (1 MB download) |
 | 10 | Display and graphics | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |

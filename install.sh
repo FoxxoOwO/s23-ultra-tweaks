@@ -82,7 +82,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Log video: Log recording and LUT preview in Camera > Pro video"
       "Camera extras: Director's view (front + back at once) and Super steady horizontal lock"
       "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"
-      "4K auto framing: the S24's UHD auto framing in video (untested)"
+      "4K auto framing: the S24's UHD auto framing in video (reported to make the camera fail; pick it by number)"
       "Vividness slider (Screen mode > Advanced settings) and lock screen wallpaper on Always On Display"
       "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
       "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
@@ -127,13 +127,13 @@ if [ -z "$picked" ]; then
   r=$(ask "Letters/numbers separated by spaces, Enter for all available: ")
   add() { case " $picked " in *" $1 "*) ;; *) picked="$picked $1" ;; esac; }
   if [ -z "$r" ]; then
-    for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && add "${ids[$i]}"; done
+    for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && [ "${ids[$i]}" != autoframe ] && add "${ids[$i]}"; done
   fi
   for n in $r; do
     n=$(printf '%s' "$n" | tr '[:lower:]' '[:upper:]')
     if [[ "$n" =~ ^[A-F]$ ]]; then
       for i in "${!ids[@]}"; do
-        [ "${cat[$i]}" = "$n" ] && [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && add "${ids[$i]}"
+        [ "${cat[$i]}" = "$n" ] && [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && [ "${ids[$i]}" != autoframe ] && add "${ids[$i]}"
       done
       continue
     fi
@@ -208,7 +208,8 @@ case " $picked " in *" galaxyai "*) info "Now Brief: turn on Settings > Galaxy A
 case " $picked " in *" camextras "*) info "Camera extras: Camera > More > Director's view; Video > Super steady > Horizontal lock." ;; esac
 case " $picked " in *" settingssearch "*) info "Settings search: open Settings and tap the search bar." ;; esac
 case " $picked " in *" callscreen "*) info "Call screening: Phone > Settings > Call screening. The AI summary shows an error on the S23; screening and voice messages work." ;; esac
-case " $picked " in *" autoframe "*|*" bargein "*) info "4K auto framing and Bixby barge-in are untested; turn them off if anything misbehaves." ;; esac
+case " $picked " in *" autoframe "*) info "4K auto framing was reported to make the camera fail (S918B); turn it off if the camera fails to open." ;; esac
+case " $picked " in *" bargein "*) info "Bixby barge-in is untested; turn it off if anything misbehaves." ;; esac
 case " $picked " in *" hotspot6g "*) info "6 GHz hotspot: Settings > Connections > Mobile Hotspot > Band > 6 GHz (security must be WPA3)." ;; esac
 if [ "$auto" = on ]; then
   info "At each boot DFRoot roots the phone by itself and the tweaks re-apply about a minute later (the screen"
