@@ -2,6 +2,7 @@
 
 ## v1.3.1
 
+- **Horizontal lock now keeps the horizon level** (`camextras`; issue #8). v1.3.0's patch switched the stabilizer's levelling on, but the stabilizer clamps the correction to a per-sensor maximum from the S23's EIS tuning: 8°, since the S23 never shipped horizontal lock. So a 30° tilt still showed 22° and the picture seemed to turn with the phone. The module now also binds a copy of the stabilizer (`com.qti.eisv3.so`) whose 16 reads of that maximum become 30°. Like the node patch it is found by instructions, so other builds with the same stabilizer code get it; on one without, levelling stays at 8° and the log says so. The stabilizer itself starts levelling below 25° of tilt and stops above 44°. Tested on S918WVLU8GZIF: with tilts of up to 15° the video's horizon stays within a few degrees (before, it followed the phone at about 0.75×), and doors and shelves stay upright with no artifacts.
 - **Opt-in for custom kernels** (`airdrop`, `wifi7`; issue #10). AirDrop and Wi-Fi 7 only ran on Samsung's own kernel for the supported GZIF builds. On one of those builds with another 5.15 android13 kernel, creating `/data/adb/s23tweaks/allow-any-kernel` now lets them try. The kernel still checks every symbol CRC (`CONFIG_MODVERSIONS`) and refuses the modules if one differs; the module then puts the stock Wi-Fi driver back, as it does for any failed load. Untested: I only have a stock kernel.
 
 ## v1.3.0

@@ -733,7 +733,9 @@ tenbit_apply() {
 # EnableInsensorZoom tag ID instead), and Samsung's S23 driver maps nothing to it. Make a copy of the
 # phone's own EIS v3 node where that tag check becomes: if CheckSuperSteadyMode() is 2, set the
 # levelling enable field, else use the tuning. The algorithm then levels with the accelerometer (its
-# default angles). Found by instructions, so any build with the same code works. Bound like tenbit's.
+# default angles), but clamps the correction to the tuning's per-sensor maximum: 8 degrees on the S23,
+# so a 30-degree tilt kept 22 (ha_patch lifts it to 30). Found by instructions, so any build with the
+# same code works. Bound like tenbit's.
 HL_LIB=/vendor/lib64/camera/components/com.qti.node.eisv3.so
 # hl_find FILE: "S 0x.." the tag check, "F 0x.." its found branch (mov w8; mov w0,#enable; ...),
 # "J 0x.." the use-tuning join (after a bl: mov w21,wzr; mov w19,#1), "C 0x.." in CheckSuperSteadyMode
@@ -773,20 +775,58 @@ hl_patch() {
   tb_wr $O $((S + 28)) $(tb_b $((S + 28)) $J)                              # b tuning join
   printf 'check at 0x%x, enable field 0x%x' $S $EN
 }
-hl_unbind() { while bound $HL_LIB; do umount $HL_LIB || return 1; done; }
-hl_bind() { hl_unbind && mount -o bind,ro $V/hlock.so $HL_LIB; }
+# The stabilizer itself (com.qti.eisv3.so) reads that maximum once per sensor slot while it starts:
+# 16 loads of [xN, #596] in one tight run (the only other such load is in a debug dump, far away),
+# each then turned into radians. ha_patch makes a copy where each load is "fmov sN, #30.0".
+HA_LIB=/vendor/lib64/camera/components/com.qti.eisv3.so
+# ha_patch STOCK OUT: write the copy with the 30-degree cap; says why not on failure
+ha_patch() {
+  F=$1; O=$2
+  offs=$(od -An -v -tx4 -w4 "$F" | awk '
+    /^ *bd425[4-7]/ { a = (NR - 1) * 4                       # ldr sN, [xM, #596]
+      if (cnt && a - last > 128) { if (cnt == 16) print run; run = ""; cnt = 0 }
+      run = run " " a; cnt++; last = a }
+    END { if (cnt == 16) print run }')
+  [ "$(echo "$offs" | grep -c .)" = 1 ] && [ "$(echo $offs | wc -w)" = 16 ] || { echo "its stabilizer code differs"; return 1; }
+  cp $F $O || { echo "no room for a copy"; return 1; }
+  for a in $offs; do tb_wr $O $a $((0x1e27d000 | (0x$(tb_rd $F $a 4) & 31))); done   # fmov sN, #30.0
+  echo "levelling up to 30 degrees"
+}
+hl_unbind() {
+  while bound $HL_LIB; do umount $HL_LIB || return 1; done
+  while bound $HA_LIB; do umount $HA_LIB || return 1; done
+}
+hl_bind() {
+  hl_unbind && mount -o bind,ro $V/hlock.so $HL_LIB &&
+    { [ ! -f $V/hlalgo.so ] || mount -o bind,ro $V/hlalgo.so $HA_LIB; }
+}
 hlock_apply() {
-  if bound $HL_LIB; then [ "$(md5 $HL_LIB)" = "$(md5 $V/hlock.so)" ] && { log "camextras: horizontal lock levelling already on"; return 0; }
-    log "camextras: something else is bound over $HL_LIB; horizontal lock won't level"; return 1; fi
-  s=$(md5 $HL_LIB)
+  if bound $HL_LIB && [ "$(md5 $HL_LIB)" = "$(md5 $V/hlock.so)" ]; then
+    if [ -f $V/hlalgo.so ] && bound $HA_LIB && [ "$(md5 $HA_LIB)" = "$(md5 $V/hlalgo.so)" ] ||
+       { [ ! -f $V/hlalgo.so ] && ! bound $HA_LIB && [ "$(cat $V/hlalgo.src 2>/dev/null)" = "$(md5 $HA_LIB)" ]; }; then
+      log "camextras: horizontal lock levelling already on"; return 0; fi
+    bound $HA_LIB && { log "camextras: something else is bound over $HA_LIB; horizontal lock won't level"; return 1; }
+    # levelling from before the stabilizer copy existed: take it off, then redo both
+    tb_restart hl_unbind || { log "camextras: couldn't take the old levelling copy off"; return 1; }
+  elif bound $HL_LIB || bound $HA_LIB; then
+    log "camextras: something else is bound over the EIS libraries; horizontal lock won't level"; return 1
+  fi
+  s=$(md5 $HL_LIB); sa=$(md5 $HA_LIB)
   if [ "$(cat $V/hlock.src 2>/dev/null)" != "$s" ] || [ ! -f $V/hlock.so ]; then
     rm -f $V/hlock.so $V/hlock.src
     r=$(hl_patch $HL_LIB $V/hlock.tmp) || { rm -f $V/hlock.tmp; log "camextras: $r; horizontal lock shows but won't level"; return 1; }
     mv $V/hlock.tmp $V/hlock.so; echo $s > $V/hlock.src; log "camextras: patched EIS copy made ($r)"
   fi
+  if [ "$(cat $V/hlalgo.src 2>/dev/null)" != "$sa" ]; then   # (re)make it for this stabilizer; remember a failure too
+    rm -f $V/hlalgo.so
+    if r=$(ha_patch $HA_LIB $V/hlalgo.tmp); then mv $V/hlalgo.tmp $V/hlalgo.so; log "camextras: patched stabilizer copy made ($r)"
+    else rm -f $V/hlalgo.tmp; log "camextras: $r; horizontal lock levels only up to the tuning's 8 degrees"; fi
+    echo $sa > $V/hlalgo.src
+  fi
   chown 0:0 $V/hlock.so; chmod 644 $V/hlock.so; chcon u:object_r:vendor_file:s0 $V/hlock.so
+  [ -f $V/hlalgo.so ] && { chown 0:0 $V/hlalgo.so; chmod 644 $V/hlalgo.so; chcon u:object_r:vendor_file:s0 $V/hlalgo.so; }
   if tb_restart hl_bind && bound $HL_LIB; then
-    log "camextras: Super steady's horizontal lock levels the horizon"
+    log "camextras: Super steady's horizontal lock levels the horizon ($(bound $HA_LIB && echo "up to 30 degrees" || echo "up to 8 degrees"))"
   else
     tb_restart hl_unbind
     log "camextras: with the levelling change the camera driver didn't stay up; stock EIS back, horizontal lock won't level"
@@ -1287,7 +1327,7 @@ $CF_HLOCK"
   has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
   has tenbit && tenbit_apply   # restarts only the camera driver
   if has camextras; then hlock_apply   # restarts only the camera driver
-  elif bound $HL_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
+  elif bound $HL_LIB || bound $HA_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
@@ -1361,7 +1401,7 @@ status)
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off), AOD brightness curve $(aodb_on && echo on || { [ -f $AODB ] && echo "added, waiting for a framework restart" || echo off; })"
   echo "logvideo: $(is_on logvideo && echo on || echo off), Gallery LUTs $(bound $LV && echo on || echo off)"
-  echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
+  echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && { bound $HA_LIB && echo "on (up to 30 degrees)" || echo "on (up to 8 degrees)"; } || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
   echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
   echo "settingssearch: $(bound /system/$SSI/SecSettingsIntelligence.apk && echo S24 || echo stock)"
