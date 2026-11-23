@@ -1,33 +1,61 @@
 # s23-ultra-tweaks
 
-Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One UI 9 / Android 17, with no flashing:
+Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One UI 9 / Android 17, with no flashing.
 
-The tweaks are grouped in six categories. The installer and the module page let you pick a whole
-category or single tweaks.
+The tweaks come in six categories. The installer and the module page let you pick a whole category
+or single tweaks; the numbers below are the installer's. Each one works on any S23 Ultra on One UI 9
+unless it says otherwise.
 
-| # | Category | Tweak | What you get | Works on |
-|---|---|---|---|---|
-| 1 | Connectivity | `airdrop` | **AirDrop with iPhones, iPads and Macs.** Quick Share → *Share with Apple devices* | One UI 9 build **GZIF** on SM-S918W, S918B, S918U1, S918U or S918N. Tested on the S918W and S918B; the others have the same Wi-Fi drivers and kernel symbols (checked against their firmware files) |
-| 2 | Connectivity | `wifi7` | **Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes `airdrop` | same as `airdrop` |
-| 3 | Connectivity | `hotspot6g` | **6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz | any S23 Ultra on One UI 9 |
-| 4 | Camera | `logvideo` | **Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23 HAL can't | any S23 Ultra on One UI 9 |
-| 5 | Camera | `camextras` | **Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** | any S23 Ultra on One UI 9 |
-| 6 | Camera | `camerahdr` | **Camera HDR processing**: puts back the multi-frame HDR and low-light HDR steps One UI 9 removed from the S23 (see [docs/findings.md](docs/findings.md)). **Untested** | any S23 Ultra on One UI 9 (21 MB download) |
-| 7 | Camera | `hdr2023` | **2023 ArcSoft HDR**: the hybrid HDR and bracketed HDR engines of One UI 6 instead of today's. Bracketed HDR tested, hybrid HDR (ordinary daylight) **untested**; a Camera category pick leaves it out | any S23 Ultra on One UI 9; tested on S918WVLU8GZIF (28 MB download) |
-| 8 | Camera | `autoframe` | **4K auto framing** in video, as on the S24. Works on SM-S918W (tested: front camera, UHD with auto framing on); **reported to make the camera fail** on an S918B, so a Camera category pick leaves it out | any S23 Ultra on One UI 9 |
-| 9 | Camera | `tenbit` | **10-bit HDR video from the front cameras in any app** (Camera2 `DYNAMIC_RANGE_TEN_BIT`, HLG10), as the rear cameras already allow. Samsung Camera has its own HDR10+ path and is unchanged. Patches a copy of the phone's own camera driver (3 changes, found by their instructions, so not tied to one build) and binds it; it stays only if a front camera then really offers 10-bit. The first apply takes about 15 s longer | any S23 Ultra whose camera driver has the expected code (found in One UI 6 and One UI 9 builds; tested on S918WVLU8GZIF) |
-| 10 | Display and graphics | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
-| 11 | Display and graphics | `colortone` | **Adaptive color tone**: Settings → Display, the screen's colour follows the room light | firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download) |
-| 12 | Display and graphics | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |
-| 13 | Galaxy AI and Samsung apps | `galaxyai` | The S24's **Now Brief**, **Creative Studio** and **Call Assist** | firmware S918WVLU8GZIF (219 MB download) |
-| 14 | Galaxy AI and Samsung apps | `audioeraser` | **Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices | firmware S918WVLU8GZIF (34 MB download) |
-| 15 | Galaxy AI and Samsung apps | `settingssearch` | The S24's **Settings search** bar. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) | firmware S918WVLU8GZIF (10 MB download) |
-| 16 | Galaxy AI and Samsung apps | `callscreen` | **Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** | firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs) |
-| 17 | Galaxy AI and Samsung apps | `bargein` | **Bixby barge-in**: talk over Bixby while it answers. **Untested** | any S23 Ultra on One UI 9 |
-| 18 | Battery and settings | `battery` | Settings → Battery → **Battery information** shows battery health and cycle count | any S23 Ultra on One UI 9 |
-| 19 | Battery and settings | `features` | **Auto power on/off** schedule, **louder VoIP calls** | any S23 Ultra on One UI 9 |
-| 20 | Carrier | `callrec` | **Call recording** in the Samsung Phone app | XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF |
-| 21 | Carrier | `india` | **India carrier config for Airtel / Jio SIMs**: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, the Carrier category picks this instead of `callrec` | XAC (Canadian) firmware S918WVLU8GZIF |
+### Connectivity
+
+- **1 · AirDrop** with iPhones, iPads and Macs: Quick Share → *Share with Apple devices* · `airdrop`
+  - Works on: One UI 9 build **GZIF** on SM-S918W, S918B, S918U1, S918U or S918N (tested on the S918W and S918B)
+- **2 · Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes AirDrop · `wifi7`
+  - Works on: same as AirDrop
+- **3 · 6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz · `hotspot6g`
+
+### Camera
+
+- **4 · Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23's can't · `logvideo`
+- **5 · Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** · `camextras`
+- **6 · Camera HDR processing**: puts back the multi-frame and low-light HDR steps One UI 9 removed from the S23 ([details](docs/findings.md)). **Untested** · `camerahdr`
+  - 21 MB download
+- **7 · 2023 ArcSoft HDR**: One UI 6's hybrid and bracketed HDR engines instead of today's. Bracketed HDR tested, hybrid HDR (ordinary daylight) **untested**. Not included when you pick the whole Camera category · `hdr2023`
+  - Works on: any S23 Ultra on One UI 9; tested on S918WVLU8GZIF (28 MB download)
+- **8 · 4K auto framing** in video, as on the S24. Works on the SM-S918W (front camera, UHD with auto framing on); **reported to make the camera fail** on an S918B, so it's not included when you pick the whole Camera category · `autoframe`
+- **9 · 10-bit HDR video from the front cameras in any app** (Camera2 HLG10), as the rear cameras already allow. Samsung Camera keeps its own HDR10+. Patches a copy of the phone's own camera driver and keeps it only if a front camera then really offers 10-bit; the first apply takes about 15 s longer · `tenbit`
+  - Works on: any S23 Ultra whose camera driver has the expected code (found in One UI 6 and 9 builds; tested on S918WVLU8GZIF)
+
+### Display and graphics
+
+- **10 · Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** · `display`
+- **11 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
+  - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
+- **12 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
+
+### Galaxy AI and Samsung apps
+
+- **13 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
+  - Works on: firmware S918WVLU8GZIF (219 MB download)
+- **14 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
+  - Works on: firmware S918WVLU8GZIF (34 MB download)
+- **15 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
+  - Works on: firmware S918WVLU8GZIF (10 MB download)
+- **16 · Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** · `callscreen`
+  - Works on: firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs)
+- **17 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
+
+### Battery and settings
+
+- **18 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
+- **19 · Auto power on/off** schedule and **louder VoIP calls** · `features`
+
+### Carrier
+
+- **20 · Call recording** in the Samsung Phone app · `callrec`
+  - Works on: XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF
+- **21 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+  - Works on: XAC (Canadian) firmware S918WVLU8GZIF
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
 only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
@@ -45,8 +73,8 @@ You need:
 
 1. **A Galaxy S23 Ultra** on One UI 9.
 2. **Root, from two apps:**
-   - **DFRoot** (by diabl0w): <https://github.com/diabl0w/DFRoot>. It roots the stock, locked-bootloader firmware at runtime by loading KernelSU, and does it again by itself at every boot.
-   - **KernelSU manager, Samsung build `samsung-v2.2`**: <https://github.com/diabl0w/KernelSU/releases/tag/samsung-v2.2>. DFRoot needs it installed to load root.
+   - **DFRoot** (by diabl0w): [github.com/diabl0w/DFRoot](https://github.com/diabl0w/DFRoot). It roots the stock, locked-bootloader firmware at runtime by loading KernelSU, and does it again by itself at every boot.
+   - **KernelSU manager, Samsung build `samsung-v2.2`**: [its samsung-v2.2 release](https://github.com/diabl0w/KernelSU/releases/tag/samsung-v2.2). DFRoot needs it installed to load root.
 
    Install both APKs, open DFRoot and tap **LAUNCH ROOT** once.
 3. **Only for the computer installer:** a computer (macOS or Linux) with [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (`adb`), a USB cable, and **USB debugging** on (Settings → About phone → Software information → tap *Build number* 7 times, then Settings → Developer options → *USB debugging*). Run `adb devices` once and accept the prompt on the phone, then in KernelSU → **Superuser** allow **Shell**.
@@ -77,7 +105,9 @@ curl -fsSL https://raw.githubusercontent.com/dtechterminal/s23-ultra-tweaks/main
 Or clone and run it:
 
 ```sh
-git clone https://github.com/dtechterminal/s23-ultra-tweaks && cd s23-ultra-tweaks && ./install.sh
+git clone https://github.com/dtechterminal/s23-ultra-tweaks
+cd s23-ultra-tweaks
+./install.sh
 ```
 
 What happens:
@@ -141,7 +171,8 @@ Attach the file (or paste the text) in a [new issue](https://github.com/dtechter
 with what you expected and what happened. Without the module page:
 
 ```sh
-adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh report"   # prints the file's path
+# prints the report file's path
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh report"
 ```
 
 The report has the phone model, firmware, kernel and app versions, which tweaks are on and why any
@@ -156,7 +187,8 @@ The module page shows all of this. From a computer (if you used the computer ins
 ```sh
 adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh status"
 adb shell su -c "cat /data/adb/s23tweaks/tweaks.log"
-adb shell su -c "cat /data/adb/s23tweaks/boot.log"     # automatic applies at boot
+# automatic applies at boot
+adb shell su -c "cat /data/adb/s23tweaks/boot.log"
 ```
 
 ## Wi-Fi 7 multi-link (MLO)
