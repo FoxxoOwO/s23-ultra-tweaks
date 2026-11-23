@@ -831,9 +831,9 @@ settingssearch_bind() {
 # the S23 firmware has none and Galaxy Store refuses the S23 (9908). Install the real one (Samsung-signed)
 # as an ordinary app. Persistent (survives reboot); undo with pm uninstall $LC_PKG (not
 # uninstall-system-updates: it isn't an update of a system app here). Its 3.1 GB download comes in two parts (GitHub caps a file at 2 GB)
-# and is deleted once installed. What works: screening, the greeting,
-# the voice message. What doesn't: the AI summary and AI replies, since Samsung's model only exists for
-# the S26's NPU; on the S23 it fails safely (no V73 stub, nothing reaches the DSP). See docs/findings.md.
+# and is deleted once installed. What works: screening, the greeting, the voice message and the AI
+# summary (with this exact build, the one on APKMirror; another build's summary failed). AI replies
+# untested. See docs/findings.md.
 LC_PKG=com.samsung.android.offline.languagemodel
 LC_APK=languagecore-4.0.01.24.apk
 LC_MD5=994620f3071706391d17ff132ea16c42
@@ -845,8 +845,12 @@ callscreen_apply() {
   [ -f $A ] || { log "callscreen: its download isn't there; skipped"; return 1; }
   [ "$(md5 $A)" = $LC_MD5 ] || { rm -rf $PL/callscreen; log "callscreen: the download is damaged; deleted, apply again to fetch it"; return 1; }
   log "callscreen: installing Samsung Language Core 4.0.01.24 (a minute or two)"
-  # streamed through stdin: the installer can't read files under /data/adb
-  r=$(pm install -r -S $(stat -c %s $A) < $A 2>&1)
+  # The installer can't read files under /data/adb, and streaming it through stdin fails: pm's -S size
+  # is a 32-bit int and the APK is 3.1 GB ("Failed transaction"). Install a copy in /data/local/tmp
+  T=/data/local/tmp/s23t-languagecore.apk
+  [ "$(df -k /data | awk 'NR == 2 {print $4}')" -gt 3500000 ] || { log "callscreen: needs 3.5 GB free to install Language Core; skipped"; return 1; }
+  cp $A $T && chmod 644 $T && chcon u:object_r:shell_data_file:s0 $T && r=$(pm install -r $T 2>&1) || r="couldn't copy it to /data/local/tmp: $r"
+  rm -f $T
   case "$r" in
     *Success*) rm -rf $PL/callscreen; mkdir -p $V/undo; touch $V/undo/languagecore; log "callscreen: Language Core installed; turn on Phone > Settings > Call screening" ;;
     *) log "callscreen: install failed: $r" ;;

@@ -40,7 +40,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
   - Works on: firmware S918WVLU8GZIF (34 MB download)
 - 🔎 **15 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
   - Works on: firmware S918WVLU8GZIF (10 MB download)
-- 📞 **16 · Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** · `callscreen`
+- 📞 **16 · Call screening** in the Phone app: screening, greeting, voice messages and the AI summary work. **Stays after a reboot** · `callscreen`
   - Works on: firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs)
 - 🗣️ **17 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
 
@@ -251,10 +251,13 @@ Galaxy Store refuses the S23 ("not compatible", 9908). `callscreen` installs it 
 signed by Samsung) as an ordinary app.
 
 - **What works:** the Call screening switch, *Screen call* on incoming calls, the greeting read to the
-  caller, and recording the caller's voice message.
-- **What doesn't:** the caller/purpose summary ("Something went wrong while summarizing this call") and
-  the AI replies to the caller. Samsung's language model inside Language Core is compiled only for the
-  S26's NPU. On the S23 it stops before anything reaches the NPU, so it fails safely.
+  caller, recording the caller's voice message, and the AI summary of the call. The summary needs this
+  exact build, 4.0.01.24 (the one on APKMirror, MD5 `994620f3071706391d17ff132ea16c42`), which is the
+  one `callscreen` installs. An earlier test with another Language Core build failed with "Something
+  went wrong while summarizing this call".
+- **Not tested yet:** the AI replies to the caller.
+- **Installing it yourself:** if `callscreen` can't install it, download Samsung Language Core
+  4.0.01.24 from APKMirror and install it like any APK.
 - **A 3.1 GB download.** GitHub caps a release file at 2 GB, so the phone downloads Language Core in
   two parts, checks each against its SHA-256, joins them, checks the APK's MD5, installs it and
   deletes the download. It needs about 7 GB free while it does this; use Wi-Fi.
