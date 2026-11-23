@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.3
 
 - **AOD wallpaper brightness** (`display`): the lock screen wallpaper on Always On Display showed bright for a few seconds and then dropped sharply. The tweak no longer sets the S24's `LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION`; only `LCD_CONFIG_AOD_FULLSCREEN` turns the wallpaper on. Not yet tested on a phone.
 - **AirDrop tested on an SM-S918B** (S918BXXUAGZIF): the S918W-built modules load and a photo went to a Mac. Play services needed one restart some minutes after the first apply before Apple devices showed up (see README, Using AirDrop). With `wifi7`, Wi-Fi reconnects on the S24 supplicant; a multi-link connection is still untested (no Wi-Fi 7 router).
