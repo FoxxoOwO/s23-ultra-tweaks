@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Gallery's Log color correction works** (`logvideo`, issue #3). On One UI 9 it's Edit → LUT in Samsung's video editor, which reads the LUTs from `/data/vendor/LogVideofilters`. That folder is empty on the S23, and the S23's SELinux policy wouldn't let the editor read files there anyway, so the LUT loaded with no data and the video stayed flat. `logvideo` now downloads the S24 Ultra's 10 Log LUTs and their thumbnails (30 MB) and binds them over the folder with a label apps can read. Tested on S918WVLU8GZIF with Standard and Blockbuster.
 - **Bug reports say more.** New sections: the screen's colour state (screen mode, SurfaceFlinger colour mode, native mode, panel white point), AirDrop and Wi-Fi (Wi-Fi standard, the driver's kernel-log lines, Mosey and Quick Share warnings and errors with names in quotes masked) and every apply in the current boot from the kernel log. App crashes are grouped by app and error, like native crashes.
 - **The apply log says which build wrote it** (module version, model, firmware, CSC, kernel) and names tweaks that are still on from an earlier apply in the same boot although they weren't picked this time (binds, kernel modules and properties stay until a reboot).
 - **`status`**: the `features` line no longer shows the battery tweak's flag, and the AirDrop line says whether the Mosey service is registered instead of a bare "found".
