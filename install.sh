@@ -109,6 +109,17 @@ if [ "$(sh_ "su -c '[ -f $MODULE_DIR/tweaks.sh ] && [ ! -e $MODULE_DIR/remove ] 
   TW=$MODULE_DIR/tweaks.sh; use_module=1
   info "The S23 Ultra Tweaks KernelSU module is installed; using it (no download needed)."
 fi
+# This script (from main) can list tweaks newer than the tweaks.sh that will run (the module's, or $VERSION's):
+# offer only the ones that tweaks.sh knows, or apply would stop at "unknown tweak"
+if [ $use_module = 1 ]; then known=$(sh_ "su -c 'grep -m1 ^TWEAK_IDS= $TW'"); from="the installed module"
+elif [ -n "${S23T_SRC:-}" ]; then known=$(grep -m1 ^TWEAK_IDS= "$S23T_SRC/device/tweaks.sh"); from="$S23T_SRC"
+else known=$(curl -fsL "https://raw.githubusercontent.com/$REPO/$VERSION/device/tweaks.sh" 2>/dev/null | grep -m1 ^TWEAK_IDS=); from=$VERSION; fi
+known=${known#*=}; known=${known//\"/}
+if [ -n "$known" ]; then
+  for i in "${!ids[@]}"; do
+    case " $known " in *" ${ids[$i]} "*) ;; *) avail[$i]=0; why[$i]="not in $from yet (comes with the next release)" ;; esac
+  done
+fi
 last=$(sh_ "su -c 'cat $PHONE_DIR/choices 2>/dev/null'" || true)
 picked=""
 if [ -n "$last" ]; then
