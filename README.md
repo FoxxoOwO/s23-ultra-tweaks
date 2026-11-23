@@ -48,12 +48,13 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 - 🩺 **18 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
 - ⏰ **19 · Auto power on/off** schedule and **louder VoIP calls** · `features`
+- 🫥 **20 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed, and firmware S918WVLU8GZIF (a patched `services.jar` built for that exact build; applies on a framework restart) · `hideksu`
 
 ### 📱 Carrier
 
-- ⏺️ **20 · Call recording** in the Samsung Phone app · `callrec`
+- ⏺️ **21 · Call recording** in the Samsung Phone app · `callrec`
   - Works on: XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF
-- 🇮🇳 **21 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+- 🇮🇳 **22 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
   - Works on: XAC (Canadian) firmware S918WVLU8GZIF
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built

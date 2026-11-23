@@ -8,7 +8,7 @@ set -euo pipefail
 # below can read the rest of the script from stdin (curl | bash).
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
-VERSION=v1.2.8
+VERSION=v1.2.9
 AIRDROP_KBASE=5.15.197-android13-8-34343818-ab; AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"   # as in device/tweaks.sh
 PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
 MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
@@ -58,6 +58,7 @@ k_ok=0; for f in $AIRDROP_FW; do [ "$kernel" = "$AIRDROP_KBASE$f" ] && k_ok=1; d
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 can_rec=$can_csc; why_rec="needs XAC (Canadian) or EUX (European) firmware"; [ "$csc $build" = "EUX S918BXXUAGZIF" ] && can_rec=1   # CALLREC_CSC in device/tweaks.sh
 can_ct=1; why_ct=""; case "$build" in S918WVLU8GZIF|S918BXXUAGZIF) ;; *) can_ct=0; why_ct="needs firmware S918WVLU8GZIF or S918BXXUAGZIF (it patches that build's Settings app)" ;; esac   # SETTINGS_EAD in device/tweaks.sh
+can_ksu=1; why_ksu=""; [ "$build" = S918WVLU8GZIF ] || { can_ksu=0; why_ksu="needs firmware S918WVLU8GZIF (the patched services.jar is built for that exact build)"; }   # hideksu in device/tweaks.sh
 # an Indian SIM (MCC 404/405) makes the carrier picks take the India config instead of plain call recording
 sim=$(sh_ getprop gsm.sim.operator.numeric | cut -d, -f1); sim_india=0; carrier_skip=india
 case "$sim" in 404*|405*) sim_india=1; carrier_skip=callrec ;; esac
@@ -73,9 +74,9 @@ ids=(airdrop wifi7 hotspot6g
      logvideo camextras camerahdr hdr2023 autoframe tenbit
      display colortone vulkan
      galaxyai audioeraser settingssearch callscreen bargein
-     battery features
+     battery features hideksu
      callrec india)
-cat=(A A A  B B B B B B  C C C  D D D D D  E E  F F)
+cat=(A A A  B B B B B B  C C C  D D D D D  E E E  F F)
 cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier (XAC or EUX firmware)")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
@@ -97,10 +98,11 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Bixby barge-in: talk over Bixby while it answers (untested)"
       "Battery health page: Settings > Battery > Battery information shows health and cycles"
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
+      "HideKSU: hide the KernelSU root manager from apps, so root-aware apps like CRED stop crashing (patched services.jar; 12 MB download; needs the KernelSU manager installed)"
       "Call recording in the Samsung Phone app"
       "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards; sales code stays XAC")
-avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1  1 $can_ct 1  1 1 1 $can_lc 1  1 1  $can_rec $can_csc)
-why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" ""  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" ""  "$why_rec" "$why_csc")
+avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1  1 $can_ct 1  1 1 1 $can_lc 1  1 1 $can_ksu  $can_rec $can_csc)
+why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" ""  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" "" "$why_ksu"  "$why_rec" "$why_csc")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null

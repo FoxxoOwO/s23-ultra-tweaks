@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.9
+
+- **HideKSU: root-aware apps stop crashing** (`hideksu`). Apps like CRED kill themselves on launch when the KernelSU manager (`me.weishu.kernelsu`) is installed — their native anti-tamper enumerates installed packages through the package manager (CRED's `libSecureComponent.so` calls `getPackageInfo`), and a sandboxed app has no other way to see another app. `hideksu` binds a patched `services.jar` whose `AppsFilter` hides the manager from any third-party caller (appId ≥ 10000), except `df.root` (so DFRoot still loads root at boot) and the Samsung launcher (so the manager icon still shows). Nothing is injected into the apps, so their own `/proc/self/maps` scans stay clean — unlike an LSPosed/Zygisk module, which they can catch. The manager stays installed, so there's no more uninstall-before-you-use dance. Verified on S918WVLU8GZIF: with the KernelSU manager installed, CRED went from crashing every few seconds (NFC kept restarting its payment service) to running normally; the manager icon and root at boot both kept working. Needs firmware S918WVLU8GZIF (the patched `services.jar` is built for that exact build) and the KernelSU manager installed; applies on a framework restart.
+
 ## v1.2.8
 
 - **Much less CPU with AirDrop on** (`airdrop`). The guard that reboots the phone cleanly if the Wi-Fi firmware crashes read the whole kernel log (about 260 KB) every second to look for the crash line. On an idle phone that was about a third of all CPU time: 2.86 s of CPU every 30 s, about 18 minutes of CPU in 3.4 hours. It now waits on `dmesg -W`, which blocks until the kernel logs something new: 0.02 s per 30 s. Measured on S918WVLU8GZIF. Phones keep the old guard until they reboot after updating the module.

@@ -20,7 +20,7 @@
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
 #         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
-#         callscreen tenbit  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
+#         callscreen tenbit hideksu  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
 # runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
@@ -39,8 +39,8 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch"
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit"
+STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -75,6 +75,7 @@ AIR=$PL/airdrop                              # the airdrop/wifi7 download: kerne
 PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/payloads-S918WVLU8GZIF
 PAYLOADS="airdrop airdrop-S918WVLU8GZIF-2.tar.gz deed1ee54334dbbf6086d2aa0d194183006826913a662900377f3760d7966e1c
 logvideo logvideo-luts.tar.gz ed688855d75d9ff964a2f9f904cb7189b6adb897940fb61fe3a4c8049c73ecbe
+hideksu hideksu-S918WVLU8GZIF.tar.gz 4732e4568d08254b80b60bbeeb1d03673dd259049303e5c43dcda6fe960fa647
 camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
 hdr2023 hdr2023-S918WVLU8GZIF.tar.gz 0f31937af2f04e2edcf1a2319298dfb97e3493aea558be6f3e0070fdb9b37eba
 audioeraser audioeraser-S918WVLU8GZIF.tar.gz a11d2868b3d8ba0121554ea2a31bb65256e0c141c6033c4e6ddb4770f4d11704
@@ -1026,6 +1027,30 @@ aodb_apply() {
 # still loads it into every process's system resources, which is all the AOD app reads. On = system_server has it.
 aodb_on() { grep -q s23tweaks-aodbright /proc/$(pidof system_server)/maps 2>/dev/null; }
 
+# HideKSU: hide the KernelSU manager (me.weishu.kernelsu) from third-party apps, so their root/tamper
+# checks (CRED, banking apps) can't enumerate it and stop crashing. The patched services.jar carries a
+# helper (s23tweaks/H) called at the top of AppsFilterBase.shouldFilterApplicationInternal: it filters
+# the manager out for any caller with appId >= 10000 except df.root (DFRoot loads root at boot) and the
+# launcher (so its icon still shows). Nothing is injected into the apps themselves, so an app's own
+# /proc/self/maps scan stays clean. Takes effect on a framework restart (system_server reloads the jar).
+KSUJAR=/system/framework/services.jar
+hideksu_apply() {
+  [ -f $PL/hideksu/services.jar ] || { log "hideksu: payload missing; skipped"; return 1; }
+  hideksu_on && { log "hideksu: patched services.jar already loaded"; return 1; }
+  T=/dev/s23tweaks_svc; mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_svc $T
+  bound $KSUJAR && umount $KSUJAR 2>/dev/null   # drop any earlier bind so one clean layer remains
+  cp $PL/hideksu/services.jar $T/services.jar && chmod 644 $T/services.jar && chcon u:object_r:system_file:s0 $T $T/services.jar || fail "hideksu stage"
+  mount -o bind $T/services.jar $KSUJAR || fail "bind services.jar"
+  log "hideksu: patched services.jar bound; the KernelSU manager is hidden from apps after the restart"
+}
+# On = the system_server that's running mapped OUR bound jar (its inode), not the stock one. Before a
+# restart the bind is in place but the stock jar is still loaded, so the inode won't match yet.
+hideksu_on() {
+  bound $KSUJAR || return 1
+  i=$(stat -c %i $KSUJAR 2>/dev/null); ss=$(pidof system_server) || return 1
+  grep " $KSUJAR" /proc/$ss/maps 2>/dev/null | awk '{print $5}' | grep -qx "$i"
+}
+
 restart_framework() {
   old=$(pidof system_server); log "restarting the Android framework (screen goes black for ~30 s)"
   setprop ctl.restart zygote
@@ -1076,6 +1101,9 @@ why_not() {
     hotspot6g) [ -x /data/adb/ksu/bin/resetprop ] || echo "needs KernelSU's resetprop" ;;
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
     tenbit) [ -f $TB_LIB ] || echo "this phone has no $TB_LIB" ;;
+    hideksu)
+      [ "$build" = S918WVLU8GZIF ] || { echo "needs firmware S918WVLU8GZIF (this phone runs $build); the patched services.jar is built for that exact build"; return; }
+      pm path me.weishu.kernelsu >/dev/null 2>&1 || echo "the KernelSU manager (me.weishu.kernelsu) isn't installed, so there's nothing to hide" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     galaxyai)
@@ -1110,6 +1138,7 @@ is_on() {
     colortone) bound $SETTINGS ;;
     tenbit) bound $TB_LIB && [ "$(md5 $TB_LIB)" = "$(md5 $V/tenbit.so)" ] ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
+    hideksu) hideksu_on ;;
     *) return 1 ;;
   esac
 }
@@ -1178,6 +1207,7 @@ $CF_HLOCK"
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
   has vulkan && { setprop debug.hwui.renderer skiavk; log "vulkan: apps render with Skia on Vulkan"; restart=1; }
+  has hideksu && hideksu_apply && restart=1   # patched services.jar: needs a framework restart to load
   ff_apply && restart=1
   if has india; then india_apply && { setprop ctl.restart ril-daemon; log "india: mobile network restarting"; restart=1; }
   elif has callrec; then callrec_apply && restart=1; fi
@@ -1257,6 +1287,7 @@ status)
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"
   echo "vulkan:   renderer $(getprop debug.hwui.renderer | grep . || echo default)"
+  echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; })"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  CSC country $(getprop ro.csc.countryiso_code)"
   set -- $(callrec_row); f=${3:-$XAC/system/cscfeature.xml}
