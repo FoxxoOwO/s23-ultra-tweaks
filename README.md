@@ -28,7 +28,7 @@ unless it says otherwise.
 
 ### 🎨 Display and graphics
 
-- 🖌️ **10 · Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** · `display`
+- 🖌️ **10 · Lock screen wallpaper on Always On Display** · `display`
 - 🌤️ **11 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
   - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
 - ⚡ **12 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
@@ -240,7 +240,6 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 
 ## 🎨 Display, Log video and Vulkan
 
-- **Vividness**: Samsung hides *Screen mode → Advanced settings* (where the slider is) while **Eye comfort shield** or a vision accessibility feature is on. That's stock behaviour, the S24 does the same.
 - **Always On Display**: *Lock screen and AOD → Always On Display* gets *Show Lock screen wallpaper*. *Erase background* only works with a photo wallpaper whose subject was cut out by the wallpaper editor (a "layered" wallpaper), not with the AI weather wallpaper.
 - **Log video**: in *Pro video*, tap **LOG** at the top. The S23's camera already records 10-bit; the tweak only turns on Samsung's switches for it.
 - **Vulkan**: Samsung's renderer ignores the S24's `ro.hwui.use_vulkan`; the tweak sets `debug.hwui.renderer=skiavk`. Check with `adb shell dumpsys gfxinfo com.android.systemui | grep Pipeline` (should say `Skia (Vulkan)`).

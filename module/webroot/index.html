@@ -367,7 +367,7 @@ const TWEAKS = [
   { id: "hdr2023", cat: "camera", name: "2023 ArcSoft HDR", desc: "The One UI 6 (2023) hybrid and bracketed HDR engines instead of today's. Ticking Camera leaves it out; pick it yourself (28 MB download)" },
   { id: "autoframe", cat: "camera", name: "4K auto framing", desc: "The S24's UHD setting for auto framing in video. Reported to make the camera fail on an S918B, so ticking Camera leaves it out" },
   { id: "tenbit", cat: "camera", name: "Front-camera 10-bit for apps", desc: "Any app (Camera2) can record 10-bit HDR (HLG10) video with the selfie cameras, as with the rear ones. Patches a copy of the phone's own camera driver; the first apply takes about 15 s longer" },
-  { id: "display", cat: "display", name: "Vividness and full-screen AOD", desc: "Vividness slider in Screen mode and the lock screen wallpaper on Always On Display" },
+  { id: "display", cat: "display", name: "Full-screen AOD", desc: "The lock screen wallpaper on Always On Display" },
   { id: "colortone", cat: "display", name: "Adaptive color tone", desc: "Display colour follows the room light, as on the S24 (1 MB download)" },
   { id: "vulkan", cat: "display", name: "Vulkan rendering", desc: "Apps draw with Vulkan instead of OpenGL, as on the S24" },
   { id: "galaxyai", cat: "ai", name: "Now Brief, Creative Studio, Call Assist", desc: "The S24's newer builds of these three Galaxy AI apps (219 MB download)" },
@@ -391,7 +391,7 @@ const WHERE = {
   india: ["5G standalone and call recording", "Settings → Connections → Mobile networks → Use 5G standalone networks; Phone app → Settings → Record calls."],
   hotspot6g: ["6 GHz hotspot", "Settings → Connections → Mobile Hotspot → Band → 6 GHz (security WPA3)."],
   wifi7: ["Wi-Fi 7", "Multi-link needs a Wi-Fi 7 router with MLO on. The Wi-Fi 7 mode page is under Status."],
-  display: ["Vividness", "Settings → Display → Screen mode → Advanced settings (hidden while Eye comfort shield is on). AOD: Lock screen and AOD → Always On Display → Show Lock screen wallpaper."],
+  display: ["Always On Display", "Lock screen and AOD → Always On Display → Show Lock screen wallpaper."],
   logvideo: ["Log video", "Camera → More → Pro video → LOG button at the top."],
   vulkan: ["Vulkan", "Nothing to set; every app drawn after the restart uses Vulkan."],
   camerahdr: ["Camera HDR", "Nothing to set. Untested: shoot a bright backlit scene, compare with before, and turn it off if photos look worse."],
@@ -989,7 +989,7 @@ function installMock() {
     if (has("india")) add(0.5, "india: INS carrier config on (sales code stays XAC)");
     else if (has("callrec")) add(0.5, "callrec: call recording on (Phone app > Settings > Record calls)");
     if (fail) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(2.0, "FAILED: something went wrong in the mock (framework did not come back)"); return out; }
-    if (has("display") || has("logvideo")) add(0.4, "feature flags on: " + (has("display") ? "LCD_CONFIG_VIVIDNESS LCD_CONFIG_VIVIDPLUS LCD_CONFIG_AOD_FULLSCREEN LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION " : "") + (has("logvideo") ? "CAMERA_CONFIG_LOG_VIDEO GALLERY_SUPPORT_LOG_CORRECT_COLOR" : ""));
+    if (has("display") || has("logvideo")) add(0.4, "feature flags on: " + (has("display") ? "LCD_CONFIG_AOD_FULLSCREEN LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION " : "") + (has("logvideo") ? "CAMERA_CONFIG_LOG_VIDEO GALLERY_SUPPORT_LOG_CORRECT_COLOR" : ""));
     for (const t of ["airdrop", "camerahdr", "hdr2023", "audioeraser", "colortone", "galaxyai", "settingssearch"]) if (has(t)) { add(0.8, t + ": downloading its files (" + t + "-S918WVLU8GZIF.tar.gz)"); add(0.2, t + ": files ready"); }
     if (has("camerahdr")) add(0.3, "camerahdr: One UI 6 multi-frame HDR and low-light HDR on");
     if (has("hdr2023")) add(0.2, "hdr2023: 2023 ArcSoft hybrid HDR and bracketed HDR on");

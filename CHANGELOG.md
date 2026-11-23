@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Vivid screen mode has its colours back** (`display`). The tweak also turned on the S24's Vividness slider (`LCD_CONFIG_VIVIDNESS`, `LCD_CONFIG_VIVIDPLUS`). With `VIVIDPLUS` on, Vivid mode switched SurfaceFlinger from the panel's wide colour gamut to sRGB, so colours looked washed out for as long as `display` was applied, whatever Adaptive color tone was set to. The slider itself never worked on the S23: it writes to a panel control the S23 doesn't have. Both flags are gone; `display` now only puts the lock screen wallpaper on Always On Display. Applying without them (or rebooting without the module) restores the wide gamut.
+
 ## v1.2.4
 
 - **Bug reports in one tap**: Module page → Status → *Make a bug report* (or `tweaks.sh report`) saves a text file in Download with the phone model and firmware, what each tweak found, the stock settings the tweaks overwrite, the logs and recent crash summaries, and copies it for an issue. No serial number, email, MAC addresses or IMEI. Applies now also log the stock values they replace.
