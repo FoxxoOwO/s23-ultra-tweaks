@@ -564,6 +564,20 @@ function confirmDialog({ title, body, ok, danger }) {
   });
 }
 
+/* ---------------- busy dialog ---------------- */
+// A modal with a spinner and a running seconds count, so a long command doesn't look like a frozen page.
+function busyDialog(title, note) {
+  const root = $("dialog-root"), t0 = Date.now();
+  const secs = h("span", { class: "small", text: "0 s" });
+  const dlg = h("div", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "busy-t", "aria-busy": "true" },
+    h("div", { class: "status-line", style: "padding:0 0 10px" }, h("div", { class: "spinner", "aria-hidden": "true" }), h("span", { id: "busy-t", text: title })),
+    note ? h("p", { class: "small", text: note }) : null, secs);
+  const scrim = h("div", { class: "scrim" }, dlg);
+  root.append(scrim);
+  const timer = setInterval(() => { secs.textContent = Math.round((Date.now() - t0) / 1000) + " s"; }, 1000);
+  return () => { clearInterval(timer); scrim.remove(); };
+}
+
 /* ---------------- header ---------------- */
 function renderHeader(p) {
   const v = $("version");
@@ -900,10 +914,11 @@ function copyFallback(text) {
 }
 async function onReport(e) {
   const b = e.target, label = b.textContent; b.disabled = true; b.textContent = "Collecting…";
+  const done = busyDialog("Making the bug report…", "It checks every tweak against this phone and reads the recent system logs. This usually takes under a minute.");
   const r = await exec(TW + " report", 90000);
   const path = (r.stdout || "").trim().split("\n").pop();
   const r2 = r.errno === 0 && path ? await exec("cat '" + path + "'", 15000) : r;
-  b.disabled = false; b.textContent = label;
+  done(); b.disabled = false; b.textContent = label;
   if (r.errno !== 0 || r2.errno !== 0) { showError("Couldn't make the bug report", r.errno !== 0 ? r : r2); return; }
   const body = h("div", {},
     h("p", { text: "Saved as " + path.replace("/sdcard/", "") + ". It lists your phone model and firmware, which tweaks are on and why others aren't offered, the camera and feature settings the tweaks change, the last apply log and recent crash summaries. Serial number, email and MAC addresses are left out." }),
