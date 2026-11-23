@@ -834,6 +834,7 @@ probe)
   why_csc=$why_s23; [ -z "$why_csc" ] && [ "$csc" != XAC ] && why_csc="needs XAC (Canadian) firmware (this phone is $csc)"
   why_bat=$why_s23; for f in $BATT_EFS; do [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/$f ] && why_bat="this phone has no $f in /efs/FactoryApp"; done
   pw() { echo "$why_s23"; }   # their files are downloaded when picked
+  why_ct=$why_s23; [ -z "$why_ct" ] && [ "$build" != S918WVLU8GZIF ] && why_ct="needs firmware S918WVLU8GZIF (it patches that build's Settings app; this phone runs $build)"
   why_6g=$why_s23; [ -z "$why_6g" ] && [ ! -x /data/adb/ksu/bin/resetprop ] && why_6g="needs KernelSU's resetprop"
   lcv=$(lc_installed); why_lc=$why_s23
   [ -z "$why_lc" ] && [ "${lcv:-0}" -lt 400000000 ] && [ "$(df -k /data | awk 'NR == 2 {print $4}')" -lt 7340032 ] &&
@@ -869,7 +870,7 @@ probe)
     "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)" \
     "$(j display "$why_s23" $a_dis)" "$(j logvideo "$why_s23" $a_log)" "$(j vulkan "$why_s23" $a_vk)" \
     "$(j camerahdr "$(pw camerahdr)" $a_ch)" "$(j audioeraser "$(pw audioeraser)" $a_ae)" \
-    "$(j colortone "$(pw colortone)" $a_ct)" "$(j galaxyai "$(pw galaxyai)" $a_gai)" \
+    "$(j colortone "$why_ct" $a_ct)" "$(j galaxyai "$(pw galaxyai)" $a_gai)" \
     "$(j camextras "$why_s23" $a_cx)" "$(j autoframe "$why_s23" $a_af)" "$(j settingssearch "$(pw settingssearch)" $a_ss)" \
     "$(j bargein "$why_s23" $a_bi)" "$(j callscreen "$why_lc" $a_lc)"
   ;;
