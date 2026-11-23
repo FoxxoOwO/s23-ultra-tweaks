@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.8
 
 - **Much less CPU with AirDrop on** (`airdrop`). The guard that reboots the phone cleanly if the Wi-Fi firmware crashes read the whole kernel log (about 260 KB) every second to look for the crash line. On an idle phone that was about a third of all CPU time: 2.86 s of CPU every 30 s, about 18 minutes of CPU in 3.4 hours. It now waits on `dmesg -W`, which blocks until the kernel logs something new: 0.02 s per 30 s. Measured on S918WVLU8GZIF. Phones keep the old guard until they reboot after updating the module.
 - **Always On Display brightness follows the room light** (`display`). The AOD app builds its brightness from two framework tables (`config_autoBrightnessLevels_doze`, `config_autoBrightnessDisplayValuesNits_doze`) that the S23 ships empty, so every light reading logged "getBrightnessValues not matched!" and the AOD got 0 nits: it sat at its minimum, and the lock screen wallpaper on AOD showed bright for a few seconds and then dropped sharply. `display` now adds the S24 Ultra's two tables with a small static overlay (`files/aodbright.apk`, built from `src/aodbright`) layered onto `/product/overlay`, and restarts the framework. Samsung's package manager doesn't list the overlay ("not in allowed list"), but zygote loads it into every app's system resources, which is where the AOD app reads it. Tested on S918WVLU8GZIF: at 13 lux the AOD went from 0 to 14.5 nits. Not yet checked in bright light.
