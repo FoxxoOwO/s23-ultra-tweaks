@@ -39,6 +39,7 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
+STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch"
 TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
@@ -102,7 +103,8 @@ CALLREC_CSC="EUX S918BXXUAGZIF /optics/configs/carriers/single/EUX/conf/system/c
 callrec_row() { echo "$CALLREC_CSC" | awk -v c="$(getprop ro.csc.sales_code)" '$1 == c'; }
 NEARBY_FLAGS="45704091 45723015"   # Nearby Sharing: enableExternalProviders + the provider-registry gate
 
-log() { m="$(cut -d' ' -f1 /proc/uptime) $*"; echo "$m" >> $L; echo "s23tweaks: $*" > /dev/kmsg; sync; }
+HIST=/dev/s23tweaks.history   # every apply's lines since boot (tweaks.log holds only the last apply)
+log() { m="$(cut -d' ' -f1 /proc/uptime) $*"; echo "$m" >> $L; echo "$m" >> $HIST 2>/dev/null; echo "s23tweaks: $*" > /dev/kmsg; sync; }
 fail() { log "FAILED: $*"; exit 1; }
 wait_for() { n=$1; shift; while [ $n -gt 0 ]; do "$@" && return 0; n=$((n-1)); sleep 1; done; return 1; }
 mounted() { mount | grep -q " $1 type $2"; }
@@ -929,6 +931,7 @@ restart_framework() {
 }
 
 # ---------- Why a tweak can't run on this phone, and whether it's on (probe, apply log) ----------
+mod_ver() { if [ $MODULE = 1 ]; then grep -m1 '^version=' $D/module.prop | cut -d= -f2; else echo "script (install.sh)"; fi; }
 phone_facts() {
   model=$(getprop ro.product.model); build=$(getprop ro.build.PDA); csc=$(getprop ro.csc.sales_code)
   gms=$(dumpsys package com.google.android.gms 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2)
@@ -1013,10 +1016,17 @@ apply)
   echo "$2" > $V/choices
   has wifi7 && ! has airdrop && fail "wifi7 needs airdrop (the S24 Wi-Fi driver)"
   phone_facts; keep=""
+  log "module $(mod_ver) on $model $build ($csc), Android $(getprop ro.build.version.release), kernel $(uname -r)"
   for x in $2; do
     w=$(why_not $x); if [ -n "$w" ]; then log "$x: skipped: $w"; else keep="$keep $x"; fi
   done
   TWEAKS=" $keep "
+  # what an apply doesn't undo (binds, kernel modules, properties) stays until a reboot: say so
+  for x in $STAYS_TILL_REBOOT; do
+    has $x && continue
+    { is_on $x || { [ $x = colortone ] && [ -f /system/priv-app/$EAD/$EAD.apk ]; }; } &&
+      log "$x: not picked, but still on from an earlier apply in this boot; a reboot turns it off"
+  done
   payload_fetch   # before the AirDrop driver swap takes Wi-Fi down
   if has airdrop; then
     has wifi7 && wifi7_bind   # before the driver loads, so it reads the MLO settings
@@ -1115,8 +1125,8 @@ status)
   echo "saved choices: $(cat $V/choices 2>/dev/null); $(sh $D/tweaks.sh autostart)"
   echo "airdrop:  modules [$(grep -oE '^(wonder|bwfix) ' /proc/modules | tr -d '\n')]," \
        "Mosey $(bound /system_ext/bin && echo on || echo off), daemon $(running loop && echo running || echo stopped)," \
-       "$(service check com.google.android.moseyservice.IMoseyService/default | sed 's/.*: //')"
-  echo "features: $(bound $FF && grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
+       "Mosey service $(service check com.google.android.moseyservice.IMoseyService/default | grep -q ': found' && echo registered || echo "not registered")"
+  echo "features: $(bound $FF && grep -oE '<SEC_FLOATING_FEATURE_(SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
   echo "battery:  auth IC $(mounted /sys/class/power_supply tmpfs && echo presented || { [ -e /sys/class/power_supply/sec_auth ] && echo "real (presence $(cat /sys/class/power_supply/sec_auth/presence 2>/dev/null), auth $(cat /sys/class/power_supply/sec_auth/batt_auth 2>/dev/null))" || echo off; }),"\
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off)"
@@ -1177,7 +1187,7 @@ report)
   sn=$(getprop ro.serialno)
   {
     echo "s23-ultra-tweaks report, $(date '+%Y-%m-%d %H:%M:%S %z')"
-    echo "module $( [ $MODULE = 1 ] && grep -m1 '^version=' $D/module.prop | cut -d= -f2 || echo "script (install.sh)")"
+    echo "module $(mod_ver)"
     sec phone
     echo "model $model, firmware $build, CSC $csc, Android $(getprop ro.build.version.release) (One UI $(o=$(getprop ro.build.version.oneui); echo $((o / 10000)).$((o / 100 % 100)))), patch $(getprop ro.build.version.security_patch)"
     echo "kernel $(uname -r)"
@@ -1198,6 +1208,20 @@ report)
     echo "camera driver: $(md5 $TB_LIB) $(bound $TB_LIB && echo "(module's copy, made from $(cat $V/tenbit.src 2>/dev/null))")"
     echo "mounts from the module:"
     awk '$4 ~ /s23tweaks/ || $10 ~ /s23tweaks/ {print "  " $5 " <- " $4 " (" $9 ")"}' /proc/self/mountinfo | sort -u | head -80
+    sec display
+    echo "screen mode $(settings get system screen_mode_setting) (4 = Vivid, 1 = Natural), vividness $(settings get system vividness_intensity), Adaptive color tone $(settings get system ead_enabled)"
+    echo "SurfaceFlinger: $(dumpsys SurfaceFlinger 2>/dev/null | grep -m1 'Current color mode' | sed 's/^ *//'), persist.sys.sf.native_mode $(getprop persist.sys.sf.native_mode)"
+    echo "panel white point (sensorRGB) $(cat /sys/class/mdnie/mdnie/sensorRGB 2>/dev/null), night mode $(cat /sys/class/mdnie/mdnie/night_mode 2>/dev/null)"
+    sec "AirDrop and Wi-Fi"
+    echo "Wi-Fi: $(cmd wifi status 2>/dev/null | grep -m1 -oE 'Wifi is (enabled|disabled)'), $(cmd wifi status 2>/dev/null | grep -m1 -oE 'Wi-Fi standard: [^,]*'), driver $(cat /sys/module/wlan/version 2>/dev/null || grep -m1 -oE '^kiwi_v2 [0-9]+' /proc/modules)"
+    echo "kernel log (Wi-Fi driver, AirDrop modules, PCIe), last 25:"
+    dmesg 2>/dev/null | grep -iE 'wonder|bwfix|mhifix|s23tweaks|kiwi_v2.*(error|fail|assert|crash)|cnss.*(fail|error|crash|assert|ssr|recover)|wlan.*firmware' |
+      grep -vE 'Runtime (suspend|resume)|PCI link|MHI state' | tail -n 25 | sed 's/^/  /' | cut -c1-200
+    echo "Mosey / Quick Share warnings and errors, last 30 (names in quotes masked):"
+    logcat -d -v brief 2>/dev/null | grep -E '^[EW]/[^(]*(Mosey|mosey|AirDrop|Awdl|NearbySharing|ShareLive|Wonder)' | grep -v '	at ' |
+      sed -E "s/\"[^\"]*\"/<name>/g; s/'[^']*'/<name>/g" | tail -n 30 | sed 's/^/  /' | cut -c1-220
+    sec "every apply since this boot (seconds since boot)"
+    tail -n 150 $HIST 2>/dev/null | cut -c1-220
     sec "tweaks.log (last apply)"
     cat $L 2>/dev/null
     sec "boot.log (last 60 lines)"
@@ -1208,8 +1232,12 @@ report)
         "$(grep -m1 '^signal' $t | cut -d, -f1)" "$(grep -m1 '^Abort message' $t | cut -c16-200)"
     done | sort -r | awk -F'|' '{ k = substr($0, index($0, "|") + 1); n[k]++; if (!(k in t)) { t[k] = $1; o[++m] = k } }
       END { for (i = 1; i <= m; i++) printf "%dx  %s |%s\n", n[o[i]], t[o[i]], o[i] }'
-    sec "app crashes (crash log)"
-    logcat -d -b crash -t 400 2>/dev/null | grep -E 'FATAL EXCEPTION|Process: |AndroidRuntime: (Caused by|[A-Za-z0-9_.$]+(Exception|Error))' | tail -n 40
+    sec "app crashes (count, newest, app, error)"
+    logcat -d -b crash 2>/dev/null | awk '
+      / Process: / { p = $0; sub(/.* Process: /, "", p); sub(/,.*/, "", p); t = $1 " " $2; want = 1; next }
+      want && /AndroidRuntime: [A-Za-z0-9_.$]+(Exception|Error)/ { e = $0; sub(/.*AndroidRuntime: /, "", e); k = p " | " substr(e, 1, 160)
+        n[k]++; last[k] = t; if (!(k in seen)) { seen[k] = 1; o[++m] = k }; want = 0 }
+      END { for (i = m; i >= 1; i--) printf "%dx  %s | %s\n", n[o[i]], last[o[i]], o[i] }' | head -n 20
   } 2>&1 | sed -E -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g' \
       -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<mac>/g' -e 's/(^|[^0-9])[0-9]{14,17}([^0-9]|$)/\1<number>\2/g' |
     if [ -n "$sn" ]; then sed "s/$sn/<serial>/g"; else cat; fi > $out

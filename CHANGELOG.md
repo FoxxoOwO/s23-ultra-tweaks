@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Bug reports say more.** New sections: the screen's colour state (screen mode, SurfaceFlinger colour mode, native mode, panel white point), AirDrop and Wi-Fi (Wi-Fi standard, the driver's kernel-log lines, Mosey and Quick Share warnings and errors with names in quotes masked) and every apply in the current boot from the kernel log. App crashes are grouped by app and error, like native crashes.
+- **The apply log says which build wrote it** (module version, model, firmware, CSC, kernel) and names tweaks that are still on from an earlier apply in the same boot although they weren't picked this time (binds, kernel modules and properties stay until a reboot).
+- **`status`**: the `features` line no longer shows the battery tweak's flag, and the AirDrop line says whether the Mosey service is registered instead of a bare "found".
 - **Vivid screen mode has its colours back** (`display`). The tweak also turned on the S24's Vividness slider (`LCD_CONFIG_VIVIDNESS`, `LCD_CONFIG_VIVIDPLUS`). With `VIVIDPLUS` on, Vivid mode switched SurfaceFlinger from the panel's wide colour gamut to sRGB, so colours looked washed out for as long as `display` was applied, whatever Adaptive color tone was set to. The slider itself never worked on the S23: it writes to a panel control the S23 doesn't have. Both flags are gone; `display` now only puts the lock screen wallpaper on Always On Display. Applying without them (or rebooting without the module) restores the wide gamut.
 
 ## v1.2.4
