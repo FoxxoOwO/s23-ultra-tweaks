@@ -279,3 +279,43 @@ AI replies to the caller don't, and can't with Samsung's model.
 - A replacement-model route is possible but wasn't built: an LSPosed hook on InCallUI's
   `CallScreeningOnDeviceAdapter` answering with a V73-compiled model (Qualcomm's Llama 3.2 3B for SM8550
   via Genie) or a CPU model.
+
+## Front-camera 10-bit (tenbit)
+
+Android only accepts a 10-bit stream (`OutputConfiguration.setDynamicRangeProfile(HLG10)`) from a camera
+that lists `REQUEST_AVAILABLE_CAPABILITIES_DYNAMIC_RANGE_TEN_BIT` (18) and a dynamic range profile map. On
+S918WVLU8GZIF the rear cameras (0, 2, 20, 21, 23, 52, 54, 56, 58) list both; the front ones (1, 3, and the
+secure-only 4 and 90) list neither, although Samsung Camera records HDR10+ selfie video through its own
+vendor path.
+
+### Where CamX drops them
+
+All three come from the static-metadata builder in `/vendor/lib64/hw/camera.qcom.so` (a large tag switch
+that the symbols mislabel `CamX::Stabilization::ExecuteStabilization`, from 0x16887d0). It fills a local
+camera-info struct at `x29-0xb0` whose first field is the facing (1 = front, as the `LENS_FACING` case at
+0x1688b3c shows).
+
+- **Profile map** (`REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP`): the case branches past the map for a
+  front camera at 0x168aa48. The fix is a `nop` there.
+- **Recommended profile**: also skipped for a front camera, at 0x168a9a4. The fix branches to the common
+  path at 0x168de98.
+- **Capabilities**: the per-sensor list (count at caps+0x13f8, at most 20) has no 18 for front sensors.
+  The list is copied byte by byte into `x19+0x2060`, then written with tag 0xc000c. The fix replaces
+  `mov w28, w10` at 0x1690234 with a branch to 15 instructions placed in the 1,120 zero bytes after `.plt`
+  (0x1945ba0, still inside the executable segment's last page). For a front camera whose list has at
+  least 2 entries and room for one more, they append 18, then do the replaced `mov` and jump back.
+  Cameras 4 and 90 list only `SECURE_IMAGE_DATA` and are left alone.
+
+A first attempt kept the old copy of the library mapped while the bind changed underneath it. The
+restarted camera driver then failed `hw_get_module` (-2) and crash-looped until the bind came off.
+Stopping the service (`setprop ctl.stop sec-camera-provider`) before touching the bind avoids that.
+
+### Tested (S918WVLU8GZIF, 2026-11-23)
+
+- `dumpsys media.camera`: cameras 1 and 3 list TEN_BIT with map `[2 0]` and recommended profile 2.
+  Cameras 4 and 90 are unchanged.
+- A Camera2 test app (HLG10 on both a P010 `ImageReader` and an HEVC encoder surface) on cameras 1, 3
+  and 0: the session configures, P010 frames carry true 10-bit samples (the low 2 bits are set in about
+  75% of samples; an 8-bit source would give 0%), and the MP4 is HEVC Main 10, BT.2020, ARIB STD-B67
+  (HLG).
+- Samsung Camera: rear photo, front photo and front HDR10+ video still work. No driver crash.

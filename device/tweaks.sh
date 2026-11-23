@@ -19,7 +19,7 @@
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
 #         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
-#         callscreen  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
+#         callscreen tenbit  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
 # runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
@@ -38,7 +38,7 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -540,6 +540,51 @@ hdr2023_bind() {   # after layers_mount: an overlay on /system/lib64 would hide 
   log "hdr2023: 2023 ArcSoft hybrid HDR and bracketed HDR on"
 }
 
+# 10-bit HDR video from the front cameras for any app (Camera2 DYNAMIC_RANGE_TEN_BIT, HLG10). The camera
+# driver (CamX, /vendor/lib64/hw/camera.qcom.so) builds the 10-bit profile list, the recommended profile
+# and the TEN_BIT capability only for rear cameras, so Android refuses 10-bit streams on the selfie
+# cameras, though their sensors and pipeline produce them (Samsung Camera records HDR10+ selfie video).
+# Make a copy of the stock driver with 4 changes (77 bytes): the profile list and recommended profile no
+# longer skip front cameras, and a jump to 15 new instructions in the zero padding after .plt appends
+# TEN_BIT (18) to a front camera's capability list (not the secure-only ids 4 and 90, which list one
+# capability). Bound from /data; the copy is made on the phone and checked against its known MD5. The
+# camera driver service is restarted around the bind; if it doesn't stay up, the bind comes off again.
+TB_LIB=/vendor/lib64/hw/camera.qcom.so
+TB_STOCK=c240797dced91dd2a67ce2a3ef6204a4    # S918WVLU8GZIF
+TB_MD5=e951eaa508a692fdd098bae5176a2c97
+TB_PATCH="0x168a9a4:3d0d0014 0x168aa48:1f2003d5 0x1690234:5bd60a14
+0x1945ba0:a9c302d1290140b93f050071410100545f090071030100545f4d0071c8000054690a4091298101914b0280522b492a384a050011fc030a2a9829f517"
+TB_SVC=sec-camera-provider
+tb_pid() { pidof vendor.samsung.hardware.camera.provider-service_64; }
+tb_restart() {   # stop the camera driver, run "$@" while it's down, start it, wait until it stays up
+  am force-stop com.sec.android.app.camera
+  setprop ctl.stop $TB_SVC; n=50; while [ -n "$(tb_pid)" ] && [ $n -gt 0 ]; do n=$((n-1)); sleep 0.1; done
+  "$@"
+  setprop ctl.start $TB_SVC; sleep 6; p=$(tb_pid); [ -n "$p" ] || return 1
+  sleep 4; [ "$(tb_pid)" = "$p" ]
+}
+tb_unbind() { while bound $TB_LIB; do umount $TB_LIB || return 1; done; }
+tb_bind() { tb_unbind && mount -o bind,ro $V/tenbit.so $TB_LIB; }
+tenbit_apply() {
+  if bound $TB_LIB; then [ "$(md5 $TB_LIB)" = $TB_MD5 ] && { log "tenbit: already on"; return 0; }
+    log "tenbit: something else is bound over $TB_LIB; skipped"; return 1; fi
+  [ "$(md5 $TB_LIB)" = $TB_STOCK ] || { log "tenbit: this camera driver isn't S918WVLU8GZIF's; skipped"; return 1; }
+  if [ "$(md5 $V/tenbit.so)" != $TB_MD5 ]; then
+    cp $TB_LIB $V/tenbit.tmp || { log "tenbit: no room for the 27 MB copy; skipped"; return 1; }
+    for x in $TB_PATCH; do
+      printf "$(echo ${x#*:} | sed 's/../\\x&/g')" | dd of=$V/tenbit.tmp bs=1 seek=$((${x%%:*})) conv=notrunc 2>/dev/null
+    done
+    [ "$(md5 $V/tenbit.tmp)" = $TB_MD5 ] || { rm -f $V/tenbit.tmp; log "tenbit: patching failed; skipped"; return 1; }
+    mv $V/tenbit.tmp $V/tenbit.so
+  fi
+  chown 0:0 $V/tenbit.so; chmod 644 $V/tenbit.so; chcon u:object_r:vendor_file:s0 $V/tenbit.so
+  if tb_restart tb_bind && bound $TB_LIB; then
+    log "tenbit: front cameras offer 10-bit HDR (HLG10) video to apps"
+  else
+    tb_restart tb_unbind; log "tenbit: the camera driver didn't stay up with the change; put the stock one back"; return 1
+  fi
+}
+
 # Audio Eraser (Gallery > video > Edit > Audio eraser). The S23's video editor engine was built with
 # its audio scanner compiled out ("AudioScanner is not supported"), and the S23 lacks the S24's
 # sound-separation libraries and models. Only Gallery's video editor loads the engine.
@@ -834,6 +879,7 @@ why_not() {
       [ -n "$(ead_row)" ] || echo "needs firmware $(ead_builds) (it patches that build's Settings app; this phone runs $build)" ;;
     hotspot6g) [ -x /data/adb/ksu/bin/resetprop ] || echo "needs KernelSU's resetprop" ;;
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
+    tenbit) bound $TB_LIB || [ "$(md5 $TB_LIB)" = $TB_STOCK ] || echo "needs the camera driver of S918WVLU8GZIF (this phone runs $build)" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     galaxyai)
@@ -866,6 +912,7 @@ is_on() {
     audioeraser) [ -f /system/etc/fastScanner.tflite ] ;;
     hdr2023) bound /system/lib64/libae_bracket_hdr.arcsoft.so && bound /system/lib64/libhybrid_high_dynamic_range.arcsoft.so ;;
     colortone) bound $SETTINGS ;;
+    tenbit) bound $TB_LIB && [ "$(md5 $TB_LIB)" = $TB_MD5 ] ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
     *) return 1 ;;
   esac
@@ -915,6 +962,7 @@ $CF_HLOCK"
   camfeat_apply && restart=1
   # 4K auto framing (untested): the S24's UHD setting for auto framing in video
   has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
+  has tenbit && tenbit_apply   # restarts only the camera driver
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
@@ -995,6 +1043,7 @@ status)
   echo "callscreen: Language Core $(dumpsys package $LC_PKG 2>/dev/null | grep -m1 -oE 'versionName=[^ ]+' | cut -d= -f2)"
   echo "camerahdr: libraries $([ -f /system/lib64/liblow_light_hdr.arcsoft.so ] && echo on || echo off), list entries $(grep -q 'mfhdr.arcsoft.v4' $FF && echo on || echo off)"
   echo "hdr2023:  $(same_size /system/lib64/libae_bracket_hdr.arcsoft.so $PL/hdr2023/libae_bracket_hdr.arcsoft.so && same_size /system/lib64/libhybrid_high_dynamic_range.arcsoft.so $PL/hdr2023/libhybrid_high_dynamic_range.arcsoft.so && echo "2023 engines" || echo stock)"
+  echo "tenbit:   front-camera 10-bit $(bound $TB_LIB && [ "$(md5 $TB_LIB)" = $TB_MD5 ] && echo on || echo off)"
   echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"

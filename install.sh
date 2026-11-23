@@ -58,6 +58,7 @@ k_ok=0; for f in $AIRDROP_FW; do [ "$kernel" = "$AIRDROP_KBASE$f" ] && k_ok=1; d
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 can_rec=$can_csc; why_rec="needs XAC (Canadian) or EUX (European) firmware"; [ "$csc $build" = "EUX S918BXXUAGZIF" ] && can_rec=1   # CALLREC_CSC in device/tweaks.sh
 can_ct=1; why_ct=""; case "$build" in S918WVLU8GZIF|S918BXXUAGZIF) ;; *) can_ct=0; why_ct="needs firmware S918WVLU8GZIF or S918BXXUAGZIF (it patches that build's Settings app)" ;; esac   # SETTINGS_EAD in device/tweaks.sh
+can_tb=1; why_tb=""; [ "$build" = S918WVLU8GZIF ] || { can_tb=0; why_tb="needs firmware S918WVLU8GZIF (it patches that build's camera driver)"; }   # TB_STOCK in device/tweaks.sh
 # an Indian SIM (MCC 404/405) makes the carrier picks take the India config instead of plain call recording
 sim=$(sh_ getprop gsm.sim.operator.numeric | cut -d, -f1); sim_india=0; carrier_skip=india
 case "$sim" in 404*|405*) sim_india=1; carrier_skip=callrec ;; esac
@@ -70,12 +71,12 @@ lc_have=$(sh_ "dumpsys package com.samsung.android.offline.languagemodel 2>/dev/
 
 # Tweaks, grouped in categories. A category letter picks every available tweak in it.
 ids=(airdrop wifi7 hotspot6g
-     logvideo camextras camerahdr hdr2023 autoframe
+     logvideo camextras camerahdr hdr2023 autoframe tenbit
      display colortone vulkan
      galaxyai audioeraser settingssearch callscreen bargein
      battery features
      callrec india)
-cat=(A A A  B B B B B  C C C  D D D D D  E E  F F)
+cat=(A A A  B B B B B B  C C C  D D D D D  E E  F F)
 cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier (XAC or EUX firmware)")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
@@ -86,6 +87,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"
       "2023 ArcSoft HDR: the HDR engines of One UI 6 instead of today's (hybrid + bracketed HDR; 28 MB download; pick it by number)"
       "4K auto framing: the S24's UHD auto framing in video (reported to make the camera fail; pick it by number)"
+      "Front-camera 10-bit: apps can record 10-bit HDR (HLG10) video with the selfie cameras (patches a copy of the camera driver)"
       "Vividness slider (Screen mode > Advanced settings) and lock screen wallpaper on Always On Display"
       "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
       "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
@@ -98,8 +100,8 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "Call recording in the Samsung Phone app"
       "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards; sales code stays XAC")
-avail=($can_airdrop $can_airdrop 1  1 1 1 1 1  1 $can_ct 1  1 1 1 $can_lc 1  1 1  $can_rec $can_csc)
-why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" ""  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" ""  "$why_rec" "$why_csc")
+avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 $can_tb  1 $can_ct 1  1 1 1 $can_lc 1  1 1  $can_rec $can_csc)
+why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" "$why_tb"  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" ""  "$why_rec" "$why_csc")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
