@@ -319,6 +319,11 @@ airdrop_post() {
   n=20; until service check com.google.android.moseyservice.IMoseyService/default | grep -q found; do
     n=$((n-1)); [ $n = 0 ] && fail "IMoseyService did not register"; sleep 1; done
   log "airdrop: mosey_server running"
+  # Mosey 1.0.980159239 and later check for IMoseyService once, at boot, and disable their own
+  # ExternalSharingService when it isn't there, which it never is yet: mosey_server only starts here.
+  # Play services then finds no AirDrop provider. Enable it again now that the service is registered.
+  pm enable --user 0 com.google.android.mosey/.ExternalSharingService >/dev/null 2>&1 &&
+    log "airdrop: Mosey's sharing service enabled" || log "airdrop: warning: could not enable Mosey's sharing service"
   gms_flags
 }
 
