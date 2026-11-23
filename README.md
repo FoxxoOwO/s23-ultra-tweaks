@@ -10,7 +10,7 @@ category or single tweaks.
 | 1 | Connectivity | `airdrop` | **AirDrop with iPhones, iPads and Macs.** Quick Share → *Share with Apple devices* | One UI 9 build **GZIF** on SM-S918W, S918B, S918U1, S918U or S918N. Tested on the S918W and S918B; the others have the same Wi-Fi drivers and kernel symbols (checked against their firmware files) |
 | 2 | Connectivity | `wifi7` | **Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes `airdrop` | same as `airdrop` |
 | 3 | Connectivity | `hotspot6g` | **6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz | any S23 Ultra on One UI 9 |
-| 4 | Camera | `logvideo` | **Log video**: Camera → Pro video gets the LOG button and LUT preview (10-bit HEVC) | any S23 Ultra on One UI 9 |
+| 4 | Camera | `logvideo` | **Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23 HAL can't | any S23 Ultra on One UI 9 |
 | 5 | Camera | `camextras` | **Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** | any S23 Ultra on One UI 9 |
 | 6 | Camera | `camerahdr` | **Camera HDR processing**: puts back the multi-frame HDR and low-light HDR steps One UI 9 removed from the S23 (see [docs/findings.md](docs/findings.md)). **Untested** | any S23 Ultra on One UI 9 (21 MB download) |
 | 7 | Camera | `autoframe` | **4K auto framing** in video, as on the S24. **Reported to make the camera fail** (S918B), so a Camera category pick leaves it out | any S23 Ultra on One UI 9 |

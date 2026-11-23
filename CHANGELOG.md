@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Log video no longer crashes the camera.** It turned on the LUT preview button too, and tapping it crashed Camera (the LUT preview is drawn by the S24's camera HAL; the S23's has no such code). The button is gone; Log recording is unchanged.
+
 ## v1.2.3
 
 - **AOD wallpaper brightness** (`display`): the lock screen wallpaper on Always On Display showed bright for a few seconds and then dropped sharply. The tweak no longer sets the S24's `LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION`; only `LCD_CONFIG_AOD_FULLSCREEN` turns the wallpaper on. Not yet tested on a phone.

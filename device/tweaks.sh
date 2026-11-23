@@ -367,13 +367,13 @@ ff_apply() {
 }
 
 # Camera settings added on top of the phone's own camera-feature.xml (rebuilt from stock each apply):
-#  logvideo: the S24's Log recording and LUT preview in Pro video (the S23's sensor/HAL already
-#            records 10-bit Log)
+#  logvideo: the S24's Log recording in Pro video (the S23's sensor/HAL already records 10-bit
+#            Log). Not SUPPORT_PREVIEW_LUT: the LUT preview is drawn by the S24 camera HAL (its
+#            LogConverter uniplugin); the S23 HAL has none, and the LUT button crashed the camera.
 #  camextras: Super steady's horizontal lock (a third Super steady option, recorded fine on the S23)
 # Never add SUPPORT_BACK_WIDE_NORMAL_DUAL_PORTRAIT_VIDEO, SUPPORT_BACK_PORTRAIT_VIDEO_TELE_DUAL or
 # CAMERA_SUPPORT_SEAMLESS_PORTRAITVIDEO: on the S23 they crash the camera ("Zoom is not supported").
-CF_LOG='<local name="SUPPORT_LOG_VIDEO" value="true"/>
-<local name="SUPPORT_PREVIEW_LUT" value="true"/>'
+CF_LOG='<local name="SUPPORT_LOG_VIDEO" value="true"/>'
 CF_HLOCK='<local name="SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK" value="true"/>'
 cf_add=""
 camfeat_apply() {

@@ -81,7 +81,7 @@ catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung a
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
       "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds AirDrop)"
       "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz)"
-      "Log video: Log recording and LUT preview in Camera > Pro video"
+      "Log video: Log recording in Camera > Pro video"
       "Camera extras: Director's view (front + back at once) and Super steady horizontal lock"
       "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"
       "4K auto framing: the S24's UHD auto framing in video (reported to make the camera fail; pick it by number)"
