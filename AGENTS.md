@@ -157,6 +157,11 @@ These replace three XAC files with plain-XML versions. Samsung's parser accepts 
 - Another sales code for `callrec`: add a line to `CALLREC_CSC` in `tweaks.sh` (sales code, firmware, path and MD5 of the stock `cscfeature.xml`, folder in `device/files/`) and to `can_rec` in `install.sh`. The file is the decoded stock one plus the two recording keys. Multi-country files (`/optics/configs/carriers/single/<CSC>`, e.g. EUX) have one `FeatureSet` per country; add the keys to every one.
 - The MD5 gates in `tweaks.sh` (`XAC_*_MD5`) make the tweak refuse to run on any other stock file. For a new firmware, make new files from **that** firmware's stock files and update the MD5s. Never reuse files across firmware versions.
 
+## Releasing
+
+- Build the zip with `module/build.sh`. Bump the version in `CHANGELOG.md`, `install.sh`, `module/module.prop` (version and versionCode) and `module/update.json`.
+- Publish module releases as normal releases marked **Latest**, not pre-releases. The README links to `releases/latest`, which skips pre-releases. Only the `payloads-<firmware>` releases (tweak files, not the module) stay pre-releases, so they never become Latest.
+
 ## Known dead ends (don't retry)
 
 - **Wi-Fi 7 hotspot:** the S23's `hostapd` has no 802.11be code. The S24's logs `CONFIG_IEEE80211BE not  for hostapd` and fails `addAccessPoint`. A 6 GHz Wi-Fi 6E hotspot works with the stock hostapd.

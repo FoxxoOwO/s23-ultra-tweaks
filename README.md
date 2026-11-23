@@ -55,7 +55,7 @@ You need:
 
 ### On the phone: KernelSU module (no computer)
 
-1. Download `s23-ultra-tweaks-v1.0.0.zip` from this repo's [Releases](https://github.com/dtechterminal/s23-ultra-tweaks/releases) on the phone.
+1. On the phone, download the `s23-ultra-tweaks-v….zip` file from the [latest release](https://github.com/dtechterminal/s23-ultra-tweaks/releases/latest).
 2. Open **KernelSU** → **Modules** → **Install** and pick the zip. It checks that this is an S23 Ultra and whether the AirDrop files match your firmware.
 3. **Reboot.** DFRoot roots the phone by itself during boot and KernelSU activates the module.
 4. Open **KernelSU** → **Modules** → **S23 Ultra Tweaks** → the page icon. Tick the tweaks you want, switch on **Apply at every boot** if you like, and tap **Apply**.
