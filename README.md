@@ -134,6 +134,21 @@ Samsung's S24-and-newer phones do AirDrop through Google's **Mosey** stack. The 
 
 A watchdog script also runs. If the Wi-Fi firmware ever crashes, it saves the kernel log and reboots cleanly. Without it, the S24 driver's recovery leaves the phone to hard-reset about a minute later.
 
+## Reporting a problem
+
+Module page → Status → **Make a bug report**. It saves one text file in Download and offers to copy it.
+Attach the file (or paste the text) in a [new issue](https://github.com/dtechterminal/s23-ultra-tweaks/issues),
+with what you expected and what happened. Without the module page:
+
+```sh
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh report"   # prints the file's path
+```
+
+The report has the phone model, firmware, kernel and app versions, which tweaks are on and why any
+aren't offered, the camera and feature settings the tweaks change (and what the phone had before),
+the files the module mounts, the last apply and boot logs, and summaries of recent crashes. It leaves
+out the serial number, email addresses, MAC addresses and long numbers such as the IMEI.
+
 ## Status and logs
 
 The module page shows all of this. From a computer (if you used the computer installer instead of the module, the script is `/data/adb/s23tweaks/tweaks.sh`):

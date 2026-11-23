@@ -10,6 +10,7 @@
 #   apply "<tweaks>"  the same in the foreground (what start runs)
 #   probe             one line of JSON: phone, which tweaks it can take and why not, what's active
 #   status            print what is active
+#   report            write a bug report (phone, tweaks, logs, crash summaries; no personal data) to Download
 #   unflag            remove the two Play services flag overrides that the airdrop tweak adds
 #   autostart on|off  re-apply the saved tweaks at every boot. DFRoot roots the phone by itself at
 #                     boot, then KernelSU runs the module's service.sh (module) or a script in
@@ -352,6 +353,8 @@ ff_apply() {
   mkdir -p $R; bound $FF && umount $FF       # rebuild from the stock file each time
   for t in $ff_tags; do grep -q "<SEC_FLOATING_FEATURE_$t>TRUE<" $FF || ff_set $t TRUE; done
   printf '%s' "$ff_kv" > $R/ff.kv
+  o=$(for k in $(cut -d= -f1 $R/ff.kv); do grep -m1 -o "<SEC_FLOATING_FEATURE_$k>[^<]*" $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/'; done | tr '\n' ' ')
+  [ -n "$o" ] && log "feature flags: stock values $o"
   # replace the values of tags the file has; add the rest before the closing tag
   awk -v kvf=$R/ff.kv '
     BEGIN { while ((getline l < kvf) > 0) { i = index(l, "="); k = substr(l, 1, i - 1); val[k] = substr(l, i + 1); ord[++n] = k } }
@@ -386,6 +389,7 @@ camfeat_apply() {
   printf '%s\n' "$cf_add" | while read -r l; do
     [ -n "$l" ] || continue
     n=$(echo "$l" | sed 's/.*name="\([^"]*\)".*/\1/')
+    o=$(grep -m1 "name=\"$n\"" $CF | sed 's/^ *//'); [ -n "$o" ] && log "camera: stock camera-feature.xml had $o"
     grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
     echo "    $l" >> $R/cf.new
   done
@@ -1086,12 +1090,12 @@ status)
   echo "airdrop:  modules [$(grep -oE '^(wonder|bwfix) ' /proc/modules | tr -d '\n')]," \
        "Mosey $(bound /system_ext/bin && echo on || echo off), daemon $(running loop && echo running || echo stopped)," \
        "$(service check com.google.android.moseyservice.IMoseyService/default | sed 's/.*: //')"
-  echo "features: $(bound $FF && grep -oE 'SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
+  echo "features: $(bound $FF && grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
   echo "battery:  auth IC $(mounted /sys/class/power_supply tmpfs && echo presented || { [ -e /sys/class/power_supply/sec_auth ] && echo "real (presence $(cat /sys/class/power_supply/sec_auth/presence 2>/dev/null), auth $(cat /sys/class/power_supply/sec_auth/batt_auth 2>/dev/null))" || echo off; }),"\
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<' $FF && echo on || echo off)"
-  echo "logvideo: $(bound $CF && grep -q SUPPORT_LOG_VIDEO $CF && echo on || echo off)"
-  echo "camextras: horizon lock $(bound $CF && grep -q SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK $CF && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
+  echo "logvideo: $(is_on logvideo && echo on || echo off)"
+  echo "camextras: horizon lock $(is_on camextras && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
   echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
   echo "settingssearch: $(bound /system/$SSI/SecSettingsIntelligence.apk && echo S24 || echo stock)"
@@ -1135,6 +1139,55 @@ cleanup)
   say "done; the next reboot removes what's still mounted"
   case "$0" in /dev/*) rm -f "$0" ;; esac
   exit 0
+  ;;
+report)
+  # One text file for bug reports: phone and firmware, what each tweak found, the stock values and files
+  # it depends on, the last logs and recent crash summaries. Leaves out the serial number, email
+  # addresses, MAC addresses and long numbers (IMEI). Saved in Download; the last line is its path.
+  phone_facts; mkdir -p /sdcard/Download
+  out=/sdcard/Download/s23-ultra-tweaks-report-$(date +%Y%m%d-%H%M%S).txt
+  ver() { dumpsys package $1 2>/dev/null | grep -m1 -oE 'versionName=[^ ]+' | cut -d= -f2; }
+  sec() { printf '\n===== %s =====\n' "$1"; }
+  sn=$(getprop ro.serialno)
+  {
+    echo "s23-ultra-tweaks report, $(date '+%Y-%m-%d %H:%M:%S %z')"
+    echo "module $( [ $MODULE = 1 ] && grep -m1 '^version=' $D/module.prop | cut -d= -f2 || echo "script (install.sh)")"
+    sec phone
+    echo "model $model, firmware $build, CSC $csc, Android $(getprop ro.build.version.release) (One UI $(o=$(getprop ro.build.version.oneui); echo $((o / 10000)).$((o / 100 % 100)))), patch $(getprop ro.build.version.security_patch)"
+    echo "kernel $(uname -r)"
+    echo "root: $(/data/adb/ksud -V 2>/dev/null || echo "no KernelSU ksud"), SELinux $(getenforce)"
+    echo "apps: Play services $(ver com.google.android.gms) ($gms), Camera $(ver com.sec.android.app.camera), Settings $(ver com.android.settings), Quick Share $(ver com.samsung.android.app.sharelive)"
+    echo "SIM operator $(getprop gsm.sim.operator.numeric | cut -d, -f1), free on /data $(df -h /data | awk 'NR == 2 {print $4}')"
+    sec "tweaks (available, why not, active)"
+    sh $D/tweaks.sh probe | tr '{' '\n' | grep '"id"'
+    sec status
+    sh $D/tweaks.sh status
+    sec "what the tweaks depend on"
+    echo "airdrop/wifi7 kernel match: $(kernel_supported && echo yes || echo "no (supported: $AIRDROP_FW)")"
+    echo "camera-feature.xml ($(bound $CF && echo "module's copy" || echo stock)):"
+    grep -E 'LOG_VIDEO|PREVIEW_LUT|HORIZONTAL_LOCK|AUTO_FRAMING|MULTI_RECORDING' $CF | sed 's/^ */  /'
+    echo "floating_feature.xml ($(bound $FF && echo "module's copy" || echo stock)):"
+    grep -oE '<SEC_FLOATING_FEATURE_(CAMERA_CONFIG_(LOG_VIDEO|AUTOFRAMING|VENDOR_LIB_INFO)|GALLERY_SUPPORT_LOG_CORRECT_COLOR|LCD_CONFIG_(VIVIDNESS|VIVIDPLUS|AOD_FULLSCREEN)|BIXBY_CONFIG_BARGEIN_PARAM_MODE|BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_SUPPORT_AUTO_POWER_ON_OFF)>[^<]*' $FF |
+      sed 's/<SEC_FLOATING_FEATURE_/  /; s/>/=/' | cut -c1-200
+    echo "camera driver: $(md5 $TB_LIB) $(bound $TB_LIB && echo "(module's copy, made from $(cat $V/tenbit.src 2>/dev/null))")"
+    echo "mounts from the module:"
+    awk '$4 ~ /s23tweaks/ || $10 ~ /s23tweaks/ {print "  " $5 " <- " $4 " (" $9 ")"}' /proc/self/mountinfo | sort -u | head -80
+    sec "tweaks.log (last apply)"
+    cat $L 2>/dev/null
+    sec "boot.log (last 60 lines)"
+    tail -n 60 $V/boot.log 2>/dev/null
+    sec "native crashes in the last 2 days (count, newest, process, signal, abort message)"
+    for t in $(find /data/tombstones -name 'tombstone_[0-9]*' ! -name '*.pb' -mtime -2 2>/dev/null); do
+      printf '%s|%s | %s | %s\n' "$(grep -m1 '^Timestamp' $t | cut -c12-30)" "$(grep -m1 '^Cmdline' $t | cut -c10- | cut -d' ' -f1)" \
+        "$(grep -m1 '^signal' $t | cut -d, -f1)" "$(grep -m1 '^Abort message' $t | cut -c16-200)"
+    done | sort -r | awk -F'|' '{ k = substr($0, index($0, "|") + 1); n[k]++; if (!(k in t)) { t[k] = $1; o[++m] = k } }
+      END { for (i = 1; i <= m; i++) printf "%dx  %s |%s\n", n[o[i]], t[o[i]], o[i] }'
+    sec "app crashes (crash log)"
+    logcat -d -b crash -t 400 2>/dev/null | grep -E 'FATAL EXCEPTION|Process: |AndroidRuntime: (Caused by|[A-Za-z0-9_.$]+(Exception|Error))' | tail -n 40
+  } 2>&1 | sed -E -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g' \
+      -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<mac>/g' -e 's/(^|[^0-9])[0-9]{14,17}([^0-9]|$)/\1<number>\2/g' |
+    if [ -n "$sn" ]; then sed "s/$sn/<serial>/g"; else cat; fi > $out
+  echo "$out"
   ;;
 unflag)
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db; SQ=$AIR/sqlite3; W=$R/gms

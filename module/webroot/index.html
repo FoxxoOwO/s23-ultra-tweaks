@@ -301,6 +301,7 @@ details .inner { padding: 0 16px 14px; }
       <ul class="active-list" id="active-list"></ul>
       <div class="btns">
         <button class="btn" id="refresh" type="button">Refresh status</button>
+        <button class="btn" id="report" type="button">Make a bug report</button>
         <button class="btn" id="wifi7page" type="button">Open Wi-Fi 7 settings page</button>
         <button class="btn danger" id="unflag" type="button">Remove Play services flags</button>
       </div>
@@ -821,7 +822,8 @@ function failed(reason, lg) {
   if (lg) store(DISMISS_KEY, lg.mtime + "|FAILED: " + reason);
   $("p-result").append(h("div", { class: "notice err", role: "alert" },
     h("h3", { text: "The apply failed" }), h("p", { text: reason || "(no reason given)" }),
-    h("p", { class: "small", text: "Anything already applied stays until a reboot." })));
+    h("p", { class: "small", text: "Anything already applied stays until a reboot." }),
+    h("button", { class: "btn", type: "button", text: "Make a bug report", onclick: e => onReport(e) })));
 }
 function showErrorIn(box, e) { box.append(errorCard(e.title || "Error", detailOf(e.r))); }
 
@@ -882,6 +884,32 @@ async function onUnflag(e) {
   toast(r.stdout.trim().split("\n").pop() || "Done");
 }
 
+const ISSUES_URL = "https://github.com/dtechterminal/s23-ultra-tweaks/issues";
+function copyText(text) {
+  try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => true, () => copyFallback(text)); } catch (e) { /* fall through */ }
+  return Promise.resolve(copyFallback(text));
+}
+function copyFallback(text) {
+  const ta = h("textarea", { style: "position:fixed;top:-1000px;opacity:0" }); ta.value = text;
+  document.body.append(ta); ta.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove(); return ok;
+}
+async function onReport(e) {
+  const b = e.target, label = b.textContent; b.disabled = true; b.textContent = "Collecting…";
+  const r = await exec(TW + " report", 90000);
+  const path = (r.stdout || "").trim().split("\n").pop();
+  const r2 = r.errno === 0 && path ? await exec("cat '" + path + "'", 15000) : r;
+  b.disabled = false; b.textContent = label;
+  if (r.errno !== 0 || r2.errno !== 0) { showError("Couldn't make the bug report", r.errno !== 0 ? r : r2); return; }
+  const body = h("div", {},
+    h("p", { text: "Saved as " + path.replace("/sdcard/", "") + ". It lists your phone model and firmware, which tweaks are on and why others aren't offered, the camera and feature settings the tweaks change, the last apply log and recent crash summaries. Serial number, email and MAC addresses are left out." }),
+    h("p", { class: "small", text: "Attach the file, or paste the copied text, in a new issue at " + ISSUES_URL + " or wherever you're reporting, with what you expected and what happened." }),
+    h("pre", { text: r2.stdout }));
+  if (!(await confirmDialog({ title: "Bug report ready", body, ok: "Copy text" }))) return;
+  toast((await copyText(r2.stdout)) ? "Report copied" : "Couldn't copy; share the file from Download instead");
+}
+
 async function onBootLog(e) {
   if (!e.target.open) return;
   const pre = $("bootlog-pre"); pre.textContent = "Loading…";
@@ -911,6 +939,7 @@ function wire() {
   $("refresh").addEventListener("click", e => refresh(e.target));
   $("wifi7page").addEventListener("click", onWifi7Page);
   $("unflag").addEventListener("click", onUnflag);
+  $("report").addEventListener("click", onReport);
   $("bootlog").addEventListener("toggle", onBootLog);
   $("p-back").addEventListener("click", async () => {
     showMain(); $("banner").textContent = "";
@@ -1024,6 +1053,8 @@ function installMock() {
       const lt = logText(), up = ((now() - st.bootAt) / 1000).toFixed(2);
       return [0, up + " 3000.00\n" + Math.floor(now() / 1000) + "\n" + (lt.mtime || 0) + "\n---\n" + lt.text, "", 150];
     }
+    if (/ report$/.test(cmd)) return [0, "/sdcard/Download/s23-ultra-tweaks-report-20261123-120000.txt\n", "", 1500];
+    if (cmd.includes("s23-ultra-tweaks-report-")) return [0, "s23-ultra-tweaks report, 2026-11-23 12:00:00 +0530\nmodule " + (st.version || "mock") + "\n\n===== phone =====\nmodel SM-S918W, firmware S918WVLU8GZIF (mock)\n", "", 200];
     if (cmd.includes("boot.log")) return [0, st.autostart ? "2026-11-22 08:01:12 applying: " + st.picked + "\n2026-11-22 08:02:05 done\n" : "", "", 200];
     return [127, "", "mock: unknown command: " + cmd + "\n", 100];
   }
