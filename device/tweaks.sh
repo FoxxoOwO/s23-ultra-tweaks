@@ -1226,16 +1226,14 @@ loop)
 guard)
   # If the Wi-Fi firmware ever crashes, the S24 driver's recovery leaks the AirDrop interface and
   # ~50 s later the phone hard-resets. Stop the daemon, keep the log, and reboot cleanly instead.
-  hangs() { dmesg | grep -c "Received firmware hang event"; }
-  base=$(hangs)
-  while sleep 1; do
-    [ "$(hangs)" -gt "$base" ] || continue
-    log "Wi-Fi firmware crashed: saving the kernel log and rebooting"
-    echo "the Wi-Fi firmware crashed before the last reboot (log saved in $V)" > $V/boot.skip
-    ps -A -o PID,ARGS | grep "[t]weaks.sh loop" | while read pid rest; do kill $pid; done
-    pkill mosey_server; sleep 3; dmesg > $V/fwcrash_$(cut -d. -f1 /proc/uptime).txt; sync
-    reboot
-  done
+  # dmesg -W blocks until the kernel logs something new and prints only new lines, so this waits without
+  # using CPU. (Reading the whole kernel log every second instead cost about a third of an idle phone's CPU.)
+  until dmesg -W | grep -q -m1 "Received firmware hang event"; do sleep 5; done   # retry only if dmesg ends
+  log "Wi-Fi firmware crashed: saving the kernel log and rebooting"
+  echo "the Wi-Fi firmware crashed before the last reboot (log saved in $V)" > $V/boot.skip
+  ps -A -o PID,ARGS | grep "[t]weaks.sh loop" | while read pid rest; do kill $pid; done
+  pkill mosey_server; sleep 3; dmesg > $V/fwcrash_$(cut -d. -f1 /proc/uptime).txt; sync
+  reboot
   ;;
 status)
   echo "saved choices: $(cat $V/choices 2>/dev/null); $(sh $D/tweaks.sh autostart)"
