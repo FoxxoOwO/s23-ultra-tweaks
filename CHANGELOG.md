@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.7
 
 - **AirDrop loads after hours of uptime** (issue #7). Applying `airdrop` long after a reboot could fail with "Failed to register mac80211 hardware. Ret: -12": mac80211 needs one 128 KB block of contiguous memory for its transmit queues, and the kernel gives up on a block that large once memory is fragmented. `wonder.ko` now asks for a block that size first in a way that makes the kernel reclaim and compact until it gets one, and frees it just before registering. Tested on S918WVLU8GZIF at 2.6 hours uptime: the old `wonder.ko` failed 6 times in a row, the new one loaded first time. If it still fails, `tweaks.sh` compacts memory and retries twice. The AirDrop download is now `airdrop-S918WVLU8GZIF-2.tar.gz` (only `wonder.ko` changed).
 - **Re-applying after a failed AirDrop load no longer swaps the Wi-Fi driver again.** When the S24 driver and firmware are already in and only `wonder` is missing, the apply loads just `wonder`. Before, each retry dropped Wi-Fi, stacked another firmware overlay and could fail with "firmware overlay".
