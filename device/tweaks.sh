@@ -792,46 +792,108 @@ ha_patch() {
   for a in $offs; do tb_wr $O $a $((0x1e27d000 | (0x$(tb_rd $F $a 4) & 31))); done   # fmov sN, #30.0
   echo "levelling up to 30 degrees"
 }
+# The preview runs its own stabilizer pair (EIS v2: node and com.qti.eisv2.so). Its node is newer code:
+# a GetHorizonLevelingOverride that copies the tag's enable and maximum into the per-sensor block if the
+# tag is found, else only logs "Use tuning". hl2_patch replaces that log with: if CheckSuperSteadyMode()
+# is 2, enable = 1 and maximum = 30. Its stabilizer takes ha_patch as is (same 16-load run).
+HL2_LIB=/vendor/lib64/camera/components/com.qti.node.eisv2.so
+HA2_LIB=/vendor/lib64/camera/components/com.qti.eisv2.so
+# hl2_find FILE: "L 0x.." the tag lookup's "ldr x4,[x30,#144]" (then "P 0x.." the ldr x30,[sp,#..] before
+# it), "F 0x.." the found path's two stores, "T 0x.." each tuning join, "C 0x.." CheckSuperSteadyMode
+hl2_find() {
+  od -An -v -tx4 -w4 "$1" | awk '
+    { w[NR] = $1 }
+    END {
+      for (i = 1; i + 9 <= NR; i++) {
+        if (w[i] == "f9404bc4" && w[i+1] ~ /^91...063$/ && w[i+2] == "aa1f03e0" && w[i+3] == "52800042" && w[i+4] == "2a1f03e5" &&
+            w[i+5] ~ /^b84184/ && w[i+6] ~ /^320301/ && w[i+7] ~ /^94/ && w[i+8] ~ /^b4/) {
+          printf "L 0x%x\n", (i - 1) * 4
+          for (k = i - 1; k > i - 12; k--) if (w[k] ~ /^f94.....$/ && w[k] ~ /fe$/) { printf "P 0x%x\n", (k - 1) * 4; break } }
+        if (w[i] ~ /^529....d$/ && w[i+1] ~ /^529....c$/ && w[i+2] == "f9006bff" && w[i+3] == "52800033" &&
+            w[i+4] == "b82d6a99" && w[i+5] == "b82c6a95") printf "F 0x%x\n", (i - 1) * 4
+        if (w[i] == "f9006bff" && w[i+1] == "52800033") printf "T 0x%x\n", (i - 1) * 4
+        if (w[i] == "b8410468" && w[i+1] == "32040901" && w[i+2] ~ /^94/) {
+          for (k = i; k > i - 24 && k > 0; k--) if (w[k] == "d503233f") break
+          if (w[k] == "d503233f") printf "C 0x%x\n", (k - 1) * 4 }
+      }
+    }'
+}
+# hl2_patch STOCK OUT: write the patched copy; says why not on failure
+hl2_patch() {
+  F=$1; O=$2; m=$(hl2_find $F)
+  for k in L P F C; do [ "$(echo "$m" | grep -c "^$k ")" = 1 ] || { echo "its preview EIS code differs (part $k found $(echo "$m" | grep -c "^$k ") times)"; return 1; }; done
+  L=$(($(echo "$m" | awk '$1=="L"{print $2}'))); P=$(($(echo "$m" | awk '$1=="P"{print $2}')))
+  FB=$(($(echo "$m" | awk '$1=="F"{print $2}'))); C=$(($(echo "$m" | awk '$1=="C"{print $2}')))
+  cb=$((0x$(tb_rd $F $((L + 32)) 4)))                                     # cbz x0, N
+  N=$(((cb >> 5) & 0x7ffff)); [ $N -ge 262144 ] && N=$((N - 524288)); N=$((L + 32 + N * 4))
+  T=""; for t in $(echo "$m" | awk '$1=="T"{print $2}'); do [ -z "$T" ] && [ $((t)) -gt $N ] && [ $((t)) -lt $((N + 0x200)) ] && T=$((t)); done
+  [ -n "$T" ] && [ $((T - N)) -ge 48 ] && [ $FB -gt $L ] && [ $FB -lt $N ] || { echo "its preview EIS code is laid out differently"; return 1; }
+  SL=$((((0x$(tb_rd $F $P 4)) >> 10 & 0xfff) * 8))                        # the node's stack slot
+  EN=$(((0x$(tb_rd $F $FB 4) >> 5) & 0xffff)); MX=$(((0x$(tb_rd $F $((FB + 4)) 4) >> 5) & 0xffff))
+  cp $F $O || { echo "no room for a copy"; return 1; }
+  tb_wr $O $N $((0xf94003e0 | (SL / 8) << 10))                            # ldr x0, [sp, #node]
+  tb_wr $O $((N + 4)) 0xf9404800                                           # ldr x0, [x0, #144]
+  tb_wr $O $((N + 8)) $((0x94000000 | ((C - N - 8) / 4 & 0x3ffffff)))      # bl CheckSuperSteadyMode
+  tb_wr $O $((N + 12)) 0x7100081f                                          # cmp w0, #2
+  tb_wr $O $((N + 16)) $((0x54000001 | (((T - N - 16) / 4 & 0x7ffff) << 5)))   # b.ne tuning
+  tb_wr $O $((N + 20)) $((0x52800008 | (EN << 5)))                        # mov w8, #enable field
+  tb_wr $O $((N + 24)) 0x52800029                                          # mov w9, #1
+  tb_wr $O $((N + 28)) 0xb8286a89                                          # str w9, [x20, x8]
+  tb_wr $O $((N + 32)) $((0x52800008 | (MX << 5)))                        # mov w8, #maximum field
+  tb_wr $O $((N + 36)) 0x52a83e09                                          # mov w9, #30.0
+  tb_wr $O $((N + 40)) 0xb8286a89                                          # str w9, [x20, x8]
+  tb_wr $O $((N + 44)) $(tb_b $((N + 44)) $T)                              # b tuning
+  printf 'check at 0x%x, enable field 0x%x' $N $EN
+}
+# target:copy:patcher. The record-side node copy is the one levelling needs; the others widen it
+HL_SET="$HL_LIB:hlock:hl_patch $HA_LIB:hlalgo:ha_patch $HL2_LIB:hl2node:hl2_patch $HA2_LIB:hl2algo:ha_patch"
 hl_unbind() {
-  while bound $HL_LIB; do umount $HL_LIB || return 1; done
-  while bound $HA_LIB; do umount $HA_LIB || return 1; done
+  for e in $HL_SET; do t=${e%%:*}; while bound $t; do umount $t || return 1; done; done
 }
 hl_bind() {
-  hl_unbind && mount -o bind,ro $V/hlock.so $HL_LIB &&
-    { [ ! -f $V/hlalgo.so ] || mount -o bind,ro $V/hlalgo.so $HA_LIB; }
+  hl_unbind || return 1
+  for e in $HL_SET; do t=${e%%:*}; c=${e#*:}; c=$V/${c%%:*}.so
+    [ ! -f $c ] || mount -o bind,ro $c $t || return 1; done
+}
+# hl_ours: every copy we have is bound, and every target without a copy is stock and known not to patch
+hl_ours() {
+  for e in $HL_SET; do t=${e%%:*}; n=${e#*:}; n=${n%%:*}
+    if [ -f $V/$n.so ]; then bound $t && [ "$(md5 $t)" = "$(md5 $V/$n.so)" ] || return 1
+    else ! bound $t && [ "$(cat $V/$n.src 2>/dev/null)" = "$(md5 $t)" ] || return 1; fi
+  done
 }
 hlock_apply() {
-  if bound $HL_LIB && [ "$(md5 $HL_LIB)" = "$(md5 $V/hlock.so)" ]; then
-    if [ -f $V/hlalgo.so ] && bound $HA_LIB && [ "$(md5 $HA_LIB)" = "$(md5 $V/hlalgo.so)" ] ||
-       { [ ! -f $V/hlalgo.so ] && ! bound $HA_LIB && [ "$(cat $V/hlalgo.src 2>/dev/null)" = "$(md5 $HA_LIB)" ]; }; then
-      log "camextras: horizontal lock levelling already on"; return 0; fi
-    bound $HA_LIB && { log "camextras: something else is bound over $HA_LIB; horizontal lock won't level"; return 1; }
-    # levelling from before the stabilizer copy existed: take it off, then redo both
-    tb_restart hl_unbind || { log "camextras: couldn't take the old levelling copy off"; return 1; }
-  elif bound $HL_LIB || bound $HA_LIB; then
-    log "camextras: something else is bound over the EIS libraries; horizontal lock won't level"; return 1
+  [ -f $V/hlock.so ] && hl_ours && { log "camextras: horizontal lock levelling already on"; return 0; }
+  for e in $HL_SET; do t=${e%%:*}; n=${e#*:}; n=${n%%:*}
+    bound $t || continue
+    [ -f $V/$n.so ] && [ "$(md5 $t)" = "$(md5 $V/$n.so)" ] ||
+      { log "camextras: something else is bound over $t; horizontal lock won't level"; return 1; }
+  done
+  # some of our copies are on (an older version, or an earlier failure): take them off, then redo all
+  if bound $HL_LIB || bound $HA_LIB || bound $HL2_LIB || bound $HA2_LIB; then
+    tb_restart hl_unbind || { log "camextras: couldn't take the old levelling copies off"; return 1; }
   fi
-  s=$(md5 $HL_LIB); sa=$(md5 $HA_LIB)
-  if [ "$(cat $V/hlock.src 2>/dev/null)" != "$s" ] || [ ! -f $V/hlock.so ]; then
-    rm -f $V/hlock.so $V/hlock.src
-    r=$(hl_patch $HL_LIB $V/hlock.tmp) || { rm -f $V/hlock.tmp; log "camextras: $r; horizontal lock shows but won't level"; return 1; }
-    mv $V/hlock.tmp $V/hlock.so; echo $s > $V/hlock.src; log "camextras: patched EIS copy made ($r)"
-  fi
-  if [ "$(cat $V/hlalgo.src 2>/dev/null)" != "$sa" ]; then   # (re)make it for this stabilizer; remember a failure too
-    rm -f $V/hlalgo.so
-    if r=$(ha_patch $HA_LIB $V/hlalgo.tmp); then mv $V/hlalgo.tmp $V/hlalgo.so; log "camextras: patched stabilizer copy made ($r)"
-    else rm -f $V/hlalgo.tmp; log "camextras: $r; horizontal lock levels only up to the tuning's 8 degrees"; fi
-    echo $sa > $V/hlalgo.src
-  fi
-  chown 0:0 $V/hlock.so; chmod 644 $V/hlock.so; chcon u:object_r:vendor_file:s0 $V/hlock.so
-  [ -f $V/hlalgo.so ] && { chown 0:0 $V/hlalgo.so; chmod 644 $V/hlalgo.so; chcon u:object_r:vendor_file:s0 $V/hlalgo.so; }
+  for e in $HL_SET; do t=${e%%:*}; n=${e#*:}; p=${n#*:}; n=${n%%:*}
+    s=$(md5 $t); [ -n "$s" ] || continue
+    [ "$(cat $V/$n.src 2>/dev/null)" = "$s" ] && continue   # (re)make a copy only for a new stock file; remember failures too
+    rm -f $V/$n.so
+    if r=$($p $t $V/$n.tmp); then mv $V/$n.tmp $V/$n.so; log "camextras: patched copy of ${t##*/} made ($r)"
+    else rm -f $V/$n.tmp; log "camextras: ${t##*/}: $r"; fi
+    echo $s > $V/$n.src
+  done
+  [ -f $V/hlock.so ] || { log "camextras: horizontal lock shows but won't level"; return 1; }
+  for e in $HL_SET; do n=${e#*:}; c=$V/${n%%:*}.so
+    [ -f $c ] && { chown 0:0 $c; chmod 644 $c; chcon u:object_r:vendor_file:s0 $c; }; done
   if tb_restart hl_bind && bound $HL_LIB; then
-    log "camextras: Super steady's horizontal lock levels the horizon ($(bound $HA_LIB && echo "up to 30 degrees" || echo "up to 8 degrees"))"
+    log "camextras: Super steady's horizontal lock levels the horizon: $(hl_desc)"
   else
     tb_restart hl_unbind
     log "camextras: with the levelling change the camera driver didn't stay up; stock EIS back, horizontal lock won't level"
     return 1
   fi
+}
+hl_desc() {
+  echo "recording up to $(bound $HA_LIB && echo 30 || echo 8) degrees, preview $(bound $HL2_LIB && { bound $HA2_LIB && echo "up to 30" || echo "up to 8"; } || echo "not levelled")"
 }
 
 # Audio Eraser (Gallery > video > Edit > Audio eraser). The S23's video editor engine was built with
@@ -1327,7 +1389,7 @@ $CF_HLOCK"
   has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
   has tenbit && tenbit_apply   # restarts only the camera driver
   if has camextras; then hlock_apply   # restarts only the camera driver
-  elif bound $HL_LIB || bound $HA_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
+  elif bound $HL_LIB || bound $HA_LIB || bound $HL2_LIB || bound $HA2_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
@@ -1401,7 +1463,7 @@ status)
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off), AOD brightness curve $(aodb_on && echo on || { [ -f $AODB ] && echo "added, waiting for a framework restart" || echo off; })"
   echo "logvideo: $(is_on logvideo && echo on || echo off), Gallery LUTs $(bound $LV && echo on || echo off)"
-  echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && { bound $HA_LIB && echo "on (up to 30 degrees)" || echo "on (up to 8 degrees)"; } || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
+  echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && echo "on ($(hl_desc))" || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
   echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
   echo "settingssearch: $(bound /system/$SSI/SecSettingsIntelligence.apk && echo S24 || echo stock)"
