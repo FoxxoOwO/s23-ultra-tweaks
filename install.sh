@@ -58,8 +58,15 @@ k_ok=0; for f in $AIRDROP_FW; do [ "$kernel" = "$AIRDROP_KBASE$f" ] && k_ok=1; d
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
 can_rec=$can_csc; why_rec="needs XAC (Canadian) or EUX (European) firmware"; [ "$csc $build" = "EUX S918BXXUAGZIF" ] && can_rec=1   # CALLREC_CSC in device/tweaks.sh
 can_ct=1; why_ct=""; case "$build" in S918WVLU8GZIF|S918BXXUAGZIF) ;; *) can_ct=0; why_ct="needs firmware S918WVLU8GZIF or S918BXXUAGZIF (it patches that build's Settings app)" ;; esac   # SETTINGS_EAD in device/tweaks.sh
-can_c24=1; why_c24=""; case "$build" in S918BXXUAGZIF) ;; *) can_c24=0; why_c24="needs firmware S918BXXUAGZIF (it patches that build's Camera app)" ;; esac   # CAMERA_24FPS in device/tweaks.sh
-can_ksu=1; why_ksu=""; [ "$build" = S918WVLU8GZIF ] || { can_ksu=0; why_ksu="needs firmware S918WVLU8GZIF (the patched services.jar is built for that exact build)"; }   # hideksu in device/tweaks.sh
+# cam24fps goes by the Camera APK, not the firmware: stock and patched md5s as in CAMERA_24FPS (device/tweaks.sh)
+CAM24_MD5="174e38e111f53c92eea54fd8b9a8c1c6 167b412279d4fd5f3ce7e89232725bc8 e7c89df10d6607ea1ddeedceee961903 650dc854741a92f54be455fc19cd4c89"
+cam_md5=$(sh_ md5sum /system/priv-app/SamsungCamera/SamsungCamera.apk 2>/dev/null | cut -d' ' -f1)
+can_c24=0; why_c24="this phone's Samsung Camera isn't one the 24 fps patch was made for (Camera 17.0.00.43 of S918BXXUAGZIF or S918WVLU8GZIF)"
+case " $CAM24_MD5 " in *" ${cam_md5:-none} "*) can_c24=1; why_c24="" ;; esac
+# hideksu goes by the framework file, not the firmware: stock and patched services.jar md5s as HKS_STOCK/HKS_PATCHED in device/tweaks.sh
+jar_md5=$(sh_ md5sum /system/framework/services.jar 2>/dev/null | cut -d' ' -f1)
+can_ksu=0; why_ksu="this phone's services.jar isn't the one the patch was made from (S918WVLU8GZIF's)"
+case "${jar_md5:-none}" in 30d17f5d60b0d42585b97a94412f6e12|f4c5966939637df194bb465478234fc3) can_ksu=1; why_ksu="" ;; esac
 # an Indian SIM (MCC 404/405) makes the carrier picks take the India config instead of plain call recording
 sim=$(sh_ getprop gsm.sim.operator.numeric | cut -d, -f1); sim_india=0; carrier_skip=india
 case "$sim" in 404*|405*) sim_india=1; carrier_skip=callrec ;; esac

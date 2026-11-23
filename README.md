@@ -25,7 +25,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 - 🌈 **9 · 10-bit HDR video from the front cameras in any app** (Camera2 HLG10), as the rear cameras already allow. Samsung Camera keeps its own HDR10+. Patches a copy of the phone's own camera driver and keeps it only if a front camera then really offers 10-bit; the first apply takes about 15 s longer · `tenbit`
   - Works on: any S23 Ultra whose camera driver has the expected code (found in One UI 6 and 9 builds; tested on S918WVLU8GZIF)
 - 🎥 **10 · 24 FPS in standard Video**: unlocks 24 fps for FHD (1080p), UHD (4K) and 8K in Samsung Camera's standard Video mode (not just Pro video). Adds `video` to the 24 fps entries in `camera-feature.xml` and adds `RESOLUTION_3840X2160_24FPS` + `RESOLUTION_1920X1080_24FPS` to `te.f0.i` (8K 24 is already allowlisted) in a copy of `SamsungCamera.apk` (`device/files/SamsungCamera-24fps-<firmware>.patch`, made by `tools/cam24patch.py`) · `cam24fps`
-  - Works on: firmware S918BXXUAGZIF (stock Camera `17.0.00.43`, no download needed)
+  - Works on: a stock Samsung Camera 17.0.00.43 the patch knows, checked by MD5 whatever the firmware name (so far S918BXXUAGZIF and S918WVLU8GZIF; no download needed). `tools/cam24patch.py` adds another
 
 ### 🎨 Display and graphics
 
@@ -50,7 +50,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 - 🩺 **19 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
 - ⏰ **20 · Auto power on/off** schedule and **louder VoIP calls** · `features`
-- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed, and firmware S918WVLU8GZIF (a patched `services.jar` built for that exact build; applies on a framework restart) · `hideksu`
+- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of S918WVLU8GZIF's, so it only runs on a phone whose stock `services.jar` is that exact file (checked by MD5, whatever the firmware name); applies on a framework restart · `hideksu`
 
 ### 📱 Carrier
 

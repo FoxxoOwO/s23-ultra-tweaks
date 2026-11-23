@@ -1,4 +1,6 @@
-# 24 FPS in standard Video (FHD/UHD/8K): SamsungCamera.apk (S918BXXUAGZIF, md5 174e38e111f53c92eea54fd8b9a8c1c6) -> md5 167b412279d4fd5f3ce7e89232725bc8
+# 24 FPS in standard Video (FHD/UHD/8K): SamsungCamera.apk 17.0.00.43. The same bytes fit both stock APKs below (they differ only outside the patched area):
+#   S918BXXUAGZIF md5 174e38e111f53c92eea54fd8b9a8c1c6 -> 167b412279d4fd5f3ce7e89232725bc8
+#   S918WVLU8GZIF md5 e7c89df10d6607ea1ddeedceee961903 -> 650dc854741a92f54be455fc19cd4c89
 # Adds ONLY UHD24 and FHD24 to te.f0.i in Lte/f0;-><clinit>() by replacing unused Fold/Flip slots
 # (4000x1868 -> UHD24, 2224x1080 -> FHD24; 8K24 is already in te.f0.i). Leaves te.c0.c() stock so QHD stays hidden.
 # Made by tools/cam24patch.py. Format: <zero-based file offset> <new byte in octal>

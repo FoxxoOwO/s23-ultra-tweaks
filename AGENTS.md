@@ -34,7 +34,7 @@ The release is built and tested for exactly one setup:
 | `hotspot6g` | Mostly no | Re-check `SemWifiApServiceImpl.isRegionFor6GCountry()` in `/system/framework/semwifi-service.jar`; `IN` must still pass |
 | `callrec`, `india` | **Yes**: XAC on S918W GZIF; `callrec` also EUX on S918B GZIF | New CSC files + new MD5 gates (see "Carrier config") |
 | `colortone` | **Yes**: the build's `SecSettings.apk` | `python3 -I tools/eadpatch.py SecSettings.apk <build>`, put the patch in `device/files/`, add the two MD5s to `SETTINGS_EAD` in `device/tweaks.sh` and the build to `can_ct` in `install.sh` |
-| `cam24fps` | **Yes**: the build's `SamsungCamera.apk` | `python3 -I tools/cam24patch.py SamsungCamera.apk <build>`, put the patch in `device/files/`, add the two MD5s to `CAMERA_24FPS` in `device/tweaks.sh` and the build to `can_c24` in `install.sh` |
+| `cam24fps` | **Yes**: the exact `SamsungCamera.apk` (keyed on its MD5, not the firmware) | `python3 -I tools/cam24patch.py SamsungCamera.apk <build>`. If its patch lines equal an existing file's, reuse that file. Add a row (stock MD5, patched MD5, patch file, firmware) to `CAMERA_24FPS` in `device/tweaks.sh` and both MD5s to `CAM24_MD5` in `install.sh` |
 | `airdrop`, `wifi7` kernel modules | **Yes**: kernel build (all models of one build share them) | Same build, other model: check and add to `AIRDROP_FW` (see "Another model on the same build"). New build: rebuild all four `.ko`s (see "Kernel modules") |
 | `airdrop` payload (firmware, Mosey, supplicant) | Android version + S24 release | Re-extract from a matching S24 firmware (see "Payload") |
 | Play services flags `45704091`, `45723015` | Play services version | Re-check if AirDrop doesn't show up (see "Play services") |

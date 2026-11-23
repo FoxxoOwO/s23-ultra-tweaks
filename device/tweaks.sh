@@ -92,11 +92,14 @@ S918BXXUAGZIF 5b20b1a68f94d01bba5a776e15ffdc30 de6d142d238849198810dfe70fada8dd"
 ead_row() { echo "$SETTINGS_EAD" | awk -v b="$(getprop ro.build.PDA)" '$1 == b'; }
 ead_builds() { echo "$SETTINGS_EAD" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
 CAM_APK=/system/priv-app/SamsungCamera/SamsungCamera.apk
-# cam24fps: firmware, md5 of its SamsungCamera.apk, md5 with files/SamsungCamera-24fps-<firmware>.patch applied
-# (tools/cam24patch.py makes the patch and prints both for another firmware's APK)
-CAMERA_24FPS="S918BXXUAGZIF 174e38e111f53c92eea54fd8b9a8c1c6 167b412279d4fd5f3ce7e89232725bc8"
-cam24_row() { echo "$CAMERA_24FPS" | awk -v b="$(getprop ro.build.PDA)" '$1 == b'; }
-cam24_builds() { echo "$CAMERA_24FPS" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
+# cam24fps, keyed on the Camera APK itself, not the firmware: md5 of a stock SamsungCamera.apk, md5 once
+# patched, the patch in files/, and the firmware it came from. Any firmware whose stock Camera APK is listed
+# works; tools/cam24patch.py makes the patch and prints both md5s for another APK.
+CAMERA_24FPS="174e38e111f53c92eea54fd8b9a8c1c6 167b412279d4fd5f3ce7e89232725bc8 SamsungCamera-24fps-17.0.00.43.patch S918BXXUAGZIF
+e7c89df10d6607ea1ddeedceee961903 650dc854741a92f54be455fc19cd4c89 SamsungCamera-24fps-17.0.00.43.patch S918WVLU8GZIF"
+# the row for the Camera APK in place now (stock, or our patched copy bound over it)
+cam24_row() { m=$(md5sum $CAM_APK 2>/dev/null | cut -d' ' -f1); echo "$CAMERA_24FPS" | awk -v m="$m" '$1 == m || $2 == m'; }
+cam24_builds() { echo "$CAMERA_24FPS" | awk '{print $4}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
 XAC=/optics/configs/carriers/XAC/conf; PRISM=/prism/etc/carriers/XAC
 # md5 of the stock (encoded) XAC files on S918WVLU8GZIF: the CSC tweaks replace them, so they only
 # run when the phone has exactly these
@@ -834,19 +837,17 @@ colortone_bind() {
   log "colortone: Adaptive color tone on (Settings > Display)"
 }
 cam24fps_bind() {
+  set -- $(cam24_row)
+  [ -n "$1" ] || { log "cam24fps: this Camera APK isn't one the patch was made for (Camera 17.0.00.43 of $(cam24_builds)), so 24 fps stays hidden"; return 1; }
+  CAM_STOCK_MD5=$1; CAM_PATCHED_MD5=$2; cpf=$3
   cm=$(md5sum $CAM_APK | cut -d' ' -f1)
-  set -- $(cam24_row); cb=$1; CAM_STOCK_MD5=${2:-none}; CAM_PATCHED_MD5=${3:-none}
   if [ "$cm" = $CAM_PATCHED_MD5 ]; then :   # already patched (an earlier apply this boot)
   else
-    bound $CAM_APK && umount $CAM_APK && cm=$(md5sum $CAM_APK | cut -d' ' -f1)
-    if [ "$cm" != $CAM_STOCK_MD5 ]; then
-      log "cam24fps: Camera APK isn't the $(cam24_builds) build, so 24 fps stays hidden"; return 1
-    fi
     mkdir -p $PL/cam24fps
     P=$PL/cam24fps/SamsungCamera.apk   # patched copy stays on storage and is reused at the next boot
     if [ "$(md5sum $P 2>/dev/null | cut -d' ' -f1)" != $CAM_PATCHED_MD5 ]; then
       cp $CAM_APK $P.new
-      grep -v '^#' $D/files/SamsungCamera-24fps-$cb.patch | while read off oct; do
+      grep -v '^#' $D/files/$cpf | while read off oct; do
         printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
       [ "$(md5sum $P.new | cut -d' ' -f1)" = $CAM_PATCHED_MD5 ] || { rm -f $P.new; fail "cam24fps: Camera patch gave the wrong file"; }
       mv $P.new $P
@@ -1090,21 +1091,28 @@ aodb_on() { grep -q s23tweaks-aodbright /proc/$(pidof system_server)/maps 2>/dev
 # launcher (so its icon still shows). Nothing is injected into the apps themselves, so an app's own
 # /proc/self/maps scan stays clean. Takes effect on a framework restart (system_server reloads the jar).
 KSUJAR=/system/framework/services.jar
+# The patched jar replaces the whole file, so it only goes on a phone whose stock services.jar is the exact
+# one it was made from (S918WVLU8GZIF's), whatever the firmware name. md5s: stock, patched.
+HKS_STOCK=30d17f5d60b0d42585b97a94412f6e12; HKS_PATCHED=f4c5966939637df194bb465478234fc3
 hideksu_apply() {
   [ -f $PL/hideksu/services.jar ] || { log "hideksu: payload missing; skipped"; return 1; }
   hideksu_on && { log "hideksu: patched services.jar already loaded"; return 1; }
   T=/dev/s23tweaks_svc; mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_svc $T
   bound $KSUJAR && umount $KSUJAR 2>/dev/null   # drop any earlier bind so one clean layer remains
+  [ "$(md5 $KSUJAR)" = $HKS_STOCK ] || { log "hideksu: this phone's services.jar isn't the one the patch was made from; skipped"; return 1; }
+  [ "$(md5 $PL/hideksu/services.jar)" = $HKS_PATCHED ] || { log "hideksu: the downloaded services.jar isn't the expected one; skipped"; return 1; }
   cp $PL/hideksu/services.jar $T/services.jar && chmod 644 $T/services.jar && chcon u:object_r:system_file:s0 $T $T/services.jar || fail "hideksu stage"
   mount -o bind $T/services.jar $KSUJAR || fail "bind services.jar"
+  pidof system_server > $T/ss_at_bind   # hideksu_on: a system_server started after this loaded the jar
   log "hideksu: patched services.jar bound; the KernelSU manager is hidden from apps after the restart"
 }
 # On = the system_server that's running mapped OUR bound jar (its inode), not the stock one. Before a
 # restart the bind is in place but the stock jar is still loaded, so the inode won't match yet.
 hideksu_on() {
-  bound $KSUJAR || return 1
-  i=$(stat -c %i $KSUJAR 2>/dev/null); ss=$(pidof system_server) || return 1
-  grep " $KSUJAR" /proc/$ss/maps 2>/dev/null | awk '{print $5}' | grep -qx "$i"
+  # system_server runs the jar's dex from memory (the stock odex no longer matches), so the jar never shows
+  # in its maps; instead: our jar is bound and system_server has restarted since it was bound
+  bound $KSUJAR && [ -f /dev/s23tweaks_svc/ss_at_bind ] || return 1
+  ss=$(pidof system_server) && [ "$ss" != "$(cat /dev/s23tweaks_svc/ss_at_bind)" ]
 }
 
 restart_framework() {
@@ -1158,17 +1166,18 @@ why_not() {
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
     tenbit) [ -f $TB_LIB ] || echo "this phone has no $TB_LIB" ;;
     hideksu)
-      [ "$build" = S918WVLU8GZIF ] || { echo "needs firmware S918WVLU8GZIF (this phone runs $build); the patched services.jar is built for that exact build"; return; }
+      m=$(md5 $KSUJAR); [ "$m" = $HKS_STOCK ] || { bound $KSUJAR && [ "$m" = $HKS_PATCHED ]; } ||
+        { echo "this phone's /system/framework/services.jar isn't the one the patch was made from (S918WVLU8GZIF's, md5 $HKS_STOCK)"; return; }
       pm path me.weishu.kernelsu >/dev/null 2>&1 || echo "the KernelSU manager (me.weishu.kernelsu) isn't installed, so there's nothing to hide" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     cam24fps)
-      [ -n "$(cam24_row)" ] || { echo "needs firmware $(cam24_builds) (it patches that build's Camera app; this phone runs $build)"; return; }
-      [ -f $D/files/SamsungCamera-24fps-$build.patch ] || { echo "patch file SamsungCamera-24fps-$build.patch missing"; return; }
       [ -f $CAM_APK ] || { echo "this phone has no $CAM_APK"; return; }
-      grep -q '</resources>' $CF 2>/dev/null || { echo "this firmware's $CF can't be edited"; return; }
       pm path com.sec.android.app.camera 2>/dev/null | grep -q "^package:$CAM_APK$" || { echo "uninstall Samsung Camera updates first so stock $CAM_APK is active"; return; }
-      set -- $(cam24_row); bound $CAM_APK || [ "$(md5 $CAM_APK)" = "$2" ] || echo "stock Camera APK does not match $build (17.0.00.43)" ;;
+      set -- $(cam24_row)
+      [ -n "$1" ] || { echo "this phone's Samsung Camera isn't one the 24 fps patch was made for (Camera 17.0.00.43 of $(cam24_builds)); tools/cam24patch.py can make one"; return; }
+      [ -f $D/files/$3 ] || { echo "patch file $3 missing"; return; }
+      grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     galaxyai)
       for p in $GAI_APPS; do [ -f /system/$p/${p#*/}.apk ] || { echo "this phone has no /system/$p/${p#*/}.apk to replace"; return; }; done ;;
     settingssearch) [ -f /system/$SSI/SecSettingsIntelligence.apk ] || echo "this phone has no /system/$SSI to replace" ;;
@@ -1381,7 +1390,7 @@ cleanup)
     grep -q '</map>' $R/camprefs.new && cat $R/camprefs.new > $CAM_PREFS && say "Camera setting restored"
   fi
   # parsed manifests of the apps the tweaks swap, in case a restart cached one; Android re-parses them
-  for n in SamsungSmartSuggestions SketchBook CallAssistant SecSettingsIntelligence SecSettings EnvironmentAdaptiveDisplay MoseyApp; do
+  for n in SamsungSmartSuggestions SketchBook CallAssistant SecSettingsIntelligence SecSettings EnvironmentAdaptiveDisplay MoseyApp SamsungCamera; do
     rm -f /data/system/package_cache/*/$n-[0-9]*; done
   rm -f /data/adb/service.d/s23tweaks.sh
   cd /; rm -rf $V
