@@ -1294,6 +1294,18 @@ report)
     echo "Mosey / Quick Share warnings and errors, last 30 (names in quotes masked):"
     logcat -d -v brief 2>/dev/null | grep -E '^[EW]/[^(]*(Mosey|mosey|AirDrop|Awdl|NearbySharing|ShareLive|Wonder)' | grep -v '	at ' |
       sed -E "s/\"[^\"]*\"/<name>/g; s/'[^']*'/<name>/g" | tail -n 30 | sed 's/^/  /' | cut -c1-220
+    sec "Galaxy AI secure storage"
+    # Samsung's Pass Storage (Now Brief's Personal Data Intelligence, aasaservice) is refused with "Root
+    # detected" when system_server sees su at one of StorageManagerService.isRootedDevice's paths. Listed
+    # by reading the folders, since KernelSU's su compatibility answers file checks from root itself.
+    s=$(nsenter -t $(pidof system_server) -m -- sh -c 'for f in /sbin/su /system/su /system/bin/su /system/xbin/su \
+      /system/bin/.ext/.su /data/local/xbin/su /data/local/bin/su /system/sd/xbin/su /system/bin/failsafe/su /data/local/su \
+      /system/app/Superuser.apk /system/usr/we-need-root/su-backup /system/xbin/mu; do
+      ls -a "${f%/*}" 2>/dev/null | grep -qxF "${f##*/}" && echo "$f"; done' 2>/dev/null | tr '\n' ' ')
+    echo "su files the system sees: ${s:-none}"
+    echo "Pass Storage log, last 15:"
+    logcat -d 2>/dev/null | grep -E 'StorageManagerService: (isDetectedRoot|rooting:)|VoldNativeService: (create|get|unlock)PassStorage|SecureStorage(Adapter|Impl)' |
+      tail -n 15 | sed 's/^/  /' | cut -c1-200
     sec "every apply since this boot (seconds since boot)"
     tail -n 150 $HIST 2>/dev/null | cut -c1-220
     sec "tweaks.log (last apply)"

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Bug reports show whether Galaxy AI's secure storage is blocked** (issue #5). Now Brief's Personal Data Intelligence keeps its data in Samsung's Pass Storage, and Android refuses to create it ("Root detected", then a "creation failed" crash loop) when the system process can see an `su` file at one of a dozen classic paths (`/system/bin/su`, `/system/xbin/su`, `/data/local/su`, ...). With KernelSU, `/system/bin/su` shows up for apps granted root, so this happens when something running as the system user has root, or a module leaves an `su` file. The report now lists the `su` files the system process sees and the last Pass Storage log lines.
+
 ## v1.2.6
 
 - **`callscreen` installs Samsung Language Core again.** It streamed the 3.1 GB APK into `pm install -S <size>`, whose size is a 32-bit number, so every install failed with "Failed transaction". It now installs a temporary copy from `/data/local/tmp` (needs 3.5 GB free for a minute). With Language Core 4.0.01.24, Call screening's **AI summary works**; the README said it didn't, from a test with another build.
