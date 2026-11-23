@@ -682,7 +682,9 @@ payload_apply() {
 
 # Settings > Battery > Battery information shows health only when an authenticated battery IC
 # (sec_auth) exists. Present one whose values mirror /efs/FactoryApp, so syncs are no-ops.
-BATT_EFS="HwParamBattQR batt_beginning_date asoc batt_discharge_level batt_full_status_usage"
+# batt_full_status_usage is optional: Android uses it only when the kernel reports BFSU, and some
+# phones (e.g. an S918B) don't have it. Without it the auth IC simply has no such node.
+BATT_EFS="HwParamBattQR batt_beginning_date asoc batt_discharge_level"
 battery_auth() {
   PS=/sys/class/power_supply; T=/dev/s23tweaks_ps; E=/efs/FactoryApp
   mounted $PS tmpfs && { log "battery: auth IC already present"; return 0; }
@@ -698,7 +700,8 @@ battery_auth() {
   w() { printf '%s' "$1" > $T/sec_auth/$2; }
   w "$(cat $E/HwParamBattQR)" qr_code; w 1 presence; w 1 batt_auth
   w "$(cat $E/batt_beginning_date)" first_use_date; w 0 fai_expired; w "$(cat $E/asoc)" asoc
-  w "$(cat $E/batt_discharge_level)" batt_discharge_level; w "$(cat $E/batt_full_status_usage)" batt_full_status_usage
+  w "$(cat $E/batt_discharge_level)" batt_discharge_level
+  [ -f $E/batt_full_status_usage ] && w "$(cat $E/batt_full_status_usage)" batt_full_status_usage
   chown 1000:1000 $T/sec_auth/*; chmod 664 $T/sec_auth/*
   mount --rbind $T $PS || fail "power_supply overlay"
   log "battery: auth IC presented"
