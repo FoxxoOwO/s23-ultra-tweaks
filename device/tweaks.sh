@@ -20,7 +20,7 @@
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
 #         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
-#         callscreen tenbit hideksu  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
+#         callscreen tenbit hideksu cam24fps  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
 # runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
@@ -39,8 +39,8 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu"
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu"
+STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu cam24fps"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -91,6 +91,12 @@ SETTINGS_EAD="S918WVLU8GZIF 5b8afa24f17e090d57380b8ebbd3dcee f499f2e574a47eca041
 S918BXXUAGZIF 5b20b1a68f94d01bba5a776e15ffdc30 de6d142d238849198810dfe70fada8dd"
 ead_row() { echo "$SETTINGS_EAD" | awk -v b="$(getprop ro.build.PDA)" '$1 == b'; }
 ead_builds() { echo "$SETTINGS_EAD" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
+CAM_APK=/system/priv-app/SamsungCamera/SamsungCamera.apk
+# cam24fps: firmware, md5 of its SamsungCamera.apk, md5 with files/SamsungCamera-24fps-<firmware>.patch applied
+# (tools/cam24patch.py makes the patch and prints both for another firmware's APK)
+CAMERA_24FPS="S918BXXUAGZIF 174e38e111f53c92eea54fd8b9a8c1c6 167b412279d4fd5f3ce7e89232725bc8"
+cam24_row() { echo "$CAMERA_24FPS" | awk -v b="$(getprop ro.build.PDA)" '$1 == b'; }
+cam24_builds() { echo "$CAMERA_24FPS" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
 XAC=/optics/configs/carriers/XAC/conf; PRISM=/prism/etc/carriers/XAC
 # md5 of the stock (encoded) XAC files on S918WVLU8GZIF: the CSC tweaks replace them, so they only
 # run when the phone has exactly these
@@ -408,7 +414,7 @@ CF_LOG='<local name="SUPPORT_LOG_VIDEO" value="true"/>'
 CF_HLOCK='<local name="SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK" value="true"/>'
 cf_add=""
 camfeat_apply() {
-  [ -n "$cf_add" ] || return 1
+  [ -n "$cf_add" ] || [ -n "${cf_video_modes:-}" ] || return 1
   mkdir -p $R; bound $CF && umount $CF
   grep -q '</resources>' $CF || { log "camera: $CF has no </resources>; camera settings skipped"; return 1; }
   grep -v '</resources>' $CF > $R/cf.new
@@ -420,11 +426,25 @@ camfeat_apply() {
     grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
     echo "    $l" >> $R/cf.new
   done
+  # preserve all stock attributes (vdis, hdr, hdr10, seamless-zoom-support) when enabling video mode on 24 fps entries
+  for n in ${cf_video_modes:-}; do
+    o=$(grep -m1 "name=\"$n\"" $R/cf.new || true)
+    [ -n "$o" ] || { log "cam24fps: $n not found in $CF; skipped"; continue; }
+    m=$(printf '%s' "$o" | sed -n 's/.*supported-mode="\([^"]*\)".*/\1/p')
+    case ",$m," in
+      *,video,*) nl=$o ;;
+      ,,) nl=$(printf '%s' "$o" | sed 's|supported-mode=""|supported-mode="video"|') ;;
+      *) nl=$(printf '%s' "$o" | sed "s|supported-mode=\"$m\"|supported-mode=\"video,$m\"|") ;;
+    esac
+    nl=$(printf '%s' "$nl" | sed 's|value="false"|value="true"|')
+    grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
+    printf '%s\n' "$nl" >> $R/cf.new
+  done
   echo '</resources>' >> $R/cf.new
   mv $R/cf.new $R/camera-feature.xml; chmod 644 $R/camera-feature.xml
   chcon u:object_r:system_file:s0 $R/camera-feature.xml
   mount --bind $R/camera-feature.xml $CF || fail "camera-feature bind mount"
-  log "camera settings on: $(printf '%s\n' "$cf_add" | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' ')"
+  log "camera settings on: $(printf '%s\n' "$cf_add" | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' ')${cf_video_modes:-}"
 }
 
 # Gallery's Log color correction (Edit > LUT, done by Samsung's video editor) reads the S24's LUTs
@@ -813,6 +833,30 @@ colortone_bind() {
   fi
   log "colortone: Adaptive color tone on (Settings > Display)"
 }
+cam24fps_bind() {
+  cm=$(md5sum $CAM_APK | cut -d' ' -f1)
+  set -- $(cam24_row); cb=$1; CAM_STOCK_MD5=${2:-none}; CAM_PATCHED_MD5=${3:-none}
+  if [ "$cm" = $CAM_PATCHED_MD5 ]; then :   # already patched (an earlier apply this boot)
+  else
+    bound $CAM_APK && umount $CAM_APK && cm=$(md5sum $CAM_APK | cut -d' ' -f1)
+    if [ "$cm" != $CAM_STOCK_MD5 ]; then
+      log "cam24fps: Camera APK isn't the $(cam24_builds) build, so 24 fps stays hidden"; return 1
+    fi
+    mkdir -p $PL/cam24fps
+    P=$PL/cam24fps/SamsungCamera.apk   # patched copy stays on storage and is reused at the next boot
+    if [ "$(md5sum $P 2>/dev/null | cut -d' ' -f1)" != $CAM_PATCHED_MD5 ]; then
+      cp $CAM_APK $P.new
+      grep -v '^#' $D/files/SamsungCamera-24fps-$cb.patch | while read off oct; do
+        printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
+      [ "$(md5sum $P.new | cut -d' ' -f1)" = $CAM_PATCHED_MD5 ] || { rm -f $P.new; fail "cam24fps: Camera patch gave the wrong file"; }
+      mv $P.new $P
+    fi
+    chmod 644 $P; chcon u:object_r:system_file:s0 $P
+    mount -o bind,ro $P $CAM_APK || fail "cam24fps: bind $CAM_APK"
+    am force-stop com.sec.android.app.camera
+  fi
+  log "cam24fps: 24 FPS in standard Video on (Camera > Video > FHD / UHD / 8K at 24 fps)"
+}
 
 # Now Brief, Creative Studio, Call Assist: the S24 firmware ships newer builds of these three apps.
 # Bind each S24 APK over the S23 firmware copy and drop its parse-cache entry (the cache is keyed on
@@ -1118,6 +1162,13 @@ why_not() {
       pm path me.weishu.kernelsu >/dev/null 2>&1 || echo "the KernelSU manager (me.weishu.kernelsu) isn't installed, so there's nothing to hide" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
+    cam24fps)
+      [ -n "$(cam24_row)" ] || { echo "needs firmware $(cam24_builds) (it patches that build's Camera app; this phone runs $build)"; return; }
+      [ -f $D/files/SamsungCamera-24fps-$build.patch ] || { echo "patch file SamsungCamera-24fps-$build.patch missing"; return; }
+      [ -f $CAM_APK ] || { echo "this phone has no $CAM_APK"; return; }
+      grep -q '</resources>' $CF 2>/dev/null || { echo "this firmware's $CF can't be edited"; return; }
+      pm path com.sec.android.app.camera 2>/dev/null | grep -q "^package:$CAM_APK$" || { echo "uninstall Samsung Camera updates first so stock $CAM_APK is active"; return; }
+      set -- $(cam24_row); bound $CAM_APK || [ "$(md5 $CAM_APK)" = "$2" ] || echo "stock Camera APK does not match $build (17.0.00.43)" ;;
     galaxyai)
       for p in $GAI_APPS; do [ -f /system/$p/${p#*/}.apk ] || { echo "this phone has no /system/$p/${p#*/}.apk to replace"; return; }; done ;;
     settingssearch) [ -f /system/$SSI/SecSettingsIntelligence.apk ] || echo "this phone has no /system/$SSI to replace" ;;
@@ -1149,6 +1200,7 @@ is_on() {
     hdr2023) bound /system/lib64/libae_bracket_hdr.arcsoft.so && bound /system/lib64/libhybrid_high_dynamic_range.arcsoft.so ;;
     colortone) bound $SETTINGS ;;
     tenbit) bound $TB_LIB && [ "$(md5 $TB_LIB)" = "$(md5 $V/tenbit.so)" ] ;;
+    cam24fps) bound $CAM_APK && bound $CF && grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS".*supported-mode="[^"]*video' $CF 2>/dev/null ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
     hideksu) hideksu_on ;;
     *) return 1 ;;
@@ -1209,7 +1261,9 @@ $CF_LOG"
   fi
   has camextras && cf_add="$cf_add
 $CF_HLOCK"
+  has cam24fps && cf_video_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_7680X4320_24FPS"
   camfeat_apply && restart=1
+  has cam24fps && cam24fps_bind
   # 4K auto framing (untested): the S24's UHD setting for auto framing in video
   has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
   has tenbit && tenbit_apply   # restarts only the camera driver
@@ -1296,6 +1350,7 @@ status)
   echo "camerahdr: libraries $([ -f /system/lib64/liblow_light_hdr.arcsoft.so ] && echo on || echo off), list entries $(grep -q 'mfhdr.arcsoft.v4' $FF && echo on || echo off)"
   echo "hdr2023:  $(same_size /system/lib64/libae_bracket_hdr.arcsoft.so $PL/hdr2023/libae_bracket_hdr.arcsoft.so && same_size /system/lib64/libhybrid_high_dynamic_range.arcsoft.so $PL/hdr2023/libhybrid_high_dynamic_range.arcsoft.so && echo "2023 engines" || echo stock)"
   echo "tenbit:   front-camera 10-bit $(is_on tenbit && echo on || echo off)"
+  echo "cam24fps: Camera $(bound $CAM_APK && echo patched || echo stock), 24fps video modes $(is_on cam24fps && echo on || echo off)"
   echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"

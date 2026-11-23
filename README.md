@@ -24,37 +24,39 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 - 🎯 **8 · 4K auto framing** in video, as on the S24. Works on the SM-S918W (front camera, UHD with auto framing on); **reported to make the camera fail** on an S918B, so it's not included when you pick the whole Camera category · `autoframe`
 - 🌈 **9 · 10-bit HDR video from the front cameras in any app** (Camera2 HLG10), as the rear cameras already allow. Samsung Camera keeps its own HDR10+. Patches a copy of the phone's own camera driver and keeps it only if a front camera then really offers 10-bit; the first apply takes about 15 s longer · `tenbit`
   - Works on: any S23 Ultra whose camera driver has the expected code (found in One UI 6 and 9 builds; tested on S918WVLU8GZIF)
+- 🎥 **10 · 24 FPS in standard Video**: unlocks 24 fps for FHD (1080p), UHD (4K) and 8K in Samsung Camera's standard Video mode (not just Pro video). Adds `video` to the 24 fps entries in `camera-feature.xml` and adds `RESOLUTION_3840X2160_24FPS` + `RESOLUTION_1920X1080_24FPS` to `te.f0.i` (8K 24 is already allowlisted) in a copy of `SamsungCamera.apk` (`device/files/SamsungCamera-24fps-<firmware>.patch`, made by `tools/cam24patch.py`) · `cam24fps`
+  - Works on: firmware S918BXXUAGZIF (stock Camera `17.0.00.43`, no download needed)
 
 ### 🎨 Display and graphics
 
-- 🖌️ **10 · Always On Display: lock screen wallpaper, and AOD brightness that follows the room light** · `display`
-- 🌤️ **11 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
+- 🖌️ **11 · Always On Display: lock screen wallpaper, and AOD brightness that follows the room light** · `display`
+- 🌤️ **12 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
   - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
-- ⚡ **12 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
+- ⚡ **13 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
 
 ### ✨ Galaxy AI and Samsung apps
 
-- 🧠 **13 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
+- 🧠 **14 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
   - Works on: firmware S918WVLU8GZIF (219 MB download)
-- 🔇 **14 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
+- 🔇 **15 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
   - Works on: firmware S918WVLU8GZIF (34 MB download)
-- 🔎 **15 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
+- 🔎 **16 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
   - Works on: firmware S918WVLU8GZIF (10 MB download)
-- 📞 **16 · Call screening** in the Phone app: screening, greeting, voice messages and the AI summary work. **Stays after a reboot** · `callscreen`
+- 📞 **17 · Call screening** in the Phone app: screening, greeting, voice messages and the AI summary work. **Stays after a reboot** · `callscreen`
   - Works on: firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs)
-- 🗣️ **17 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
+- 🗣️ **18 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
 
 ### 🔋 Battery and settings
 
-- 🩺 **18 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
-- ⏰ **19 · Auto power on/off** schedule and **louder VoIP calls** · `features`
-- 🫥 **20 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed, and firmware S918WVLU8GZIF (a patched `services.jar` built for that exact build; applies on a framework restart) · `hideksu`
+- 🩺 **19 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
+- ⏰ **20 · Auto power on/off** schedule and **louder VoIP calls** · `features`
+- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed, and firmware S918WVLU8GZIF (a patched `services.jar` built for that exact build; applies on a framework restart) · `hideksu`
 
 ### 📱 Carrier
 
-- ⏺️ **21 · Call recording** in the Samsung Phone app · `callrec`
+- ⏺️ **22 · Call recording** in the Samsung Phone app · `callrec`
   - Works on: XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF
-- 🇮🇳 **22 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+- 🇮🇳 **23 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
   - Works on: XAC (Canadian) firmware S918WVLU8GZIF
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
