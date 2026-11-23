@@ -933,10 +933,17 @@ payload_apply() {
   layers_mount
   [ "${h23:-0}" = 1 ] && hdr2023_bind
   [ "${ae:-0}" = 1 ] && audioeraser_bind
+  return $ran   # the APKs are bound later, by apk_binds
+}
+# An app whose APK is swapped crashes if it starts before the framework restart: Android still has the
+# stock APK's parsed manifest, and its resource IDs point at the wrong entries in the new APK
+# (SmartSuggestions: "Failed to parse XML configuration from Canadian_dollar"). So bind the APKs
+# right before the restart, not ahead of the ~30 s of camera driver restarts.
+apk_binds() {
   [ "${ct:-0}" = 1 ] && colortone_bind
   [ "${gai:-0}" = 1 ] && galaxyai_bind
   [ "${ssi:-0}" = 1 ] && settingssearch_bind
-  return $ran
+  return 0
 }
 
 # Settings > Battery > Battery information shows health only when an authenticated battery IC
@@ -1216,6 +1223,7 @@ $CF_HLOCK"
   ff_apply && restart=1
   if has india; then india_apply && { setprop ctl.restart ril-daemon; log "india: mobile network restarting"; restart=1; }
   elif has callrec; then callrec_apply && restart=1; fi
+  apk_binds
   [ $restart = 1 ] && restart_framework
   has hotspot6g && hotspot6g_apply
   has camextras && directorsview_pref
