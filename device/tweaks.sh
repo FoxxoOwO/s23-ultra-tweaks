@@ -331,7 +331,7 @@ gms_flags() {
 }
 
 # ---------- Samsung feature flags (battery, features, display, logvideo) ----------
-# ff_tags: tags turned on (TRUE) when the stock file doesn't have them.
+# ff_tags: tags turned on (TRUE), added if the stock file lacks them or set TRUE if it has them as FALSE.
 # ff_set TAG VALUE: set a tag to a value, replacing the stock one (values may contain spaces).
 ff_tags=""; ff_kv=""
 ff_set() { case "$2" in *'&'*|*'
@@ -340,7 +340,7 @@ ff_set() { case "$2" in *'&'*|*'
 ff_apply() {
   [ -z "$ff_tags" ] && [ -z "$ff_kv" ] && return 1
   mkdir -p $R; bound $FF && umount $FF       # rebuild from the stock file each time
-  for t in $ff_tags; do grep -q "<SEC_FLOATING_FEATURE_$t>" $FF || ff_set $t TRUE; done
+  for t in $ff_tags; do grep -q "<SEC_FLOATING_FEATURE_$t>TRUE<" $FF || ff_set $t TRUE; done
   printf '%s' "$ff_kv" > $R/ff.kv
   # replace the values of tags the file has; add the rest before the closing tag
   awk -v kvf=$R/ff.kv '
@@ -682,10 +682,11 @@ payload_apply() {
 
 # Settings > Battery > Battery information shows health only when an authenticated battery IC
 # (sec_auth) exists. Present one whose values mirror /efs/FactoryApp, so syncs are no-ops.
+BATT_EFS="HwParamBattQR batt_beginning_date asoc batt_discharge_level batt_full_status_usage"
 battery_auth() {
   PS=/sys/class/power_supply; T=/dev/s23tweaks_ps; E=/efs/FactoryApp
   mounted $PS tmpfs && { log "battery: auth IC already present"; return 0; }
-  for f in HwParamBattQR batt_beginning_date asoc batt_discharge_level batt_full_status_usage; do
+  for f in $BATT_EFS; do
     [ -f $E/$f ] || { log "battery: $E/$f missing; skipping the battery health page"; return 1; }
   done
   [ -e $PS/sec_auth ] && { log "battery: this phone already has a battery auth IC"; return 0; }
@@ -831,7 +832,7 @@ probe)
   [ -z "$why_ad" ] && ! kernel_supported && why_ad="needs firmware $(echo $AIRDROP_FW | sed 's/ /, /g') (this phone runs $build)"
   [ -z "$why_ad" ] && [ "${gms:-0}" -lt $GMS_MIN ] && why_ad="needs Google Play services 26.11 or newer"
   why_csc=$why_s23; [ -z "$why_csc" ] && [ "$csc" != XAC ] && why_csc="needs XAC (Canadian) firmware (this phone is $csc)"
-  why_bat=$why_s23; [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/asoc ] && why_bat="this phone has no battery data in /efs/FactoryApp"
+  why_bat=$why_s23; for f in $BATT_EFS; do [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/$f ] && why_bat="this phone has no $f in /efs/FactoryApp"; done
   pw() { echo "$why_s23"; }   # their files are downloaded when picked
   why_6g=$why_s23; [ -z "$why_6g" ] && [ ! -x /data/adb/ksu/bin/resetprop ] && why_6g="needs KernelSU's resetprop"
   lcv=$(lc_installed); why_lc=$why_s23
@@ -898,7 +899,8 @@ status)
        "Mosey $(bound /system_ext/bin && echo on || echo off), daemon $(running loop && echo running || echo stopped)," \
        "$(service check com.google.android.moseyservice.IMoseyService/default | sed 's/.*: //')"
   echo "features: $(bound $FF && grep -oE 'SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
-  echo "battery:  $(mounted /sys/class/power_supply tmpfs && echo on || echo off)"
+  echo "battery:  auth IC $(mounted /sys/class/power_supply tmpfs && echo presented || { [ -e /sys/class/power_supply/sec_auth ] && echo "real (presence $(cat /sys/class/power_supply/sec_auth/presence 2>/dev/null), auth $(cat /sys/class/power_supply/sec_auth/batt_auth 2>/dev/null))" || echo off; }),"\
+       "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<' $FF && echo on || echo off)"
   echo "logvideo: $(bound $CF && grep -q SUPPORT_LOG_VIDEO $CF && echo on || echo off)"
   echo "camextras: horizon lock $(bound $CF && grep -q SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK $CF && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
