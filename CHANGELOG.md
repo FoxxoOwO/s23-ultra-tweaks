@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.4
 
 - **Bug reports in one tap**: Module page → Status → *Make a bug report* (or `tweaks.sh report`) saves a text file in Download with the phone model and firmware, what each tweak found, the stock settings the tweaks overwrite, the logs and recent crash summaries, and copies it for an issue. No serial number, email, MAC addresses or IMEI. Applies now also log the stock values they replace.
 - **Camera settings are set, not just added** (`logvideo`, `camextras`): a camera setting the phone's own camera-feature.xml already had was left alone, so a model that ships `SUPPORT_LOG_VIDEO` as `false` would keep Log off while the tweak reported it on. The tweak now replaces such a line, and its status checks the value.
