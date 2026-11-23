@@ -73,6 +73,7 @@ AIR=$PL/airdrop                              # the airdrop/wifi7 download: kerne
 # is used first.
 PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/payloads-S918WVLU8GZIF
 PAYLOADS="airdrop airdrop-S918WVLU8GZIF.tar.gz 84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
+logvideo logvideo-luts.tar.gz ed688855d75d9ff964a2f9f904cb7189b6adb897940fb61fe3a4c8049c73ecbe
 camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
 hdr2023 hdr2023-S918WVLU8GZIF.tar.gz 0f31937af2f04e2edcf1a2319298dfb97e3493aea558be6f3e0070fdb9b37eba
 audioeraser audioeraser-S918WVLU8GZIF.tar.gz a11d2868b3d8ba0121554ea2a31bb65256e0c141c6033c4e6ddb4770f4d11704
@@ -398,6 +399,28 @@ camfeat_apply() {
   chcon u:object_r:system_file:s0 $R/camera-feature.xml
   mount --bind $R/camera-feature.xml $CF || fail "camera-feature bind mount"
   log "camera settings on: $(printf '%s\n' "$cf_add" | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' ')"
+}
+
+# Gallery's Log color correction (Edit > LUT, done by Samsung's video editor) reads the S24's LUTs
+# from $LV. On the S23 that folder stays empty (init.rc copies them from /system/cameradata/logCubefiles,
+# which One UI 9 ships empty for the S23), and its SELinux policy lacks the S24's
+# LogVideofilters_data_file type, so the editor (platform_app) can't read vendor_data_file files there
+# either: the LUT "loads" with no data and the video stays flat. Bind the S24's LUTs (S928BXXU6EZJB)
+# over the folder, labelled system_file, which apps can read.
+LV=/data/vendor/LogVideofilters
+loglut_bind() {
+  LS=$PL/logvideo
+  [ -d $LS/preloadfilters ] || { log "logvideo: no LUT download; Log recording only"; return 1; }
+  bound $LV && umount $LV
+  [ -d $LV ] || { log "logvideo: $LV doesn't exist; LUTs skipped"; return 1; }
+  if [ -s $LV/preloadfilters/SamsungLog_to_Rec709_3DLUT_v1.bcube ] &&
+     grep -q LogVideofilters_data_file /vendor/etc/selinux/vendor_file_contexts 2>/dev/null; then
+    log "logvideo: this firmware has its own LUTs; left alone"; return 1
+  fi
+  chown -R 1000:1000 $LS; chmod 775 $LS $LS/preloadfilters $LS/Thumbnails
+  chmod 674 $LS/preloadfilters/* $LS/Thumbnails/*; chcon -R u:object_r:system_file:s0 $LS
+  mount --bind $LS $LV || { log "logvideo: couldn't bind the LUT folder"; return 1; }
+  log "logvideo: S24 LUTs for Gallery's Log color correction (Edit > LUT)"
 }
 
 # Director's view (front and back camera at once; the S23 had it in 2023). One UI 9 still ships the
@@ -1017,6 +1040,7 @@ apply)
     ff_set CAMERA_CONFIG_LOG_VIDEO V1.0; ff_set GALLERY_SUPPORT_LOG_CORRECT_COLOR TRUE
     cf_add="$cf_add
 $CF_LOG"
+    loglut_bind
   fi
   has camextras && cf_add="$cf_add
 $CF_HLOCK"
@@ -1096,7 +1120,7 @@ status)
   echo "battery:  auth IC $(mounted /sys/class/power_supply tmpfs && echo presented || { [ -e /sys/class/power_supply/sec_auth ] && echo "real (presence $(cat /sys/class/power_supply/sec_auth/presence 2>/dev/null), auth $(cat /sys/class/power_supply/sec_auth/batt_auth 2>/dev/null))" || echo off; }),"\
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off)"
-  echo "logvideo: $(is_on logvideo && echo on || echo off)"
+  echo "logvideo: $(is_on logvideo && echo on || echo off), Gallery LUTs $(bound $LV && echo on || echo off)"
   echo "camextras: horizon lock $(is_on camextras && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
   echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
