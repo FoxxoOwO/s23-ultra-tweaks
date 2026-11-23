@@ -748,7 +748,7 @@ function renderLog(lines, st) {
   lines.forEach((l, i) => {
     const isLast = i === lines.length - 1;
     let cls = isLast ? "last" : "";
-    if (/^FAILED:/.test(l.msg) || /: warning:/.test(l.msg)) cls += " bad";
+    if (/^FAILED:/.test(l.msg) || /: (warning|skipped):/.test(l.msg) || /^not on:/.test(l.msg)) cls += " bad";
     if (l.msg === "DONE") cls += " good";
     ol.append(h("li", { class: cls.trim(), text: l.msg === "DONE" ? "Done" : l.msg }));
   });
@@ -966,6 +966,7 @@ function installMock() {
     if (["airdrop", "battery", "features", "callrec", "india", "display", "logvideo", "vulkan", "camerahdr", "audioeraser", "colortone", "galaxyai"].some(has)) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(3.0, "framework back"); }
     if (has("hotspot6g")) add(0.5, "hotspot6g: CSC country CA -> IN; Mobile hotspot > Band now offers 6 GHz (needs WPA3)");
     if (has("airdrop")) { add(0.4, "airdrop: mosey_server running"); add(0.4, "airdrop: Play services Nearby flags on (2 of 2 overrides present)"); }
+    add(0.2, "on: " + ids.join(" "));
     add(0.4, "DONE");
     return out;
   }

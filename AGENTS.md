@@ -38,6 +38,8 @@ The release is built and tested for exactly one setup:
 | Play services flags `45704091`, `45723015` | Play services version | Re-check if AirDrop doesn't show up (see "Play services") |
 | `AIRDROP_KBASE`, `AIRDROP_FW`, `PAYLOAD*` | Yes | Update in `install.sh` and `device/tweaks.sh` |
 
+Every firmware or hardware condition a tweak needs is checked in one place: `why_not` in `device/tweaks.sh` prints the reason a tweak can't run (empty if it can), and `is_on` says whether it's in effect. The module page shows `why_not` as "Not available: ...", apply logs `<tweak>: skipped: ...` and leaves it out, and the log ends with `on:` / `not on:`. When a tweak gains a requirement, add it to `why_not` so it never gets offered and then silently skips.
+
 Collect this from the phone first:
 
 ```sh

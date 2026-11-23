@@ -760,6 +760,69 @@ restart_framework() {
   done
 }
 
+# ---------- Why a tweak can't run on this phone, and whether it's on (probe, apply log) ----------
+phone_facts() {
+  model=$(getprop ro.product.model); build=$(getprop ro.build.PDA); csc=$(getprop ro.csc.sales_code)
+  gms=$(dumpsys package com.google.android.gms 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2)
+  lcv=$(lc_installed)
+}
+# the XAC files the carrier tweaks replace must be S918WVLU8GZIF's (a bound one is the module's own)
+csc_stock_ok() {
+  for p in "$XAC/system/cscfeature.xml $XAC_CSC_MD5" "$XAC/system/customer_carrier_feature.json $XAC_CCF_MD5" "$XAC/customer.xml $XAC_CUST_MD5"; do
+    set -- $p; bound $1 || [ "$(md5 $1)" = $2 ] || return 1
+  done
+}
+# why_not TWEAK: print why it can't run on this phone (nothing if it can). Needs phone_facts.
+why_not() {
+  case "$model" in SM-S918*) ;; *) echo "this is for the Galaxy S23 Ultra (SM-S918*), not $model"; return ;; esac
+  case $1 in
+    airdrop|wifi7)
+      kernel_supported || { echo "needs firmware $(echo $AIRDROP_FW | sed 's/ /, /g') (this phone runs $build)"; return; }
+      [ "${gms:-0}" -ge $GMS_MIN ] || echo "needs Google Play services 26.11 or newer" ;;
+    callrec|india)
+      [ "$csc" = XAC ] || { echo "needs XAC (Canadian) firmware (this phone is $csc)"; return; }
+      csc_stock_ok || echo "needs the XAC carrier files of S918WVLU8GZIF (this phone runs $build)" ;;
+    battery)
+      for f in $BATT_EFS; do [ -f /efs/FactoryApp/$f ] || { echo "this phone has no $f in /efs/FactoryApp"; return; }; done ;;
+    colortone)
+      [ "$build" = S918WVLU8GZIF ] || echo "needs firmware S918WVLU8GZIF (it patches that build's Settings app; this phone runs $build)" ;;
+    hotspot6g) [ -x /data/adb/ksu/bin/resetprop ] || echo "needs KernelSU's resetprop" ;;
+    camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
+    logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
+    galaxyai)
+      for p in $GAI_APPS; do [ -f /system/$p/${p#*/}.apk ] || { echo "this phone has no /system/$p/${p#*/}.apk to replace"; return; }; done ;;
+    settingssearch) [ -f /system/$SSI/SecSettingsIntelligence.apk ] || echo "this phone has no /system/$SSI to replace" ;;
+    callscreen)
+      [ "${lcv:-0}" -ge 400000000 ] 2>/dev/null || [ "$(df -k /data | awk 'NR == 2 {print $4}')" -ge 7340032 ] ||
+        echo "needs about 7 GB free on the phone for its 3.1 GB download" ;;
+  esac
+}
+# is_on TWEAK: is it in effect right now?
+is_on() {
+  case $1 in
+    airdrop) [ -d /sys/module/wonder ] && bound /system_ext/bin ;;
+    battery) mounted /sys/class/power_supply tmpfs ;;
+    features) bound $FF && grep -q SETTINGS_SUPPORT_AUTO_POWER_ON_OFF $FF 2>/dev/null ;;
+    india) bound $PRISM ;;
+    callrec) bound $XAC/system/cscfeature.xml && ! bound $PRISM ;;
+    hotspot6g) [ "$(getprop ro.csc.countryiso_code)" = IN ] ;;
+    wifi7) bound $WPAS && bound $INI ;;
+    display) bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<" $FF 2>/dev/null ;;
+    logvideo) bound $CF && grep -q SUPPORT_LOG_VIDEO $CF 2>/dev/null ;;
+    camextras) bound $CF && grep -q SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK $CF 2>/dev/null ;;
+    autoframe) grep -q "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>uhd<" $FF 2>/dev/null ;;
+    bargein) grep -q "<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<" $FF 2>/dev/null ;;
+    settingssearch) bound /system/$SSI/SecSettingsIntelligence.apk ;;
+    callscreen) [ "$(lc_installed)" -ge 400000000 ] 2>/dev/null ;;
+    vulkan) [ "$(getprop debug.hwui.renderer)" = skiavk ] ;;
+    camerahdr) grep -q 'mfhdr.arcsoft.v4' $FF 2>/dev/null && [ -f /system/lib64/liblow_light_hdr.arcsoft.so ] ;;
+    audioeraser) [ -f /system/etc/fastScanner.tflite ] ;;
+    colortone) bound $SETTINGS ;;
+    galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
+    *) return 1 ;;
+  esac
+}
+
 case "$1" in
 apply)
   [ "$(id -u)" = 0 ] || { echo "needs root" >&2; exit 1; }
@@ -772,9 +835,13 @@ apply)
   for x in $2; do case " $TWEAK_IDS " in *" $x "*) ;; *) fail "unknown tweak: $x" ;; esac; done
   echo "$2" > $V/choices
   has wifi7 && ! has airdrop && fail "wifi7 needs airdrop (the S24 Wi-Fi driver)"
+  phone_facts; keep=""
+  for x in $2; do
+    w=$(why_not $x); if [ -n "$w" ]; then log "$x: skipped: $w"; else keep="$keep $x"; fi
+  done
+  TWEAKS=" $keep "
   payload_fetch   # before the AirDrop driver swap takes Wi-Fi down
   if has airdrop; then
-    kernel_supported || fail "airdrop: kernel $(uname -r) isn't one the AirDrop modules are checked against (firmware: $AIRDROP_FW)"
     has wifi7 && wifi7_bind   # before the driver loads, so it reads the MLO settings
     airdrop_kernel
     if has wifi7; then [ "${AK_LOADED:-0}" = 1 ] && [ "${W7_INI_NEW:-0}" = 1 ] && wifi7_reload; wifi7_check; fi
@@ -810,6 +877,9 @@ $CF_HLOCK"
   has camextras && directorsview_pref
   has callscreen && callscreen_apply
   has airdrop && airdrop_post
+  on=""; off=""; for x in $2; do if is_on $x; then on="$on $x"; else off="$off $x"; fi; done
+  log "on:${on:- none}"
+  [ -n "$off" ] && log "not on:$off (the reason is in the lines above)"
   touch /dev/s23tweaks_applied   # lets the boot apply know this boot already has them
   log "DONE"
   ;;
@@ -826,56 +896,17 @@ start)
   ;;
 probe)
   # One line of JSON for the WebUI and install.sh. Values never contain quotes or backslashes.
-  model=$(getprop ro.product.model); build=$(getprop ro.build.PDA); csc=$(getprop ro.csc.sales_code)
-  kern=$(uname -r); android=$(getprop ro.build.version.release)
-  gms=$(dumpsys package com.google.android.gms 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2)
+  phone_facts; kern=$(uname -r); android=$(getprop ro.build.version.release)
   ver=$( [ $MODULE = 1 ] && grep -m1 '^version=' $D/module.prop | cut -d= -f2 || echo script)
-  why_s23=""; case "$model" in SM-S918*) ;; *) why_s23="this is for the Galaxy S23 Ultra (SM-S918*), not $model" ;; esac
-  why_ad=$why_s23
-  [ -z "$why_ad" ] && ! kernel_supported && why_ad="needs firmware $(echo $AIRDROP_FW | sed 's/ /, /g') (this phone runs $build)"
-  [ -z "$why_ad" ] && [ "${gms:-0}" -lt $GMS_MIN ] && why_ad="needs Google Play services 26.11 or newer"
-  why_csc=$why_s23; [ -z "$why_csc" ] && [ "$csc" != XAC ] && why_csc="needs XAC (Canadian) firmware (this phone is $csc)"
-  why_bat=$why_s23; for f in $BATT_EFS; do [ -z "$why_bat" ] && [ ! -f /efs/FactoryApp/$f ] && why_bat="this phone has no $f in /efs/FactoryApp"; done
-  pw() { echo "$why_s23"; }   # their files are downloaded when picked
-  why_ct=$why_s23; [ -z "$why_ct" ] && [ "$build" != S918WVLU8GZIF ] && why_ct="needs firmware S918WVLU8GZIF (it patches that build's Settings app; this phone runs $build)"
-  why_6g=$why_s23; [ -z "$why_6g" ] && [ ! -x /data/adb/ksu/bin/resetprop ] && why_6g="needs KernelSU's resetprop"
-  lcv=$(lc_installed); why_lc=$why_s23
-  [ -z "$why_lc" ] && [ "${lcv:-0}" -lt 400000000 ] && [ "$(df -k /data | awk 'NR == 2 {print $4}')" -lt 7340032 ] &&
-    why_lc="needs about 7 GB free on the phone for its 3.1 GB download"
-  act() { "$@" && echo true || echo false; }
-  a_air=$(act eval '[ -d /sys/module/wonder ] && bound /system_ext/bin')
-  a_bat=$(act mounted /sys/class/power_supply tmpfs)
-  a_fea=$(act eval 'bound $FF && grep -q SETTINGS_SUPPORT_AUTO_POWER_ON_OFF $FF')
-  a_ind=$(act bound $PRISM)
-  a_rec=$(act eval 'bound $XAC/system/cscfeature.xml && ! bound $PRISM')
-  a_6g=$(act eval '[ "$(getprop ro.csc.countryiso_code)" = IN ]')
-  a_w7=$(act eval 'bound $WPAS && bound $INI')
-  a_dis=$(act eval 'bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_VIVIDNESS>1<" $FF')
-  a_log=$(act eval 'bound $CF && grep -q SUPPORT_LOG_VIDEO $CF')
-  a_cx=$(act eval 'bound $CF && grep -q SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK $CF')
-  a_af=$(act eval 'grep -q "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>uhd<" $FF')
-  a_bi=$(act eval 'grep -q "<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<" $FF')
-  a_ss=$(act bound /system/$SSI/SecSettingsIntelligence.apk)
-  a_lc=$(act eval '[ "${lcv:-0}" -ge 400000000 ]')
-  a_vk=$(act eval '[ "$(getprop debug.hwui.renderer)" = skiavk ]')
-  a_ch=$(act eval "grep -q 'mfhdr.arcsoft.v4' $FF && [ -f /system/lib64/liblow_light_hdr.arcsoft.so ]")
-  a_ae=$(act eval '[ -f /system/etc/fastScanner.tflite ]')
-  a_ct=$(act bound $SETTINGS)
-  a_gai=$(act bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk)
-  j() { printf '{"id":"%s","available":%s,"why":"%s","active":%s}' "$1" "$( [ -z "$2" ] && echo true || echo false)" "$2" "$3"; }
+  j() { w=$(why_not $1); printf '{"id":"%s","available":%s,"why":"%s","active":%s}' "$1" \
+          "$( [ -z "$w" ] && echo true || echo false)" "$w" "$(is_on $1 && echo true || echo false)"; }
   sim=$(getprop gsm.sim.operator.numeric | cut -d, -f1)   # MCC+MNC of the first SIM; 404/405 = India
   printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s,"sim":"%s"},' \
     "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}" "$sim"
   printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(cat $V/choices 2>/dev/null)" \
     "$( [ -f $V/autostart ] && echo true || echo false)" "$( lock_alive && echo true || echo false)"
-  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]}\n' "$(j airdrop "$why_ad" $a_air)" "$(j battery "$why_bat" $a_bat)" \
-    "$(j features "$why_s23" $a_fea)" "$(j callrec "$why_csc" $a_rec)" "$(j india "$why_csc" $a_ind)" \
-    "$(j hotspot6g "$why_6g" $a_6g)" "$(j wifi7 "$why_ad" $a_w7)" \
-    "$(j display "$why_s23" $a_dis)" "$(j logvideo "$why_s23" $a_log)" "$(j vulkan "$why_s23" $a_vk)" \
-    "$(j camerahdr "$(pw camerahdr)" $a_ch)" "$(j audioeraser "$(pw audioeraser)" $a_ae)" \
-    "$(j colortone "$why_ct" $a_ct)" "$(j galaxyai "$(pw galaxyai)" $a_gai)" \
-    "$(j camextras "$why_s23" $a_cx)" "$(j autoframe "$why_s23" $a_af)" "$(j settingssearch "$(pw settingssearch)" $a_ss)" \
-    "$(j bargein "$why_s23" $a_bi)" "$(j callscreen "$why_lc" $a_lc)"
+  sep=""; for x in $TWEAK_IDS; do printf '%s%s' "$sep" "$(j $x)"; sep=","; done
+  printf ']}\n'
   ;;
 loop)
   # init can't start mosey_server (its .rc isn't loaded on this boot). moseyrun starts it the way
