@@ -87,7 +87,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "2023 ArcSoft HDR: the HDR engines of One UI 6 instead of today's (hybrid + bracketed HDR; 28 MB download; pick it by number)"
       "4K auto framing: the S24's UHD auto framing in video (reported to make the camera fail; pick it by number)"
       "Front-camera 10-bit: apps can record 10-bit HDR (HLG10) video with the selfie cameras (patches a copy of the camera driver)"
-      "Lock screen wallpaper on Always On Display"
+      "Always On Display: lock screen wallpaper, and AOD brightness that follows the room light"
       "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
       "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
       "Galaxy AI apps: the S24's Now Brief, Creative Studio and Call Assist (219 MB download)"

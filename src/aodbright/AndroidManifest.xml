@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- s23-ultra-tweaks aodbright: Always On Display auto brightness curve. Fills two framework tables
+     the S23 Ultra ships empty; the AOD app (BrightnessManager) builds its brightness curve from them. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.dtechterminal.s23tweaks.aodbright" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="37" android:targetSdkVersion="37"/>
+    <application android:hasCode="false"/>
+    <overlay android:targetPackage="android" android:priority="10" android:isStatic="true"/>
+</manifest>

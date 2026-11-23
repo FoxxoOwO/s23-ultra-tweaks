@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Always On Display brightness follows the room light** (`display`). The AOD app builds its brightness from two framework tables (`config_autoBrightnessLevels_doze`, `config_autoBrightnessDisplayValuesNits_doze`) that the S23 ships empty, so every light reading logged "getBrightnessValues not matched!" and the AOD got 0 nits: it sat at its minimum, and the lock screen wallpaper on AOD showed bright for a few seconds and then dropped sharply. `display` now adds the S24 Ultra's two tables with a small static overlay (`files/aodbright.apk`, built from `src/aodbright`) layered onto `/product/overlay`, and restarts the framework. Samsung's package manager doesn't list the overlay ("not in allowed list"), but zygote loads it into every app's system resources, which is where the AOD app reads it. Tested on S918WVLU8GZIF: at 13 lux the AOD went from 0 to 14.5 nits. Not yet checked in bright light.
+
 ## v1.2.7
 
 - **AirDrop loads after hours of uptime** (issue #7). Applying `airdrop` long after a reboot could fail with "Failed to register mac80211 hardware. Ret: -12": mac80211 needs one 128 KB block of contiguous memory for its transmit queues, and the kernel gives up on a block that large once memory is fragmented. `wonder.ko` now asks for a block that size first in a way that makes the kernel reclaim and compact until it gets one, and frees it just before registering. Tested on S918WVLU8GZIF at 2.6 hours uptime: the old `wonder.ko` failed 6 times in a row, the new one loaded first time. If it still fails, `tweaks.sh` compacts memory and retries twice. The AirDrop download is now `airdrop-S918WVLU8GZIF-2.tar.gz` (only `wonder.ko` changed).

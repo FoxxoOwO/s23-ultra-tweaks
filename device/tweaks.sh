@@ -1005,6 +1005,27 @@ hotspot6g_apply() {
   $RP ro.csc.countryiso_code IN && log "hotspot6g: CSC country $c -> IN; Mobile hotspot > Band now offers 6 GHz (needs WPA3)"
 }
 
+# display: Always On Display auto brightness. The AOD app (BrightnessManager) builds its brightness curve
+# from two framework tables, config_autoBrightnessLevels_doze (lux) and config_autoBrightnessDisplayValuesNits_doze
+# (nits). The S23 ships both empty, so every light reading logs "getBrightnessValues not matched!" and the
+# AOD gets 0 nits: the wallpaper on AOD shows bright, then drops to the minimum, whatever the room light.
+# files/aodbright.apk (built from src/aodbright) is a static overlay with the S24 Ultra's two tables and
+# nothing else. The AOD app reads them through Resources.getSystem(), which only has the overlays zygote
+# found in the partitions' overlay folders when it started: so it goes on /product/overlay (an overlay
+# layer, nothing written) and the framework restarts.
+AODB=/product/overlay/s23tweaks-aodbright.apk
+aodb_apply() {
+  [ -f $AODB ] && { log "display: AOD brightness curve already in"; return 1; }
+  [ -f $D/files/aodbright.apk ] || { log "display: files/aodbright.apk missing; AOD brightness curve skipped"; return 1; }
+  T=/dev/s23tweaks_aodb; mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_aodb $T
+  cp $D/files/aodbright.apk $T/${AODB##*/} && chmod 644 $T/${AODB##*/} && chcon -R u:object_r:system_file:s0 $T || fail "aodbright copy"
+  mount -t overlay s23tweaks_product_overlay -o ro,lowerdir=$T:/product/overlay /product/overlay || fail "overlay on /product/overlay"
+  log "display: AOD brightness curve added (/product/overlay)"
+}
+# Samsung's package manager skips it ("Package is not in allowed list"), so cmd overlay never lists it; zygote
+# still loads it into every process's system resources, which is all the AOD app reads. On = system_server has it.
+aodb_on() { grep -q s23tweaks-aodbright /proc/$(pidof system_server)/maps 2>/dev/null; }
+
 restart_framework() {
   old=$(pidof system_server); log "restarting the Android framework (screen goes black for ~30 s)"
   setprop ctl.restart zygote
@@ -1134,7 +1155,10 @@ apply)
     # Vivid screen mode put SurfaceFlinger in sRGB instead of the panel's wide gamut: washed-out colours.
     ff_set LCD_CONFIG_AOD_FULLSCREEN 1; ff_set LCD_CONFIG_AOD_BRIGHTNESS_ANIMATION 1
     # Keep AOD_BRIGHTNESS_ANIMATION: without it the wallpaper on AOD can't be seen on the S23. With it
-    # the wallpaper starts bright and dims sharply after a few seconds, to the S23's AOD brightness
+    # the wallpaper starts bright and dims sharply after a few seconds, to the S23's AOD brightness: the
+    # AOD app's light-sensor curve is empty on the S23 (0 nits). aodb_apply adds the S24 Ultra's curve.
+    aodb_apply && restart=1
+  elif [ -f $AODB ]; then log "display: not picked, but the AOD brightness curve stays until a reboot"
   fi
   if has logvideo; then
     ff_set CAMERA_CONFIG_LOG_VIDEO V1.0; ff_set GALLERY_SUPPORT_LOG_CORRECT_COLOR TRUE
@@ -1221,7 +1245,7 @@ status)
   echo "features: $(bound $FF && grep -oE '<SEC_FLOATING_FEATURE_(SETTINGS_SUPPORT_AUTO_POWER_ON_OFF|AUDIO_SUPPORT_VOIP_SOUND_LOUDER)>' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>//' | tr '\n' ' ' || echo off)"
   echo "battery:  auth IC $(mounted /sys/class/power_supply tmpfs && echo presented || { [ -e /sys/class/power_supply/sec_auth ] && echo "real (presence $(cat /sys/class/power_supply/sec_auth/presence 2>/dev/null), auth $(cat /sys/class/power_supply/sec_auth/batt_auth 2>/dev/null))" || echo off; }),"\
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
-  echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off)"
+  echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off), AOD brightness curve $(aodb_on && echo on || { [ -f $AODB ] && echo "added, waiting for a framework restart" || echo off; })"
   echo "logvideo: $(is_on logvideo && echo on || echo off), Gallery LUTs $(bound $LV && echo on || echo off)"
   echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"

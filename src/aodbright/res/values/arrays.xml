@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The Galaxy S24 Ultra's values (framework-res__e3qxxx__auto_generated_rro_product.apk).
+         Ambient light (lux) at which the next AOD brightness step starts: 9 levels, 10 steps -->
+    <integer-array name="config_autoBrightnessLevels_doze">
+        <item>1</item><item>10</item><item>30</item><item>50</item><item>100</item>
+        <item>500</item><item>1000</item><item>2000</item><item>3000</item>
+    </integer-array>
+    <!-- AOD brightness (nits) for each step, darkest room first -->
+    <array name="config_autoBrightnessDisplayValuesNits_doze">
+        <item>2</item><item>5</item><item>10</item><item>55</item><item>64</item>
+        <item>82</item><item>139</item><item>198</item><item>331</item><item>490</item>
+    </array>
+</resources>

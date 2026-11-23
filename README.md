@@ -27,7 +27,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 ### 🎨 Display and graphics
 
-- 🖌️ **10 · Lock screen wallpaper on Always On Display** · `display`
+- 🖌️ **10 · Always On Display: lock screen wallpaper, and AOD brightness that follows the room light** · `display`
 - 🌤️ **11 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
   - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
 - ⚡ **12 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
@@ -211,6 +211,7 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 ## 🎨 Display, Log video and Vulkan
 
 - **Always On Display**: *Lock screen and AOD → Always On Display* gets *Show Lock screen wallpaper*. *Erase background* only works with a photo wallpaper whose subject was cut out by the wallpaper editor (a "layered" wallpaper), not with the AI weather wallpaper.
+  - **AOD brightness**: the S23 ships the AOD's light-sensor brightness table empty, so the AOD sits at its minimum in any light (the AOD app logs `getBrightnessValues not matched!`). The tweak adds the S24 Ultra's table (2 nits in the dark up to 490 nits above 3000 lux) with a small framework overlay (`files/aodbright.apk`, source in `src/aodbright`), layered onto `/product/overlay` in memory; the framework restarts once. Nothing is written to the phone, and it's gone after a reboot without the tweak.
 - **Log video**: in *Pro video*, tap **LOG** at the top. The S23's camera already records 10-bit; the tweak only turns on Samsung's switches for it.
 - **Vulkan**: Samsung's renderer ignores the S24's `ro.hwui.use_vulkan`; the tweak sets `debug.hwui.renderer=skiavk`. Check with `adb shell dumpsys gfxinfo com.android.systemui | grep Pipeline` (should say `Skia (Vulkan)`).
 
