@@ -6,55 +6,55 @@ The tweaks come in six categories. The installer and the module page let you pic
 or single tweaks; the numbers below are the installer's. Each one works on any S23 Ultra on One UI 9
 unless it says otherwise.
 
-### Connectivity
+### 🌐 Connectivity
 
-- **1 · AirDrop** with iPhones, iPads and Macs: Quick Share → *Share with Apple devices* · `airdrop`
+- 📲 **1 · AirDrop** with iPhones, iPads and Macs: Quick Share → *Share with Apple devices* · `airdrop`
   - Works on: One UI 9 build **GZIF** on SM-S918W, S918B, S918U1, S918U or S918N (tested on the S918W and S918B)
-- **2 · Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes AirDrop · `wifi7`
+- 📶 **2 · Wi-Fi 7 multi-link (MLO)** with Wi-Fi 7 routers. Includes AirDrop · `wifi7`
   - Works on: same as AirDrop
-- **3 · 6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz · `hotspot6g`
+- 📡 **3 · 6 GHz Mobile Hotspot** (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz · `hotspot6g`
 
-### Camera
+### 📷 Camera
 
-- **4 · Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23's can't · `logvideo`
-- **5 · Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** · `camextras`
-- **6 · Camera HDR processing**: puts back the multi-frame and low-light HDR steps One UI 9 removed from the S23 ([details](docs/findings.md)). **Untested** · `camerahdr`
+- 🎞️ **4 · Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23's can't · `logvideo`
+- 🎬 **5 · Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** · `camextras`
+- 🌗 **6 · Camera HDR processing**: puts back the multi-frame and low-light HDR steps One UI 9 removed from the S23 ([details](docs/findings.md)). **Untested** · `camerahdr`
   - 21 MB download
-- **7 · 2023 ArcSoft HDR**: One UI 6's hybrid and bracketed HDR engines instead of today's. Bracketed HDR tested, hybrid HDR (ordinary daylight) **untested**. Not included when you pick the whole Camera category · `hdr2023`
+- 🕰️ **7 · 2023 ArcSoft HDR**: One UI 6's hybrid and bracketed HDR engines instead of today's. Bracketed HDR tested, hybrid HDR (ordinary daylight) **untested**. Not included when you pick the whole Camera category · `hdr2023`
   - Works on: any S23 Ultra on One UI 9; tested on S918WVLU8GZIF (28 MB download)
-- **8 · 4K auto framing** in video, as on the S24. Works on the SM-S918W (front camera, UHD with auto framing on); **reported to make the camera fail** on an S918B, so it's not included when you pick the whole Camera category · `autoframe`
-- **9 · 10-bit HDR video from the front cameras in any app** (Camera2 HLG10), as the rear cameras already allow. Samsung Camera keeps its own HDR10+. Patches a copy of the phone's own camera driver and keeps it only if a front camera then really offers 10-bit; the first apply takes about 15 s longer · `tenbit`
+- 🎯 **8 · 4K auto framing** in video, as on the S24. Works on the SM-S918W (front camera, UHD with auto framing on); **reported to make the camera fail** on an S918B, so it's not included when you pick the whole Camera category · `autoframe`
+- 🌈 **9 · 10-bit HDR video from the front cameras in any app** (Camera2 HLG10), as the rear cameras already allow. Samsung Camera keeps its own HDR10+. Patches a copy of the phone's own camera driver and keeps it only if a front camera then really offers 10-bit; the first apply takes about 15 s longer · `tenbit`
   - Works on: any S23 Ultra whose camera driver has the expected code (found in One UI 6 and 9 builds; tested on S918WVLU8GZIF)
 
-### Display and graphics
+### 🎨 Display and graphics
 
-- **10 · Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** · `display`
-- **11 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
+- 🖌️ **10 · Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** · `display`
+- 🌤️ **11 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
   - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
-- **12 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
+- ⚡ **12 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
 
-### Galaxy AI and Samsung apps
+### ✨ Galaxy AI and Samsung apps
 
-- **13 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
+- 🧠 **13 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
   - Works on: firmware S918WVLU8GZIF (219 MB download)
-- **14 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
+- 🔇 **14 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
   - Works on: firmware S918WVLU8GZIF (34 MB download)
-- **15 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
+- 🔎 **15 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
   - Works on: firmware S918WVLU8GZIF (10 MB download)
-- **16 · Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** · `callscreen`
+- 📞 **16 · Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** · `callscreen`
   - Works on: firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs)
-- **17 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
+- 🗣️ **17 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
 
-### Battery and settings
+### 🔋 Battery and settings
 
-- **18 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
-- **19 · Auto power on/off** schedule and **louder VoIP calls** · `features`
+- 🩺 **18 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
+- ⏰ **19 · Auto power on/off** schedule and **louder VoIP calls** · `features`
 
-### Carrier
+### 📱 Carrier
 
-- **20 · Call recording** in the Samsung Phone app · `callrec`
+- ⏺️ **20 · Call recording** in the Samsung Phone app · `callrec`
   - Works on: XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF
-- **21 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+- 🇮🇳 **21 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
   - Works on: XAC (Canadian) firmware S918WVLU8GZIF
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
@@ -67,7 +67,9 @@ The installer asks which ones you want and greys out the ones your phone can't t
 
 **Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
 
-## Before you start
+<a id="before-you-start"></a>
+
+## ✅ Before you start
 
 You need:
 
@@ -81,7 +83,9 @@ You need:
 
 > Root has side effects. Some apps with anti-tamper checks refuse to run while the KernelSU manager app is installed (for example CRED in India). You do this at your own risk.
 
-## Install
+<a id="install"></a>
+
+## 📦 Install
 
 ### On the phone: KernelSU module (no computer)
 
@@ -150,7 +154,9 @@ The S23's Wi-Fi briefly disconnects while Quick Share is looking for Apple devic
 
 If no Apple device shows up after the first apply, Play services may not have picked up its two flags yet. On an S918B it started offering Apple devices only after being restarted some minutes later: `adb shell su -c 'am force-stop com.google.android.gms'`, then open Quick Share again.
 
-## How AirDrop works on an S23
+<a id="how-airdrop-works-on-an-s23"></a>
+
+## 🍏 How AirDrop works on an S23
 
 Samsung's S24-and-newer phones do AirDrop through Google's **Mosey** stack. The phone runs Apple's peer-to-peer Wi-Fi protocol (AWDL) itself, using a Qualcomm firmware feature called *Wondertap*. The S23 Ultra has the same Wi-Fi chip as the S24 Ultra (Qualcomm WCN7850), but its firmware, driver and system image leave all of this out. The `airdrop` tweak adds the S24 pieces at runtime:
 
@@ -164,7 +170,9 @@ Samsung's S24-and-newer phones do AirDrop through Google's **Mosey** stack. The 
 
 A watchdog script also runs. If the Wi-Fi firmware ever crashes, it saves the kernel log and reboots cleanly. Without it, the S24 driver's recovery leaves the phone to hard-reset about a minute later.
 
-## Reporting a problem
+<a id="reporting-a-problem"></a>
+
+## 🐞 Reporting a problem
 
 Module page → Status → **Make a bug report**. It saves one text file in Download and offers to copy it.
 Attach the file (or paste the text) in a [new issue](https://github.com/dtechterminal/s23-ultra-tweaks/issues),
@@ -180,7 +188,9 @@ aren't offered, the camera and feature settings the tweaks change (and what the 
 the files the module mounts, the last apply and boot logs, and summaries of recent crashes. It leaves
 out the serial number, email addresses, MAC addresses and long numbers such as the IMEI.
 
-## Status and logs
+<a id="status-and-logs"></a>
+
+## 📋 Status and logs
 
 The module page shows all of this. From a computer (if you used the computer installer instead of the module, the script is `/data/adb/s23tweaks/tweaks.sh`):
 
@@ -191,7 +201,9 @@ adb shell su -c "cat /data/adb/s23tweaks/tweaks.log"
 adb shell su -c "cat /data/adb/s23tweaks/boot.log"
 ```
 
-## Wi-Fi 7 multi-link (MLO)
+<a id="wi-fi-7-multi-link-mlo"></a>
+
+## 📶 Wi-Fi 7 multi-link (MLO)
 
 The S23 Ultra's chip (WCN7850) does Wi-Fi 7, including multi-link operation (MLO): one connection to a Wi-Fi 7 router over two bands at once. The S23's software only does part of it. Its `wpa_supplicant` has no 802.11be/MLO code, and its driver config leaves MLO off. `wifi7` builds on the `airdrop` driver, whose S24 source has MLO built in:
 
@@ -212,7 +224,9 @@ adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh wifi7page"
 
 The switch stores `Settings.Secure sec_wifi_7_mode_enabled` (default 1 = on). Samsung's Wi-Fi service applies a change at the next Wi-Fi disconnect. It switches Wi-Fi 7 off anyway in countries on Samsung's blocklist.
 
-## 6 GHz hotspot
+<a id="6-ghz-hotspot"></a>
+
+## 📡 6 GHz hotspot
 
 The S23 Ultra's Wi-Fi chip and its stock `hostapd` run a 6 GHz hotspot fine (tested: channel 1, 5975 MHz, 160 MHz wide, with an iPhone connected). Samsung's Settings only offers the 6 GHz band when the firmware's CSC country is on a hard-coded list (`SemWifiApServiceImpl.isRegionFor6GCountry`). For most S23 firmware it isn't: Canada, for example, needs a phone that launched with Android 15. `hotspot6g` sets the runtime property `ro.csc.countryiso_code` to `IN`, which passes on every Qualcomm phone. The sales code isn't touched.
 
@@ -222,14 +236,18 @@ The S23 Ultra's Wi-Fi chip and its stock `hostapd` run a 6 GHz hotspot fine (tes
 
 The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostapd` is built with it.
 
-## Display, Log video and Vulkan
+<a id="display-log-video-and-vulkan"></a>
+
+## 🎨 Display, Log video and Vulkan
 
 - **Vividness**: Samsung hides *Screen mode → Advanced settings* (where the slider is) while **Eye comfort shield** or a vision accessibility feature is on. That's stock behaviour, the S24 does the same.
 - **Always On Display**: *Lock screen and AOD → Always On Display* gets *Show Lock screen wallpaper*. *Erase background* only works with a photo wallpaper whose subject was cut out by the wallpaper editor (a "layered" wallpaper), not with the AI weather wallpaper.
 - **Log video**: in *Pro video*, tap **LOG** at the top. The S23's camera already records 10-bit; the tweak only turns on Samsung's switches for it.
 - **Vulkan**: Samsung's renderer ignores the S24's `ro.hwui.use_vulkan`; the tweak sets `debug.hwui.renderer=skiavk`. Check with `adb shell dumpsys gfxinfo com.android.systemui | grep Pipeline` (should say `Skia (Vulkan)`).
 
-## Downloaded tweaks: camerahdr, hdr2023, audioeraser, colortone, galaxyai, settingssearch
+<a id="downloaded-tweaks-camerahdr-hdr2023-audioeraser-colortone-galaxyai-settingssearch"></a>
+
+## ⬇️ Downloaded tweaks: camerahdr, hdr2023, audioeraser, colortone, galaxyai, settingssearch
 
 These need files from Samsung firmware (from the S24's for the last three, and from the S23's own One UI 6
 firmware for `camerahdr` and `hdr2023`). Each one is a separate file in the GitHub release `payloads-S918WVLU8GZIF`,
@@ -255,7 +273,9 @@ it's kept in `/data/adb/s23tweaks/payload/` so it isn't downloaded again.
   new search bar shows; the natural-language answers stay off, because they need Samsung's Semantic
   Search Core 4.x and both phones ship only a 1.0 placeholder.
 
-## Call screening
+<a id="call-screening"></a>
+
+## 📞 Call screening
 
 The Phone app's Call screening needs Samsung Language Core. The S23 firmware doesn't have it, and
 Galaxy Store refuses the S23 ("not compatible", 9908). `callscreen` installs it (version 4.0.01.24,
@@ -272,7 +292,9 @@ signed by Samsung) as an ordinary app.
 - **It stays after a reboot**, unlike the other tweaks. Remove it with
   `adb shell pm uninstall com.samsung.android.offline.languagemodel`.
 
-## Undo
+<a id="undo"></a>
+
+## ↩️ Undo
 
 **Remove the module** (KernelSU → Modules → S23 Ultra Tweaks → Uninstall) and reboot. During that
 boot the module cleans up after itself once the phone is unlocked:
@@ -293,7 +315,9 @@ adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh cleanup"
 Without removing anything, a plain reboot puts the phone back to stock except for those persistent
 items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
 
-## Known limitations
+<a id="known-limitations"></a>
+
+## ⚠️ Known limitations
 
 - **AirDrop needs One UI 9 build GZIF** (S918WVLU8GZIF, S918BXXUAGZIF, S918U1UEU8GZIF, S918USQU8GZIF or S918NKSU8GZIF). The modules are built on the S918W kernel. The other four have the same Wi-Fi drivers and the same kernel symbol CRCs, checked with `tools/kocompat.py` and `tools/modcmp.py` against their firmware files, but only the S918W and S918B have been tested on a phone. A different build needs the modules rebuilt (below).
 - Only **sending** to Apple devices has been tested. Receiving from them hasn't.
@@ -301,7 +325,9 @@ items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
 - `callrec` and `india` replace three carrier config files. They only apply when those files exactly match the S918WVLU8GZIF XAC ones (checked by MD5). On EUX firmware S918BXXUAGZIF `callrec` replaces one file, `cscfeature.xml`, under the same MD5 check. Neither tweak ever touches the sales code (`mps_code.dat`, `sales_code.dat`, `omc.info`). Changing the sales code can factory-reset the phone.
 - Tested on an SM-S918W (S918WVLU8GZIF, XAC, Android 17, Play services 26.45). On an SM-S918B (S918BXXUAGZIF, EUX) `airdrop`, `wifi7` (without a multi-link connection), `colortone`, `callrec` and `battery` have also been tested. Reports from other models are welcome.
 
-## Other firmware: let your AI agent build it
+<a id="other-firmware-let-your-ai-agent-build-it"></a>
+
+## 🤖 Other firmware: let your AI agent build it
 
 The kernel modules only load on the exact kernel they were built for. If your S23 Ultra runs different firmware, the installer marks `airdrop` and `wifi7` as unavailable. You can build your own modules by handing the job to an AI coding agent (Claude Code, Codex, Cursor and similar):
 
@@ -319,7 +345,9 @@ The kernel modules only load on the exact kernel they were built for. If your S2
 
 It takes a few hours of mostly downloading and compiling. The Samsung source and the S24 firmware together are about 25 GB. The rest of the tweaks (`battery`, `features`, `hotspot6g`) don't need any of this.
 
-## Building the kernel modules
+<a id="building-the-kernel-modules"></a>
+
+## 🛠️ Building the kernel modules
 
 You only need this to change the modules or to support other firmware. To port everything to another firmware, see [AGENTS.md](AGENTS.md). You need Docker (an x86-64 image; it runs under emulation on Apple Silicon), AOSP clang `clang-r450784e`, and Samsung's kernel sources from <https://opensource.samsung.com>:
 
@@ -340,6 +368,8 @@ run s23kbuild16 bash /repo/build/build-bwfix.sh        # out/bwfix.ko
 
 `build/Module.symvers.base` and `build/extra.symvers` hold the export CRCs of the GZIF kernel and its vendor modules, so the modules load without `modprobe --force`. The phone-side helpers (`moseyrun`, `pbflag`, plus a static `sqlite3`) build with the Android NDK: `aarch64-linux-android34-clang -O2 -static`.
 
-## Legal
+<a id="legal"></a>
+
+## ⚖️ Legal
 
 The scripts and the source in `src/` are GPL-2.0 (see `LICENSE`); the kernel modules have to be. The driver and `wonder` binaries are built from Samsung's and Google's GPL sources listed above. The release payload also contains files from the Galaxy S24 Ultra firmware (Qualcomm Wi-Fi firmware, Google's Mosey app and daemon). Those belong to their owners and are only provided so the S23 can use a feature its hardware supports. This project is not affiliated with Samsung, Google, Qualcomm or Apple. AirDrop is a trademark of Apple Inc.
