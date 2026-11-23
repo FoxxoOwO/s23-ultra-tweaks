@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.2
+
+- **Every tweak says why it can't run.** The module page shows the reason for each unavailable tweak (before, Camera HDR, Galaxy AI, Settings search, the carrier tweaks and the camera-config tweaks could be offered and then skip silently). Apply logs `<tweak>: skipped: <reason>` and carries on with the rest (an unsupported kernel no longer stops the whole apply at AirDrop), and the log ends with `on:` / `not on:`.
+- **Battery health** no longer needs `/efs/FactoryApp/batt_full_status_usage`, which some phones (an S918B) don't have. Android only uses it when the kernel reports BFSU.
+- **Adaptive color tone** shows as unavailable off S918WVLU8GZIF: it patches that build's Settings app, so on other firmware it did nothing.
+- **4K auto framing** was reported to make the camera fail (S918B). Ticking the Camera category or "all" no longer picks it; it can still be picked on its own.
+
 ## v1.2.1
 
 - **Battery health page:** the two feature flags it needs are now set to TRUE even when a firmware ships them as FALSE (before, they were only added when missing, so the page could stay hidden on other models).
