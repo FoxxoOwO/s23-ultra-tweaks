@@ -2,9 +2,8 @@
 
 Turns on Galaxy S24-and-newer features on a rooted Galaxy S23 Ultra running One UI 9 / Android 17, with no flashing.
 
-The tweaks come in six categories. The installer and the module page let you pick a whole category
-or single tweaks; the numbers below are the installer's. Each one works on any S23 Ultra on One UI 9
-unless it says otherwise.
+The tweaks come in six categories. The module page lets you pick a whole category or single tweaks.
+Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 ### 🌐 Connectivity
 
@@ -61,8 +60,6 @@ Not included, because they don't work on the S23: the S24's AI weather wallpaper
 only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
 Portrait video (they crash the camera).
 
-The installer asks which ones you want and greys out the ones your phone can't take.
-
 **Nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), and Samsung Language Core, which `callscreen` installs as an app update (see [Undo](#undo)).
 
 **Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
@@ -79,15 +76,13 @@ You need:
    - **KernelSU manager, Samsung build `samsung-v2.2`**: [its samsung-v2.2 release](https://github.com/diabl0w/KernelSU/releases/tag/samsung-v2.2). DFRoot needs it installed to load root.
 
    Install both APKs, open DFRoot and tap **LAUNCH ROOT** once.
-3. **Only for the computer installer:** a computer (macOS or Linux) with [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (`adb`), a USB cable, and **USB debugging** on (Settings → About phone → Software information → tap *Build number* 7 times, then Settings → Developer options → *USB debugging*). Run `adb devices` once and accept the prompt on the phone, then in KernelSU → **Superuser** allow **Shell**.
+3. **Optional, only for the `adb` commands in this README:** a computer (macOS or Linux) with [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) (`adb`), a USB cable, and **USB debugging** on (Settings → About phone → Software information → tap *Build number* 7 times, then Settings → Developer options → *USB debugging*). Run `adb devices` once and accept the prompt on the phone, then in KernelSU → **Superuser** allow **Shell**.
 
 > Root has side effects. Some apps with anti-tamper checks refuse to run while the KernelSU manager app is installed (for example CRED in India). You do this at your own risk.
 
 <a id="install"></a>
 
 ## 📦 Install
-
-### On the phone: KernelSU module (no computer)
 
 1. On the phone, download the `s23-ultra-tweaks-v….zip` file from the [latest release](https://github.com/dtechterminal/s23-ultra-tweaks/releases/latest).
 2. Open **KernelSU** → **Modules** → **Install** and pick the zip. It checks that this is an S23 Ultra and whether the AirDrop files match your firmware.
@@ -98,48 +93,23 @@ The page greys out tweaks your phone can't take and says why. During the apply, 
 
 To remove it: KernelSU → Modules → S23 Ultra Tweaks → Remove, then reboot.
 
-### From a computer: installer script
-
-With the phone plugged in and rooted:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/dtechterminal/s23-ultra-tweaks/main/install.sh | bash
-```
-
-Or clone and run it:
-
-```sh
-git clone https://github.com/dtechterminal/s23-ultra-tweaks
-cd s23-ultra-tweaks
-./install.sh
-```
-
-What happens:
-
-- It checks the phone model, firmware, root and Play services version, then shows the menu.
-- It downloads the tweak scripts. The files some tweaks need (the AirDrop driver, the S24 apps, Language Core) are downloaded by the phone itself from this repo's release when it applies them, each checked against a SHA-256 pinned in `device/tweaks.sh`.
-- It copies everything to `/data/adb/s23tweaks` on the phone (a root-only folder) and applies your picks.
-- It asks whether to re-apply them automatically at every boot.
-- With `airdrop`, Wi-Fi and the hotspot drop for about 30 s while the driver is swapped.
-- The screen goes black for about 30 s while Android restarts its framework. Leave the cable in.
-
 ### After a reboot
 
-If you said yes to *re-apply automatically at every boot*, there's nothing to do and no computer is needed:
+With **Apply at every boot** on, there's nothing to do:
 
 1. DFRoot roots the phone by itself during boot (its boot receiver runs the same exploit as **LAUNCH ROOT**).
-2. KernelSU then runs the scripts in `/data/adb/service.d/`, and the installer put one there.
+2. KernelSU then starts the module, which re-applies your saved picks.
 3. About a minute after boot, the tweaks re-apply: Wi-Fi drops for ~30 s and the screen goes black for ~30 s once. A notification says when they're on.
 
-A fail-safe prevents boot loops. If a boot's apply never finished (the phone rebooted in the middle), or the Wi-Fi firmware crashed, the next boot skips the tweaks once and a notification says why. Reboot again or run the installer to bring them back.
+A fail-safe prevents boot loops. If a boot's apply never finished (the phone rebooted in the middle), or the Wi-Fi firmware crashed, the next boot skips the tweaks once and a notification says why. Reboot again or tap **Apply** on the module page to bring them back.
 
 If DFRoot didn't root the phone at boot (no notification after a few minutes), open DFRoot and tap **LAUNCH ROOT**. The tweaks then apply by themselves.
 
-**Don't want root at every boot?** In DFRoot's settings, turn off **Start at Boot**. The phone then boots stock, with no KernelSU loaded, until you tap **LAUNCH ROOT**. With autostart on, the tweaks apply by themselves a minute after you tap it, still with no computer. So you get root, and the tweaks, only when you ask for them.
+**Don't want root at every boot?** In DFRoot's settings, turn off **Start at Boot**. The phone then boots stock, with no KernelSU loaded, until you tap **LAUNCH ROOT**. With **Apply at every boot** on, the tweaks apply by themselves a minute after you tap it. So you get root, and the tweaks, only when you ask for them.
 
-Without autostart, run the installer again after each reboot and press Enter to reuse your last picks.
+Without **Apply at every boot**, tap the module's action button (▶) after each reboot to re-apply your saved picks.
 
-To turn autostart off, run the installer and answer **n**, or:
+To turn it off later, switch off **Apply at every boot** on the module page, or:
 
 ```sh
 adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh autostart off"
@@ -192,7 +162,7 @@ out the serial number, email addresses, MAC addresses and long numbers such as t
 
 ## 📋 Status and logs
 
-The module page shows all of this. From a computer (if you used the computer installer instead of the module, the script is `/data/adb/s23tweaks/tweaks.sh`):
+The module page shows all of this. From a computer:
 
 ```sh
 adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh status"
@@ -210,7 +180,7 @@ The S23 Ultra's chip (WCN7850) does Wi-Fi 7, including multi-link operation (MLO
 - **S24 `wpa_supplicant`** bind-mounted over the S23's. It speaks the same Samsung HAL extensions and needs one library the S23 vendor image lacks (`android.hardware.wifi.supplicant-V2-ndk.so`), which is added to `/vendor/lib64` with a read-only RAM overlay.
 - **Driver config:** the S23's own `WCNSS_qcom_cfg.ini` plus the S24's four MLO lines (`mlo_support_link_num=2`, `mlo_5gl_5gh_mlsr=1`, `oem_eht_mlo_crypto_bitmap=0`, `epcs_support_enable=1`).
 
-If Wi-Fi doesn't come up with the S24 supplicant, the installer switches back to the S23's and carries on without MLO.
+If Wi-Fi doesn't come up with the S24 supplicant, the tweak switches back to the S23's and carries on without MLO.
 
 Tested so far: Wi-Fi runs and connects normally with the S24 supplicant, and the driver's MLO code checks each network it joins. A multi-link connection itself hasn't been tested yet; that needs a Wi-Fi 7 router with MLO on. With one, Settings → Wi-Fi → (network) should show Wi-Fi 7, and `adb shell cmd wifi status` shows `MLO Link Id`s.
 
@@ -304,8 +274,7 @@ boot the module cleans up after itself once the phone is unlocked:
 - drops Android's cached manifests of the apps the tweaks swap, so the stock apps are re-read;
 - deletes `/data/adb/s23tweaks` (downloads, logs, backups) and the boot script.
 
-The mounts themselves were already undone by the reboot. If the computer installer also has its own
-copy in `/data/adb/s23tweaks`, removing the module leaves that copy alone. To clean up by hand:
+The mounts themselves were already undone by the reboot. To clean up by hand:
 
 ```sh
 adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh cleanup"
@@ -327,7 +296,7 @@ items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
 
 ## 🤖 Other firmware: let your AI agent build it
 
-The kernel modules only load on the exact kernel they were built for. If your S23 Ultra runs different firmware, the installer marks `airdrop` and `wifi7` as unavailable. You can build your own modules by handing the job to an AI coding agent (Claude Code, Codex, Cursor and similar):
+The kernel modules only load on the exact kernel they were built for. If your S23 Ultra runs different firmware, the module page marks `airdrop` and `wifi7` as unavailable. You can build your own modules by handing the job to an AI coding agent (Claude Code, Codex, Cursor and similar):
 
 1. Clone this repo and open the agent in it, on a computer with Docker and your phone connected over USB (rooted, USB debugging on).
 2. Tell it something like:
