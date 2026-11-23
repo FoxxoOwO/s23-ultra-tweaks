@@ -70,12 +70,12 @@ lc_have=$(sh_ "dumpsys package com.samsung.android.offline.languagemodel 2>/dev/
 
 # Tweaks, grouped in categories. A category letter picks every available tweak in it.
 ids=(airdrop wifi7 hotspot6g
-     logvideo camextras camerahdr autoframe
+     logvideo camextras camerahdr hdr2023 autoframe
      display colortone vulkan
      galaxyai audioeraser settingssearch callscreen bargein
      battery features
      callrec india)
-cat=(A A A  B B B B  C C C  D D D D D  E E  F F)
+cat=(A A A  B B B B B  C C C  D D D D D  E E  F F)
 cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier (XAC or EUX firmware)")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
@@ -84,6 +84,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Log video: Log recording in Camera > Pro video"
       "Camera extras: Director's view (front + back at once) and Super steady horizontal lock"
       "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"
+      "2023 ArcSoft HDR: the HDR engines of One UI 6 instead of today's (hybrid + bracketed HDR; 28 MB download; pick it by number)"
       "4K auto framing: the S24's UHD auto framing in video (reported to make the camera fail; pick it by number)"
       "Vividness slider (Screen mode > Advanced settings) and lock screen wallpaper on Always On Display"
       "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
@@ -97,8 +98,8 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "Call recording in the Samsung Phone app"
       "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards; sales code stays XAC")
-avail=($can_airdrop $can_airdrop 1  1 1 1 1  1 $can_ct 1  1 1 1 $can_lc 1  1 1  $can_rec $can_csc)
-why=("$why_airdrop" "$why_airdrop" ""  "" "" "" ""  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" ""  "$why_rec" "$why_csc")
+avail=($can_airdrop $can_airdrop 1  1 1 1 1 1  1 $can_ct 1  1 1 1 $can_lc 1  1 1  $can_rec $can_csc)
+why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" ""  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" ""  "$why_rec" "$why_csc")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
@@ -129,13 +130,13 @@ if [ -z "$picked" ]; then
   r=$(ask "Letters/numbers separated by spaces, Enter for all available: ")
   add() { case " $picked " in *" $1 "*) ;; *) picked="$picked $1" ;; esac; }
   if [ -z "$r" ]; then
-    for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && [ "${ids[$i]}" != autoframe ] && add "${ids[$i]}"; done
+    for i in "${!ids[@]}"; do [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && [ "${ids[$i]}" != autoframe ] && [ "${ids[$i]}" != hdr2023 ] && add "${ids[$i]}"; done
   fi
   for n in $r; do
     n=$(printf '%s' "$n" | tr '[:lower:]' '[:upper:]')
     if [[ "$n" =~ ^[A-F]$ ]]; then
       for i in "${!ids[@]}"; do
-        [ "${cat[$i]}" = "$n" ] && [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && [ "${ids[$i]}" != autoframe ] && add "${ids[$i]}"
+        [ "${cat[$i]}" = "$n" ] && [ "${avail[$i]}" = 1 ] && [ "${ids[$i]}" != $carrier_skip ] && [ "${ids[$i]}" != autoframe ] && [ "${ids[$i]}" != hdr2023 ] && add "${ids[$i]}"
       done
       continue
     fi
@@ -151,7 +152,7 @@ fi
 say "Applying: $picked"
 case " $picked " in *" airdrop "*) info "Wi-Fi (and the hotspot) drop for ~30 s while the driver is swapped." ;; esac
 case " $picked " in *" callscreen "*) info "Call screening installs Samsung Language Core as an app update; unlike the rest, a reboot doesn't remove it." ;; esac
-case " $picked " in *" airdrop "*|*" wifi7 "*|*" camerahdr "*|*" audioeraser "*|*" colortone "*|*" galaxyai "*|*" settingssearch "*|*" callscreen "*) info "The phone downloads the files of the tweaks that need them from GitHub first (needs internet; Wi-Fi recommended)." ;; esac
+case " $picked " in *" airdrop "*|*" wifi7 "*|*" camerahdr "*|*" hdr2023 "*|*" audioeraser "*|*" colortone "*|*" galaxyai "*|*" settingssearch "*|*" callscreen "*) info "The phone downloads the files of the tweaks that need them from GitHub first (needs internet; Wi-Fi recommended)." ;; esac
 info "The screen goes black for ~30 s while Android restarts its framework. Don't unplug the phone."
 r=$(ask "Continue? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && exit 0
 r=$(ask "Re-apply these automatically at every boot, with no computer? [Y/n] "); [[ "$r" =~ ^[Nn] ]] && auto=off || auto=on
@@ -185,7 +186,7 @@ fi
 a shell "su -c 'sh $TW start \"$picked\"'" >/dev/null
 
 say "Applying (2-3 minutes)..."
-shown=0; end=$((SECONDS + 420)); case " $picked " in *" galaxyai "*|*" audioeraser "*|*" camerahdr "*|*" settingssearch "*|*" airdrop "*) end=$((end + 900)) ;; esac   # downloads
+shown=0; end=$((SECONDS + 420)); case " $picked " in *" galaxyai "*|*" audioeraser "*|*" camerahdr "*|*" hdr2023 "*|*" settingssearch "*|*" airdrop "*) end=$((end + 900)) ;; esac   # downloads
 case " $picked " in *" callscreen "*) end=$((end + 2700)) ;; esac   # 3.1 GB download + install
 while [ $SECONDS -lt $end ]; do
   sleep 3
@@ -203,6 +204,7 @@ case " $picked " in *" airdrop "*)
   info "Quick Share and pick 'Share with Apple devices'." ;; esac
 case " $picked " in *" battery "*) info "Battery: Settings > Battery > Battery information." ;; esac
 case " $picked " in *" wifi7 "*) info "Wi-Fi 7: multi-link works with Wi-Fi 7 routers that have MLO on. Settings > Wi-Fi > (network) shows Wi-Fi 7." ;; esac
+case " $picked " in *" hdr2023 "*) info "2023 ArcSoft HDR: bracketed HDR is tested, hybrid HDR (ordinary daylight) isn't. Turn it off if photos look wrong." ;; esac
 case " $picked " in *" camerahdr "*) info "Camera HDR: untested. Shoot a bright backlit scene and compare; turn it off if photos look worse." ;; esac
 case " $picked " in *" audioeraser "*) info "Audio Eraser: Gallery > a video > Edit > speaker icon > Audio eraser." ;; esac
 case " $picked " in *" colortone "*) info "Adaptive color tone: Settings > Display > Adaptive color tone." ;; esac

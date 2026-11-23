@@ -18,7 +18,7 @@
 #   wifi7page         open Samsung's hidden "Wi-Fi 7 mode" settings page (Wi-Fi Labs)
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
-#         camerahdr audioeraser colortone galaxyai camextras autoframe settingssearch bargein
+#         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
 #         callscreen  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
@@ -38,7 +38,7 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -73,6 +73,7 @@ AIR=$PL/airdrop                              # the airdrop/wifi7 download: kerne
 PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/payloads-S918WVLU8GZIF
 PAYLOADS="airdrop airdrop-S918WVLU8GZIF.tar.gz 84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
 camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
+hdr2023 hdr2023-S918WVLU8GZIF.tar.gz 0f31937af2f04e2edcf1a2319298dfb97e3493aea558be6f3e0070fdb9b37eba
 audioeraser audioeraser-S918WVLU8GZIF.tar.gz a11d2868b3d8ba0121554ea2a31bb65256e0c141c6033c4e6ddb4770f4d11704
 colortone colortone-S918WVLU8GZIF.tar.gz 4be28f16e3631f1e377ecec9ad2b5b78d1abf8c6a9b971435c7ac12604f75e40
 galaxyai galaxyai-S918WVLU8GZIF.tar.gz 5619aaee7580b985df300dcfca1fadc56bc774f60ebb2af9db975876dfe01c0e
@@ -420,7 +421,7 @@ directorsview_pref() {
   log "camextras: Director's view shown (Camera > More)"
 }
 
-# ---------- Payload tweaks: camerahdr, audioeraser, colortone, galaxyai (files in $D/payload/<tweak>) ----------
+# ---------- Payload tweaks: camerahdr, hdr2023, audioeraser, colortone, galaxyai (files in $D/payload/<tweak>) ----------
 # Linux stacks at most two overlays on a path, so the tweaks don't mount their own. Each one stages the
 # files the phone doesn't show yet into $T24/new/<folder> (stage, stage_text); layers_mount then puts one
 # overlay per folder on /system/<folder>. Overlays merge subfolders, so etc/permissions rides on the
@@ -516,6 +517,27 @@ camerahdr_stage() {
   am force-stop com.sec.android.app.camera
   log "camerahdr: One UI 6 multi-frame HDR and low-light HDR on"
   return 0   # the list entry needs the framework restart that follows the flag file
+}
+
+# 2023 ArcSoft HDR. The HDR the camera actually picks on One UI 9 is hybrid HDR (most daylight shots)
+# and bracketed (AEB) HDR (backlit scenes). Both engines changed since One UI 6: hybrid HDR 4.2 build
+# 1423 -> 1790, and bracketed HDR from ArcSoft HDR_ART 4.2 (build 1252) to a new AEBHDR 5.0 engine.
+# Swap both engines and their Samsung wrappers (as pairs) for the 2023 S918WVLS2BWKA copies. The 2023
+# wrappers export every function today's camera calls. Bracketed HDR was tested on S918WVLU8GZIF
+# (engine version 900 runs, no errors); hybrid HDR loads but wasn't triggered in testing.
+H23_LIBS="libhybrid_high_dynamic_range.arcsoft.so libae_bracket_hdr.arcsoft.so libhybridHDR_wrapper.camera.samsung.so libAEBHDR_wrapper.camera.samsung.so"
+H23_MD5="2af454af1421426ee3ec3ea1462a30cf af98599bd1b23a44834626e60b1057bf dad377ec9ee2020c091fa739f798e597 c460aff39b2b929a804e2ac11ce9af69"
+hdr2023_check() {
+  set -- $H23_MD5
+  for f in $H23_LIBS; do
+    [ "$(md5sum $PL/hdr2023/$f 2>/dev/null | cut -d' ' -f1)" = "$1" ] || { log "hdr2023: its download is missing $f (or it's damaged); skipped"; return 1; }
+    shift
+  done
+}
+hdr2023_bind() {   # after layers_mount: an overlay on /system/lib64 would hide these binds
+  for f in $H23_LIBS; do bind_file $PL/hdr2023/$f /system/lib64/$f system_lib_file; done
+  am force-stop com.sec.android.app.camera
+  log "hdr2023: 2023 ArcSoft hybrid HDR and bracketed HDR on"
 }
 
 # Audio Eraser (Gallery > video > Edit > Audio eraser). The S23's video editor engine was built with
@@ -678,11 +700,13 @@ payload_fetch() {
 payload_apply() {
   ran=1
   has camerahdr && camerahdr_stage && ran=0
+  has hdr2023 && hdr2023_check && { ran=0; h23=1; }
   has audioeraser && audioeraser_stage && { ran=0; ae=1; }
   has colortone && colortone_stage && { ran=0; ct=1; }
   has galaxyai && galaxyai_stage && { ran=0; gai=1; }
   has settingssearch && settingssearch_stage && { ran=0; ssi=1; }
   layers_mount
+  [ "${h23:-0}" = 1 ] && hdr2023_bind
   [ "${ae:-0}" = 1 ] && audioeraser_bind
   [ "${ct:-0}" = 1 ] && colortone_bind
   [ "${gai:-0}" = 1 ] && galaxyai_bind
@@ -810,6 +834,7 @@ why_not() {
       [ -n "$(ead_row)" ] || echo "needs firmware $(ead_builds) (it patches that build's Settings app; this phone runs $build)" ;;
     hotspot6g) [ -x /data/adb/ksu/bin/resetprop ] || echo "needs KernelSU's resetprop" ;;
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
+    hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     galaxyai)
       for p in $GAI_APPS; do [ -f /system/$p/${p#*/}.apk ] || { echo "this phone has no /system/$p/${p#*/}.apk to replace"; return; }; done ;;
@@ -839,6 +864,7 @@ is_on() {
     vulkan) [ "$(getprop debug.hwui.renderer)" = skiavk ] ;;
     camerahdr) grep -q 'mfhdr.arcsoft.v4' $FF 2>/dev/null && [ -f /system/lib64/liblow_light_hdr.arcsoft.so ] ;;
     audioeraser) [ -f /system/etc/fastScanner.tflite ] ;;
+    hdr2023) bound /system/lib64/libae_bracket_hdr.arcsoft.so && bound /system/lib64/libhybrid_high_dynamic_range.arcsoft.so ;;
     colortone) bound $SETTINGS ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
     *) return 1 ;;
@@ -870,7 +896,7 @@ apply)
   fi
   restart=0
   has airdrop && airdrop_overlays && restart=1
-  payload_apply && restart=1   # camerahdr audioeraser colortone galaxyai: before the flag file
+  payload_apply && restart=1   # camerahdr hdr2023 audioeraser colortone galaxyai: before the flag file
   has battery && { ff_tags="$ff_tags BATTERY_SUPPORT_BSOH_SETTINGS SETTINGS_ENABLE_EU_BATTERY_REGULATORY"; battery_auth; }
   has features && ff_tags="$ff_tags SETTINGS_SUPPORT_AUTO_POWER_ON_OFF AUDIO_SUPPORT_VOIP_SOUND_LOUDER"
   if has display; then  # Vividness slider (Screen mode > Advanced settings) and full-screen AOD wallpaper
@@ -968,6 +994,7 @@ status)
   echo "settingssearch: $(bound /system/$SSI/SecSettingsIntelligence.apk && echo S24 || echo stock)"
   echo "callscreen: Language Core $(dumpsys package $LC_PKG 2>/dev/null | grep -m1 -oE 'versionName=[^ ]+' | cut -d= -f2)"
   echo "camerahdr: libraries $([ -f /system/lib64/liblow_light_hdr.arcsoft.so ] && echo on || echo off), list entries $(grep -q 'mfhdr.arcsoft.v4' $FF && echo on || echo off)"
+  echo "hdr2023:  $(same_size /system/lib64/libae_bracket_hdr.arcsoft.so $PL/hdr2023/libae_bracket_hdr.arcsoft.so && same_size /system/lib64/libhybrid_high_dynamic_range.arcsoft.so $PL/hdr2023/libhybrid_high_dynamic_range.arcsoft.so && echo "2023 engines" || echo stock)"
   echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"

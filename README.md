@@ -13,19 +13,20 @@ category or single tweaks.
 | 4 | Camera | `logvideo` | **Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23 HAL can't | any S23 Ultra on One UI 9 |
 | 5 | Camera | `camextras` | **Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** | any S23 Ultra on One UI 9 |
 | 6 | Camera | `camerahdr` | **Camera HDR processing**: puts back the multi-frame HDR and low-light HDR steps One UI 9 removed from the S23 (see [docs/findings.md](docs/findings.md)). **Untested** | any S23 Ultra on One UI 9 (21 MB download) |
-| 7 | Camera | `autoframe` | **4K auto framing** in video, as on the S24. **Reported to make the camera fail** (S918B), so a Camera category pick leaves it out | any S23 Ultra on One UI 9 |
-| 8 | Display and graphics | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
-| 9 | Display and graphics | `colortone` | **Adaptive color tone**: Settings → Display, the screen's colour follows the room light | firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download) |
-| 10 | Display and graphics | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |
-| 11 | Galaxy AI and Samsung apps | `galaxyai` | The S24's **Now Brief**, **Creative Studio** and **Call Assist** | firmware S918WVLU8GZIF (219 MB download) |
-| 12 | Galaxy AI and Samsung apps | `audioeraser` | **Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices | firmware S918WVLU8GZIF (34 MB download) |
-| 13 | Galaxy AI and Samsung apps | `settingssearch` | The S24's **Settings search** bar. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) | firmware S918WVLU8GZIF (10 MB download) |
-| 14 | Galaxy AI and Samsung apps | `callscreen` | **Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** | firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs) |
-| 15 | Galaxy AI and Samsung apps | `bargein` | **Bixby barge-in**: talk over Bixby while it answers. **Untested** | any S23 Ultra on One UI 9 |
-| 16 | Battery and settings | `battery` | Settings → Battery → **Battery information** shows battery health and cycle count | any S23 Ultra on One UI 9 |
-| 17 | Battery and settings | `features` | **Auto power on/off** schedule, **louder VoIP calls** | any S23 Ultra on One UI 9 |
-| 18 | Carrier | `callrec` | **Call recording** in the Samsung Phone app | XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF |
-| 19 | Carrier | `india` | **India carrier config for Airtel / Jio SIMs**: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, the Carrier category picks this instead of `callrec` | XAC (Canadian) firmware S918WVLU8GZIF |
+| 7 | Camera | `hdr2023` | **2023 ArcSoft HDR**: the hybrid HDR and bracketed HDR engines of One UI 6 instead of today's. Bracketed HDR tested, hybrid HDR (ordinary daylight) **untested**; a Camera category pick leaves it out | any S23 Ultra on One UI 9; tested on S918WVLU8GZIF (28 MB download) |
+| 8 | Camera | `autoframe` | **4K auto framing** in video, as on the S24. Works on SM-S918W (tested: front camera, UHD with auto framing on); **reported to make the camera fail** on an S918B, so a Camera category pick leaves it out | any S23 Ultra on One UI 9 |
+| 9 | Display and graphics | `display` | **Vividness slider** (Settings → Display → Screen mode → Advanced settings) and the **lock screen wallpaper on Always On Display** | any S23 Ultra on One UI 9 |
+| 10 | Display and graphics | `colortone` | **Adaptive color tone**: Settings → Display, the screen's colour follows the room light | firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download) |
+| 11 | Display and graphics | `vulkan` | Apps draw with **Vulkan** instead of OpenGL, as on the S24 | any S23 Ultra on One UI 9 |
+| 12 | Galaxy AI and Samsung apps | `galaxyai` | The S24's **Now Brief**, **Creative Studio** and **Call Assist** | firmware S918WVLU8GZIF (219 MB download) |
+| 13 | Galaxy AI and Samsung apps | `audioeraser` | **Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices | firmware S918WVLU8GZIF (34 MB download) |
+| 14 | Galaxy AI and Samsung apps | `settingssearch` | The S24's **Settings search** bar. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) | firmware S918WVLU8GZIF (10 MB download) |
+| 15 | Galaxy AI and Samsung apps | `callscreen` | **Call screening** in the Phone app: screening, greeting and voice messages work; the AI summary and replies don't. **Stays after a reboot** | firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs) |
+| 16 | Galaxy AI and Samsung apps | `bargein` | **Bixby barge-in**: talk over Bixby while it answers. **Untested** | any S23 Ultra on One UI 9 |
+| 17 | Battery and settings | `battery` | Settings → Battery → **Battery information** shows battery health and cycle count | any S23 Ultra on One UI 9 |
+| 18 | Battery and settings | `features` | **Auto power on/off** schedule, **louder VoIP calls** | any S23 Ultra on One UI 9 |
+| 19 | Carrier | `callrec` | **Call recording** in the Samsung Phone app | XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF |
+| 20 | Carrier | `india` | **India carrier config for Airtel / Jio SIMs**: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, the Carrier category picks this instead of `callrec` | XAC (Canadian) firmware S918WVLU8GZIF |
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
 only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
@@ -180,10 +181,10 @@ The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostap
 - **Log video**: in *Pro video*, tap **LOG** at the top. The S23's camera already records 10-bit; the tweak only turns on Samsung's switches for it.
 - **Vulkan**: Samsung's renderer ignores the S24's `ro.hwui.use_vulkan`; the tweak sets `debug.hwui.renderer=skiavk`. Check with `adb shell dumpsys gfxinfo com.android.systemui | grep Pipeline` (should say `Skia (Vulkan)`).
 
-## Downloaded tweaks: camerahdr, audioeraser, colortone, galaxyai, settingssearch
+## Downloaded tweaks: camerahdr, hdr2023, audioeraser, colortone, galaxyai, settingssearch
 
 These need files from Samsung firmware (from the S24's for the last three, and from the S23's own One UI 6
-firmware for `camerahdr`). Each one is a separate file in the GitHub release `payloads-S918WVLU8GZIF`,
+firmware for `camerahdr` and `hdr2023`). Each one is a separate file in the GitHub release `payloads-S918WVLU8GZIF`,
 downloaded by the phone only when you pick that tweak. Its SHA-256 is pinned in `device/tweaks.sh`, and
 it's kept in `/data/adb/s23tweaks/payload/` so it isn't downloaded again.
 
@@ -191,6 +192,9 @@ it's kept in `/data/adb/s23tweaks/payload/` so it isn't downloaded again.
   The camera app still has them and, without them, runs a pass-through step that leaves the photo
   unprocessed. The tweak adds back the One UI 6 libraries and their entries in the camera's processing
   list. Details and how to check it: [docs/findings.md](docs/findings.md).
+- **hdr2023**: binds the One UI 6 (2023) builds of the ArcSoft hybrid HDR and bracketed HDR engines and
+  their Samsung wrappers over today's four libraries in `/system/lib64` (each checked by MD5 before use).
+  For anyone who prefers the older HDR look; pick it by number.
 - **audioeraser**: the S23's video editor engine was built without the audio scanner. The tweak swaps in
   the S24 engine and adds its sound-separation libraries and two models.
 - **colortone**: Samsung compiled the S23's Settings to hide the switch. The tweak patches one byte in

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **New tweak `hdr2023`**: the 2023 (One UI 6) ArcSoft hybrid HDR and bracketed HDR engines instead of today's, for anyone who prefers the older HDR look. 28 MB download; a Camera category or "all" pick leaves it out. Bracketed HDR is tested; hybrid HDR (ordinary daylight) isn't.
+- **4K auto framing** (`autoframe`) works on SM-S918W: front camera, auto framing on, then Video size → UHD records 3840×2160. Auto framing keeps its own video size, which starts at FHD.
 - **Log video no longer crashes the camera.** It turned on the LUT preview button too, and tapping it crashed Camera (the LUT preview is drawn by the S24's camera HAL; the S23's has no such code). The button is gone; Log recording is unchanged.
 
 ## v1.2.3
