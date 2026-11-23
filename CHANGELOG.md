@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.1
+
+- **Opt-in for custom kernels** (`airdrop`, `wifi7`; issue #10). AirDrop and Wi-Fi 7 only ran on Samsung's own kernel for the supported GZIF builds. On one of those builds with another 5.15 android13 kernel, creating `/data/adb/s23tweaks/allow-any-kernel` now lets them try. The kernel still checks every symbol CRC (`CONFIG_MODVERSIONS`) and refuses the modules if one differs; the module then puts the stock Wi-Fi driver back, as it does for any failed load. Untested: I only have a stock kernel.
+
 ## v1.3.0
 
 - **24 FPS in standard Video** (`cam24fps`, new; PR #11 by moesuito). Samsung Camera offers 24 fps only in Pro video. `cam24fps` adds `video` to the FHD, UHD and 8K 24 fps entries in `camera-feature.xml` (every other attribute kept) and binds a byte-patched copy of `SamsungCamera.apk` whose standard-Video allowlist (`te.f0.i`) gets UHD 24 and FHD 24 in two slots only Fold/Flip models use (8K 24 is already listed). QHD stays hidden. The patch is in `device/files/`, made by `tools/cam24patch.py`. The tweak goes by the stock `SamsungCamera.apk` itself, not the firmware name: it runs on any phone whose Camera APK has a known MD5, and checks the patched copy's MD5 too. So far that covers the 17.0.00.43 APKs of S918BXXUAGZIF and S918WVLU8GZIF, which differ in MD5 but take the same patch bytes (uninstall Camera updates first). Tested by the contributor on S918BXXUAGZIF (24 fps in FHD, UHD and 8K, with Log video, lens switching while recording) and on S918WVLU8GZIF: FHD, UHD and 8K clips record at 24/1 fps, and Log video, horizontal lock and photos still work with no Camera crashes.

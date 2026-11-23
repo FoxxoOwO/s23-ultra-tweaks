@@ -53,6 +53,8 @@ root_ok || die "no root. On the phone: open DFRoot and tap LAUNCH ROOT, then in 
 gms=$(sh_ 'dumpsys package com.google.android.gms | grep -m1 versionCode' | grep -oE 'versionCode=[0-9]+' | cut -d= -f2)
 can_airdrop=1; why_airdrop=""
 k_ok=0; for f in $AIRDROP_FW; do [ "$kernel" = "$AIRDROP_KBASE$f" ] && k_ok=1; done
+# the custom-kernel opt-in (kernel_override in device/tweaks.sh)
+case "$kernel" in 5.15.*-android13-*) [ "$(sh_ 'su -c "[ -f /data/adb/s23tweaks/allow-any-kernel ] && echo y"')" = y ] && [[ " $AIRDROP_FW " == *" $build "* ]] && k_ok=1 ;; esac
 [ $k_ok = 1 ] || { can_airdrop=0; why_airdrop="needs firmware ${AIRDROP_FW// /, } (this phone runs $build)"; }
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
 can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }

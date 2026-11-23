@@ -47,7 +47,16 @@ GMS_MIN=261125000                            # Play services 26.11, the first wi
 # mac80211, ipa) has the same code and symbol CRCs as S918WVLU8GZIF, which the modules are built on.
 AIRDROP_KBASE=5.15.197-android13-8-34343818-ab
 AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"
-kernel_supported() { for f in $AIRDROP_FW; do [ "$(uname -r)" = "$AIRDROP_KBASE$f" ] && return 0; done; return 1; }
+kernel_stock() { for f in $AIRDROP_FW; do [ "$(uname -r)" = "$AIRDROP_KBASE$f" ] && return 0; done; return 1; }
+# Opt-in for custom kernels (issue #10): with the file $V/allow-any-kernel, a 5.15 android13 kernel on one
+# of the supported firmwares is let through. The kernel itself still refuses the modules if any symbol CRC
+# differs (CONFIG_MODVERSIONS), and airdrop_kernel then puts the stock Wi-Fi driver back.
+kernel_override() {
+  [ -f $V/allow-any-kernel ] || return 1
+  case "$(uname -r)" in 5.15.*-android13-*) ;; *) return 1 ;; esac
+  case " $AIRDROP_FW " in *" $(getprop ro.build.PDA) "*) return 0 ;; esac; return 1
+}
+kernel_supported() { kernel_stock || kernel_override; }
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
 CF=/system/cameradata/camera-feature.xml
@@ -206,6 +215,7 @@ airdrop_kernel() {
     log "airdrop: S24 Wi-Fi driver already in; loading wonder"
     wonder_load; log "airdrop: kernel side loaded"; return 0
   fi
+  kernel_stock || log "airdrop: kernel $(uname -r) isn't Samsung's; trying anyway ($V/allow-any-kernel). If the kernel refuses the modules, the stock Wi-Fi driver goes back"
   log "airdrop: swapping in the S24 Wi-Fi driver and firmware (Wi-Fi drops for ~30 s)"
   wifi_down
   # cnss2/MHI keep buffers sized for the boot-time firmware; mhifix frees them so the bigger S24
@@ -1421,7 +1431,7 @@ report)
     sec status
     sh $D/tweaks.sh status
     sec "what the tweaks depend on"
-    echo "airdrop/wifi7 kernel match: $(kernel_supported && echo yes || echo "no (supported: $AIRDROP_FW)")"
+    echo "airdrop/wifi7 kernel match: $(kernel_stock && echo yes || { kernel_override && echo "no, allowed by allow-any-kernel" || echo "no (supported: $AIRDROP_FW)"; })"
     echo "camera-feature.xml ($(bound $CF && echo "module's copy" || echo stock)):"
     grep -E 'LOG_VIDEO|PREVIEW_LUT|HORIZONTAL_LOCK|AUTO_FRAMING|MULTI_RECORDING' $CF | sed 's/^ */  /'
     echo "floating_feature.xml ($(bound $FF && echo "module's copy" || echo stock)):"
