@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.1
+
+- **Battery health page:** the two feature flags it needs are now set to TRUE even when a firmware ships them as FALSE (before, they were only added when missing, so the page could stay hidden on other models).
+- The module page now names the missing `/efs/FactoryApp` file when `battery` can't run (it checked only one of the five), and `tweaks.sh status` shows whether the battery auth IC is the module's or a real one, plus both flag values.
+
 ## v1.2.0
 
 - **AirDrop and Wi-Fi 7 on more S23 Ultra models:** S918B, S918U1, S918U and S918N on One UI 9 build GZIF, besides the S918W. All five run the same GKI kernel build; their Wi-Fi drivers (cnss2, mhi, cfg80211, mac80211, ipa) have the same code and every symbol the AirDrop modules import has the same CRC, checked against each firmware's files. Only the S918W has been tested on a phone so far. `AIRDROP_FW` in `device/tweaks.sh` lists the firmware; `tools/kocompat.py` and `tools/modcmp.py` check a new one.
