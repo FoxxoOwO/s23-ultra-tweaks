@@ -17,6 +17,8 @@
 #include <linux/compiler.h>
 #include <linux/version.h>
 #include <linux/limits.h>
+#include <linux/gfp.h>
+#include <net/codel.h>
 
 #include "core.h"
 #include "mac80211.h"
@@ -1221,8 +1223,24 @@ int wonder_features_init(struct wonder_data *wonder)
 	int ret;
 	struct ieee80211_hw *hw = wonder->hw;
 
+	struct page *pg;
+	/* mac80211's codel state for its 4096 TXQ flows: one kcalloc, 128 KB (order 5) */
+	const unsigned int cv_order = get_order(4096 * sizeof(struct codel_vars));
+
 	/* Set Regulator before register_hw */
 	wonder_set_custom_regulator(hw);
+	/*
+	 * ieee80211_register_hw() kcallocs that state with plain GFP_KERNEL, which gives up on such a
+	 * large block after one compaction pass. After hours of uptime the S23's memory is too
+	 * fragmented and the load fails with -ENOMEM (issue #7). Ask for a block that size first with
+	 * __GFP_RETRY_MAYFAIL (reclaim and compact while that makes progress), and free it right before
+	 * registering: blocks this big go straight back to the buddy lists, where the kcalloc finds one.
+	 */
+	pg = alloc_pages(GFP_KERNEL | __GFP_RETRY_MAYFAIL | __GFP_NOWARN, cv_order);
+	if (pg)
+		__free_pages(pg, cv_order);
+	else
+		wonder_info("No free %lu KB block for mac80211 yet; registering anyway\n", (PAGE_SIZE << cv_order) >> 10);
 	/* Register with mac80211 */
 	ret = ieee80211_register_hw(hw);
 

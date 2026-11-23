@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **AirDrop loads after hours of uptime** (issue #7). Applying `airdrop` long after a reboot could fail with "Failed to register mac80211 hardware. Ret: -12": mac80211 needs one 128 KB block of contiguous memory for its transmit queues, and the kernel gives up on a block that large once memory is fragmented. `wonder.ko` now asks for a block that size first in a way that makes the kernel reclaim and compact until it gets one, and frees it just before registering. Tested on S918WVLU8GZIF at 2.6 hours uptime: the old `wonder.ko` failed 6 times in a row, the new one loaded first time. If it still fails, `tweaks.sh` compacts memory and retries twice. The AirDrop download is now `airdrop-S918WVLU8GZIF-2.tar.gz` (only `wonder.ko` changed).
+- **Re-applying after a failed AirDrop load no longer swaps the Wi-Fi driver again.** When the S24 driver and firmware are already in and only `wonder` is missing, the apply loads just `wonder`. Before, each retry dropped Wi-Fi, stacked another firmware overlay and could fail with "firmware overlay".
 - **Bug reports show whether Galaxy AI's secure storage is blocked** (issue #5). Now Brief's Personal Data Intelligence keeps its data in Samsung's Pass Storage, and Android refuses to create it ("Root detected", then a "creation failed" crash loop) when the system process can see an `su` file at one of a dozen classic paths (`/system/bin/su`, `/system/xbin/su`, `/data/local/su`, ...). With KernelSU, `/system/bin/su` shows up for apps granted root, so this happens when something running as the system user has root, or a module leaves an `su` file. The report now lists the `su` files the system process sees and the last Pass Storage log lines.
 
 ## v1.2.6

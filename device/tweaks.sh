@@ -73,7 +73,7 @@ AIR=$PL/airdrop                              # the airdrop/wifi7 download: kerne
 # parts (GitHub caps a file at 2 GB), joined on the phone. A copy in $V/dl/ (the installer can push one)
 # is used first.
 PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/payloads-S918WVLU8GZIF
-PAYLOADS="airdrop airdrop-S918WVLU8GZIF.tar.gz 84787b2527d71cbb6cb23ba04a51e3539e1f466e6ab6fe1e489fc67b04879202
+PAYLOADS="airdrop airdrop-S918WVLU8GZIF-2.tar.gz deed1ee54334dbbf6086d2aa0d194183006826913a662900377f3760d7966e1c
 logvideo logvideo-luts.tar.gz ed688855d75d9ff964a2f9f904cb7189b6adb897940fb61fe3a4c8049c73ecbe
 camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
 hdr2023 hdr2023-S918WVLU8GZIF.tar.gz 0f31937af2f04e2edcf1a2319298dfb97e3493aea558be6f3e0070fdb9b37eba
@@ -175,9 +175,27 @@ back_to_stock() {   # the firmware binds sit on the overlay, so they come off fi
   mounted /vendor/firmware/kiwi overlay && umount /vendor/firmware/kiwi; insmod $STOCK_KO; wifi_up
 }
 
+# wonder's ieee80211_register_hw needs large contiguous allocations (mac80211's per-flow tables).
+# After many hours up, memory can be too fragmented and the kernel's own compaction gives up: insmod
+# fails with "Failed to register mac80211 hardware. Ret: -12" (issue #7). Then compact all memory and retry.
+wonder_load() {
+  for i in 1 2 3; do
+    insmod $AIR/wonder.ko 2>/dev/null && return 0
+    dmesg | tail -n 60 | grep -q 'mac80211 hardware. Ret: -12' || break
+    log "airdrop: not enough contiguous memory for wonder (try $i of 3); compacting memory and retrying"
+    sync; echo 1 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory; sleep 2
+  done
+  fail "wonder: $(dmesg | grep -E 'wonder|page allocation failure' | tail -n 3 | tr '\n' ' ')"
+}
+
 airdrop_kernel() {
   A=$AIR
   if [ -d /sys/module/wonder ] && [ -d /sys/module/bwfix ]; then log "airdrop: kernel side already loaded"; AK_LOADED=1; return 0; fi
+  # An earlier apply in this boot swapped in the S24 driver but wonder didn't load: load just wonder
+  if [ -d /sys/module/bwfix ] && [ -d /sys/module/kiwi_v2 ] && mounted /vendor/firmware/kiwi overlay; then
+    log "airdrop: S24 Wi-Fi driver already in; loading wonder"
+    wonder_load; log "airdrop: kernel side loaded"; return 0
+  fi
   log "airdrop: swapping in the S24 Wi-Fi driver and firmware (Wi-Fi drops for ~30 s)"
   wifi_down
   # cnss2/MHI keep buffers sized for the boot-time firmware; mhifix frees them so the bigger S24
@@ -201,7 +219,7 @@ airdrop_kernel() {
   # max) and the firmware crashes on the refusal. bwfix sets Gen2 and acknowledges.
   cb=$(ksym cnss_mhi_bw_scale.cfi_jt cnss2)
   [ -d /sys/module/bwfix ] || insmod $A/bwfix.ko ${cb:+orig=0x$cb} || fail "bwfix: $(dmesg | tail -2 | tr '\n' ' ')"
-  insmod $A/wonder.ko || fail "wonder: $(dmesg | tail -3 | tr '\n' ' ')"
+  wonder_load
   log "airdrop: kernel side loaded ($(dmesg | grep -o 'wonder: connected to wlan.*' | tail -1))"
 }
 
@@ -240,7 +258,7 @@ wifi7_reload() {   # the AirDrop driver was already loaded before the config was
   wifi_down
   insmod $AIR/kiwi_v2.ko || { back_to_stock; fail "wifi7: kiwi_v2 reload: $(dmesg | tail -2 | tr '\n' ' ')"; }
   wifi_up
-  insmod $AIR/wonder.ko || fail "wonder: $(dmesg | tail -3 | tr '\n' ' ')"
+  wonder_load
 }
 wifi7_check() {
   # If Wi-Fi can't run with the S24 supplicant, go back to the S23's and carry on without MLO

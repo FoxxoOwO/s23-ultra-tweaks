@@ -123,7 +123,7 @@ See README → "Building the kernel modules". Afterwards check `strings X.ko | g
 
 ## Payload (S24 files)
 
-The release file `airdrop-S918WVLU8GZIF.tar.gz` (release `payloads-S918WVLU8GZIF`) is downloaded by the phone and unpacked to `/data/adb/s23tweaks/payload/airdrop/`. Everything that isn't built from source comes from the S24 Ultra firmware, which you can download with [samloader](https://github.com/samloader/samloader) or a similar tool (model `SM-S928B`, a CSC such as `EUX`). Unpack `super.img` with `lpunpack` and mount or extract the `system`, `system_ext` and `vendor` images.
+The release file `airdrop-S918WVLU8GZIF-2.tar.gz` (release `payloads-S918WVLU8GZIF`; `-2` has the wonder.ko that pre-reserves mac80211's 128 KB block, issue #7) is downloaded by the phone and unpacked to `/data/adb/s23tweaks/payload/airdrop/`. Everything that isn't built from source comes from the S24 Ultra firmware, which you can download with [samloader](https://github.com/samloader/samloader) or a similar tool (model `SM-S928B`, a CSC such as `EUX`). Unpack `super.img` with `lpunpack` and mount or extract the `system`, `system_ext` and `vendor` images.
 
 | File | From the S24 image |
 |---|---|
