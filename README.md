@@ -16,7 +16,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 ### 📷 Camera
 
 - 🎞️ **4 · Log video**: Camera → Pro video gets the LOG button (10-bit HEVC). No LUT preview: on the S24 the camera HAL draws it, and the S23's can't · `logvideo`
-- 🎬 **5 · Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock** · `camextras`
+- 🎬 **5 · Director's view** (front and back camera at once, hidden by One UI 9) and Super steady's **horizontal lock**, which really keeps the horizon level (the S23's own stabilizer, switched on by a small patch to a copy of its EIS library, bound from storage) · `camextras`
 - 🌗 **6 · Camera HDR processing**: puts back the multi-frame and low-light HDR steps One UI 9 removed from the S23 ([details](docs/findings.md)). **Untested** · `camerahdr`
   - 21 MB download
 - 🕰️ **7 · 2023 ArcSoft HDR**: One UI 6's hybrid and bracketed HDR engines instead of today's. Bracketed HDR tested, hybrid HDR (ordinary daylight) **untested**. Not included when you pick the whole Camera category · `hdr2023`

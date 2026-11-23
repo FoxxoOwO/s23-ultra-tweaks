@@ -377,7 +377,7 @@ ff_apply() {
 #  logvideo: the S24's Log recording in Pro video (the S23's sensor/HAL already records 10-bit
 #            Log). Not SUPPORT_PREVIEW_LUT: the LUT preview is drawn by the S24 camera HAL (its
 #            LogConverter uniplugin); the S23 HAL has none, and the LUT button crashed the camera.
-#  camextras: Super steady's horizontal lock (a third Super steady option, recorded fine on the S23)
+#  camextras: Super steady's horizontal lock (a third Super steady option; hlock_apply makes it level)
 # Never add SUPPORT_BACK_WIDE_NORMAL_DUAL_PORTRAIT_VIDEO, SUPPORT_BACK_PORTRAIT_VIDEO_TELE_DUAL or
 # CAMERA_SUPPORT_SEAMLESS_PORTRAITVIDEO: on the S23 they crash the camera ("Zoom is not supported").
 CF_LOG='<local name="SUPPORT_LOG_VIDEO" value="true"/>'
@@ -665,6 +665,74 @@ tenbit_apply() {
   else
     tb_restart tb_unbind
     log "tenbit: with the change the camera driver didn't stay up or the front cameras still lacked 10-bit; stock driver back"
+    return 1
+  fi
+}
+
+# Super steady's horizontal lock (camextras). Samsung Camera asks for it with Super steady = 2, which the
+# S23's camera driver treats as plain Super steady: the picture turns with the phone. The S23's EIS v3
+# stabilizer (Qualcomm) has horizon levelling, switched on by the EIS tuning (off for Super steady here)
+# or by an app's HorizonLevelControl tag, which the S23 build never reads (it looks up the
+# EnableInsensorZoom tag ID instead), and Samsung's S23 driver maps nothing to it. Make a copy of the
+# phone's own EIS v3 node where that tag check becomes: if CheckSuperSteadyMode() is 2, set the
+# levelling enable field, else use the tuning. The algorithm then levels with the accelerometer (its
+# default angles). Found by instructions, so any build with the same code works. Bound like tenbit's.
+HL_LIB=/vendor/lib64/camera/components/com.qti.node.eisv3.so
+# hl_find FILE: "S 0x.." the tag check, "F 0x.." its found branch (mov w8; mov w0,#enable; ...),
+# "J 0x.." the use-tuning join (after a bl: mov w21,wzr; mov w19,#1), "C 0x.." in CheckSuperSteadyMode
+hl_find() {
+  od -An -v -tx4 -w4 "$1" | awk '
+    { w[NR] = $1 }
+    END {
+      for (i = 1; i + 9 <= NR; i++) {
+        if (w[i] ~ /^[9bdf]0....[02468ace]3$/ && w[i+1] == "f9405ac4" && w[i+2] ~ /^91...[048c]63$/ && w[i+3] == "aa1f03e0" &&
+            w[i+4] == "52800042" && w[i+5] == "2a1f03e5" && w[i+6] == "b8414473" && w[i+7] == "32030261" &&
+            w[i+8] ~ /^94/ && w[i+9] ~ /^b4/) printf "S 0x%x\n", (i - 1) * 4
+        if (w[i] ~ /^52[89a-f]...[02468ace]8$/ && w[i+1] ~ /^52[89a-f]...[02468ace]0$/ && w[i+2] == "2a1f03f5" &&
+            w[i+3] == "52800033" && w[i+4] == "b8286b96" && w[i+6] == "b8206b98") printf "F 0x%x\n", (i - 1) * 4
+        if (w[i] ~ /^94/ && w[i+1] == "2a1f03f5" && w[i+2] == "52800033") printf "J 0x%x\n", i * 4
+        if (w[i] == "b8410468" && w[i+1] == "f9405804" && w[i+2] == "aa1f03e0" && w[i+3] == "32040901" && w[i+4] ~ /^94/) {
+          for (k = i; k > i - 24 && k > 0; k--) if (w[k] == "d503233f") break
+          if (w[k] == "d503233f") printf "C 0x%x\n", (k - 1) * 4 }
+      }
+    }'
+}
+# hl_patch STOCK OUT: write the patched copy; says why not on failure
+hl_patch() {
+  F=$1; O=$2; m=$(hl_find $F)
+  for k in S F C; do [ "$(echo "$m" | grep -c "^$k ")" = 1 ] || { echo "its EIS code differs (part $k found $(echo "$m" | grep -c "^$k ") times)"; return 1; }; done
+  S=$(($(echo "$m" | awk '$1=="S"{print $2}'))); FB=$(($(echo "$m" | awk '$1=="F"{print $2}'))); C=$(($(echo "$m" | awk '$1=="C"{print $2}')))
+  J=""; for j in $(echo "$m" | awk '$1=="J"{print $2}'); do [ $((j)) -gt $S ] && [ $((j)) -lt $((S + 0x200)) ] && [ $((j)) != $((FB + 8)) ] && J=$((j)); done
+  [ -n "$J" ] && [ $FB -gt $S ] && [ $FB -lt $J ] || { echo "its EIS code is laid out differently"; return 1; }
+  EN=$(((0x$(tb_rd $F $((FB + 4)) 4) >> 5) & 0xffff))   # the enable field's offset, from "mov w0, #offset"
+  cp $F $O || { echo "no room for a copy"; return 1; }
+  tb_wr $O $S 0xaa1603e0                                                   # mov x0, x22 (the node)
+  tb_wr $O $((S + 4)) $((0x94000000 | ((C - S - 4) / 4 & 0x3ffffff)))      # bl CheckSuperSteadyMode
+  tb_wr $O $((S + 8)) 0x7100081f                                           # cmp w0, #2
+  tb_wr $O $((S + 12)) $((0x54000001 | (((J - S - 12) / 4 & 0x7ffff) << 5)))   # b.ne tuning
+  tb_wr $O $((S + 16)) $((0x52800008 | (EN << 5)))                        # mov w8, #enable field
+  tb_wr $O $((S + 20)) 0x52800029                                          # mov w9, #1
+  tb_wr $O $((S + 24)) 0xb8286b89                                          # str w9, [x28, x8]
+  tb_wr $O $((S + 28)) $(tb_b $((S + 28)) $J)                              # b tuning join
+  printf 'check at 0x%x, enable field 0x%x' $S $EN
+}
+hl_unbind() { while bound $HL_LIB; do umount $HL_LIB || return 1; done; }
+hl_bind() { hl_unbind && mount -o bind,ro $V/hlock.so $HL_LIB; }
+hlock_apply() {
+  if bound $HL_LIB; then [ "$(md5 $HL_LIB)" = "$(md5 $V/hlock.so)" ] && { log "camextras: horizontal lock levelling already on"; return 0; }
+    log "camextras: something else is bound over $HL_LIB; horizontal lock won't level"; return 1; fi
+  s=$(md5 $HL_LIB)
+  if [ "$(cat $V/hlock.src 2>/dev/null)" != "$s" ] || [ ! -f $V/hlock.so ]; then
+    rm -f $V/hlock.so $V/hlock.src
+    r=$(hl_patch $HL_LIB $V/hlock.tmp) || { rm -f $V/hlock.tmp; log "camextras: $r; horizontal lock shows but won't level"; return 1; }
+    mv $V/hlock.tmp $V/hlock.so; echo $s > $V/hlock.src; log "camextras: patched EIS copy made ($r)"
+  fi
+  chown 0:0 $V/hlock.so; chmod 644 $V/hlock.so; chcon u:object_r:vendor_file:s0 $V/hlock.so
+  if tb_restart hl_bind && bound $HL_LIB; then
+    log "camextras: Super steady's horizontal lock levels the horizon"
+  else
+    tb_restart hl_unbind
+    log "camextras: with the levelling change the camera driver didn't stay up; stock EIS back, horizontal lock won't level"
     return 1
   fi
 }
@@ -1058,6 +1126,8 @@ $CF_HLOCK"
   # 4K auto framing (untested): the S24's UHD setting for auto framing in video
   has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
   has tenbit && tenbit_apply   # restarts only the camera driver
+  if has camextras; then hlock_apply   # restarts only the camera driver
+  elif bound $HL_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
@@ -1131,7 +1201,7 @@ status)
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off)"
   echo "logvideo: $(is_on logvideo && echo on || echo off), Gallery LUTs $(bound $LV && echo on || echo off)"
-  echo "camextras: horizon lock $(is_on camextras && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
+  echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && echo on || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
   echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
   echo "settingssearch: $(bound /system/$SSI/SecSettingsIntelligence.apk && echo S24 || echo stock)"

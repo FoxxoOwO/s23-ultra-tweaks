@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Super steady's horizontal lock levels the horizon** (`camextras`). Until now the option showed up but the picture still turned with the phone: the S23's camera driver treats it as plain Super steady. Its stabilizer (Qualcomm EIS v3) can level the horizon, but the S23 build never switches it on (it reads the wrong tag). `camextras` now patches 8 instructions in a copy of the phone's own EIS library so horizontal lock turns levelling on, and binds the copy from storage; the camera driver restarts once during the apply. The code is found by its instructions, so other firmware with the same code works too; if it differs, the option still shows but won't level, and the log says so. Tested on S918WVLU8GZIF.
+
 ## v1.2.5
 
 - **Gallery's Log color correction works** (`logvideo`, issue #3). On One UI 9 it's Edit → LUT in Samsung's video editor, which reads the LUTs from `/data/vendor/LogVideofilters`. That folder is empty on the S23, and the S23's SELinux policy wouldn't let the editor read files there anyway, so the LUT loaded with no data and the video stayed flat. `logvideo` now downloads the S24 Ultra's 10 Log LUTs and their thumbnails (30 MB) and binds them over the folder with a label apps can read. Tested on S918WVLU8GZIF with Standard and Blockbuster.
