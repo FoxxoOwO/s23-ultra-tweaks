@@ -6,6 +6,7 @@ The tweaks come in six categories. The module page lets you pick a whole categor
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 **What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.3.5**: HideKSU can now also hide the module's own mounts from apps you list, so mount-scanning root detectors and banking apps no longer see the tweaks (verified against Native Detector).
 - **v1.3.4**: the 6 GHz hotspot no longer changes the phone's country, so Samsung Wallet keeps working with it on.
 - **v1.3.3**: the India config now also makes Samsung Wallet India (UPI) and the 6 GHz hotspot work, by reporting the phone as the Indian model (reverts on reboot).
 - **v1.3.2**: call recording and the India carrier config work on any sales code, not just XAC/EUX. HideKSU also supports SM-S918B INS and SM-S918U1 (both untested on a phone).
@@ -59,7 +60,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 - 🩺 **19 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
 - ⏰ **20 · Auto power on/off** schedule and **louder VoIP calls** · `features`
-- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart · `hideksu`
+- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart. It also **hides the module's own mounts** from apps you list in `/data/adb/s23tweaks/hide-apps.txt` (see [Hiding the module's mounts](#hiding-the-modules-mounts)), so mount-scanning detectors (and banking apps) don't see the tweaks' bind/overlay mounts · `hideksu`
 
 ### 📱 Carrier
 
@@ -291,6 +292,35 @@ signed by Samsung) as an ordinary app.
   deletes the download. It needs about 7 GB free while it does this; use Wi-Fi.
 - **It stays after a reboot**, unlike the other tweaks. Remove it with
   `adb shell pm uninstall com.samsung.android.offline.languagemodel`.
+
+<a id="hiding-the-modules-mounts"></a>
+
+## 🫥 Hiding the module's mounts
+
+Every tweak is applied by bind- and overlay-mounting files into init's mount namespace, so the changes
+are visible to the whole system. A side effect is that **every app inherits those mounts**, and an app
+that scans `/proc/self/mountinfo` (root detectors, some banking apps) sees the module's bind/overlay
+mounts and flags the device as modified — even though the files themselves are stock Samsung files.
+
+`hideksu` can hide those mounts from apps you choose. It ships `files/hidemnt`, a small native daemon
+that watches for the listed apps starting (through the kernel's process-event connector) and, the moment
+one starts, enters **only that app's** mount namespace and detaches the module's mounts there. The system
+and every other app — including the Samsung apps the tweaks actually modify (Camera, Gallery, Settings,
+Call Assist …) — keep seeing the mounts, so nothing breaks. It is namespace-local and leaves no trace in
+the app: no code is injected, and the files it would have seen are simply the stock ones.
+
+- **Which apps:** edit `/data/adb/s23tweaks/hide-apps.txt`, one package name per line (`#` starts a
+  comment). The file is created on first apply. After editing it, re-apply `hideksu` from the module page
+  (or reboot) so the watcher reloads the list.
+- **Why not hide from everyone:** KernelSU's built-in "umount modules" strips the mounts from *every*
+  non-root app at launch, which would also hide them from the Samsung apps that need them and silently
+  turn those tweaks off. Listing apps one by one keeps the tweaks working.
+- **Scope:** this hides the module's mounts only. The KernelSU manager app is hidden separately by the
+  patched `services.jar` (above). Together they clear mount- and package-based detection; verified against
+  Native Detector 7.7.0, which went from flagging suspicious/inconsistent mounts to "The Environment is
+  normal" with the detector listed.
+- It runs only while `hideksu` is on, and the list defaults to the Native Detector test app so you can
+  confirm it works; add your own apps and remove that entry if you don't want it.
 
 <a id="undo"></a>
 

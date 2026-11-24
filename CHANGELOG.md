@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.5
+
+- **HideKSU also hides the module's mounts from chosen apps** (`hideksu`). The module applies every tweak by bind/overlay-mounting into init's namespace, so the mounts are inherited by every app; a detector that scans `/proc/self/mountinfo` flags them as suspicious/inconsistent mounts (the files themselves are stock). HideKSU now ships `files/hidemnt` (from `src/hidemnt`), a small native daemon that watches for the apps listed in `/data/adb/s23tweaks/hide-apps.txt` via the kernel's process-event connector and, as each starts, enters only that app's mount namespace and detaches the module's mounts there. The system and every other app - including the Samsung apps the tweaks modify - keep the mounts, so nothing breaks. KernelSU's own "umount modules" is all-or-nothing (every non-root app), which would hide the mounts from those Samsung apps too and turn their tweaks off, which is why this is a per-app list. One package per line; edit and re-apply (or reboot) to reload. The list is seeded with the Native Detector test app so you can confirm it; add your own apps (banking, etc.). Verified on SM-S918W: Native Detector 7.7.0 went from flagging suspicious/inconsistent mounts to "The Environment is normal" (even with its experimental and custom-ROM detections on), while Samsung Camera and other apps kept their tweaks.
+
 ## v1.3.4
 
 - **AirDrop on custom kernels built with ThinLTO** (`airdrop`, with the `allow-any-kernel` opt-in; issue #10). Such a kernel renames static symbols to `<name>.llvm.<hash>`, so the lookup for cnss2's `plat_env` failed ("plat_env not found in kallsyms") and the stock driver went back. The lookup now accepts that form. `mhifix` still checks the structure it finds by signature and changes nothing if it doesn't match. Without CFI (no `cnss_mhi_bw_scale.cfi_jt`), `bwfix` loads pinned, as before. Checked against the kallsyms lines from the report; not tested on that kernel.

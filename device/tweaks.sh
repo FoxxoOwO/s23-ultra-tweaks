@@ -1298,6 +1298,44 @@ hideksu_on() {
   ss=$(pidof system_server) && [ "$ss" != "$(cat /dev/s23tweaks_svc/ss_at_bind)" ]
 }
 
+# hideksu part 2: hide the module's mounts from chosen apps. The module binds every tweak into init's
+# mount namespace, so every app inherits them and a detector flags them as suspicious/inconsistent
+# mounts. KernelSU's own umount is all-or-nothing (every non-root app at spawn), which would also strip
+# the mounts from the Samsung apps the tweaks modify (Camera, Gallery, Settings, ...) and break them.
+# files/hidemnt (src/hidemnt) instead watches for the listed apps via the kernel's process-event
+# connector and, as each starts, enters only its mount namespace and detaches the module's mounts there
+# (one native setns+umount pass, fast enough to finish before the app's own code runs). init and every
+# other process keep the mounts. $HIDEAPPS is the user-editable package list; re-apply or reboot to reload.
+HIDEMNT=$D/files/hidemnt
+HIDEAPPS=$V/hide-apps.txt
+seed_hideapps() {
+  [ -f $HIDEAPPS ] && return
+  cat > $HIDEAPPS <<'EOF'
+# hideksu: hide the module's mounts from these apps (one package per line; # starts a comment).
+# Add apps that must not see the module's mounts (banking, root detectors). Only the apps listed here
+# are affected - the Samsung apps the tweaks change are never touched unless you add them. After editing,
+# re-apply hideksu from the module page (or reboot) so the watcher reloads the list.
+com.reveny.nativecheck
+EOF
+  chmod 644 $HIDEAPPS
+}
+hidemnt_count() { grep -cvE '^[[:space:]]*(#|$)' $HIDEAPPS 2>/dev/null || echo 0; }
+hidemnt_running() { ps -A -o ARGS 2>/dev/null | grep -q "[h]idemnt daemon"; }
+hidemnt_stop() {
+  for p in $(ps -A -o PID,ARGS 2>/dev/null | grep "[h]idemnt daemon" | awk '{print $1}'); do kill "$p" 2>/dev/null; done
+  rm -f $V/hidemnt.pid
+}
+hidemnt_start() {
+  [ -x $HIDEMNT ] || { chmod 755 $HIDEMNT 2>/dev/null; [ -x $HIDEMNT ] || { log "hideksu: files/hidemnt missing; app mount-hiding skipped"; return 1; }; }
+  seed_hideapps
+  n=$(hidemnt_count)
+  [ "$n" -gt 0 ] || { log "hideksu: ${HIDEAPPS##*/} lists no apps; nothing to hide from"; hidemnt_stop; return 0; }
+  hidemnt_stop                          # restart so an edited list takes effect
+  setsid $HIDEMNT daemon $HIDEAPPS </dev/null >/dev/null 2>&1 &
+  echo $! > $V/hidemnt.pid
+  log "hideksu: hiding the module's mounts from $n app(s) in ${HIDEAPPS##*/} (edit it and re-apply to change)"
+}
+
 restart_framework() {
   old=$(pidof system_server); log "restarting the Android framework (screen goes black for ~30 s)"
   setprop ctl.restart zygote
@@ -1468,6 +1506,8 @@ $CF_HLOCK"
   elif [ "$(getprop $H6_PROP)" = 1 ]; then /data/adb/ksu/bin/resetprop $H6_PROP 0 && log "hotspot6g: not picked; 6 GHz override off"; fi
   apk_binds
   [ $restart = 1 ] && restart_framework
+  if has hideksu; then hidemnt_start                                   # after the restart, so it catches the respawned apps
+  elif hidemnt_running; then hidemnt_stop; log "hideksu: app mount-hiding stopped (not picked)"; fi
   has hotspot6g && hotspot6g_post
   has camextras && directorsview_pref
   has callscreen && callscreen_apply
@@ -1544,7 +1584,7 @@ status)
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"
   echo "vulkan:   renderer $(getprop debug.hwui.renderer | grep . || echo default)"
-  echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; })"
+  echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; }); mounts $(hidemnt_running && echo "hidden from $(hidemnt_count) app(s)" || echo "visible to apps")"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  $(h6_offered && echo offered || echo "not offered") (CSC country $(getprop ro.csc.countryiso_code), override $(getprop $H6_PROP | grep . || echo unset))"
   echo "csc:      $SC $(bound $CSCF && { grep -q '<SalesCode>INS<' $CSCF && echo "with the INS config" || echo "with call recording"; } || echo stock) ($CSYS)"
