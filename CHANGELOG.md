@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.9
+
+- **Fix: the Wi-Fi icon going missing from the status bar after an apply.** When a tweak needs a framework restart, SystemUI can come back up while Wi-Fi is still reconnecting and then drop the Wi-Fi *signal* icon from the status bar (Wi-Fi Calling stays, and Wi-Fi itself keeps working) until the next reboot or a manual Wi-Fi toggle. The apply now nudges SystemUI to redraw the icon at the end of any run that restarted the framework, by briefly cycling the Wi-Fi slot through SystemUI's status-bar icon blocklist and restoring the blocklist exactly as it was. It's display-only (the radio is never touched), and if you've deliberately hidden the Wi-Fi icon it's left alone. Verified on an SM-S918W: the icon reliably comes back without a toggle or reboot.
+
 ## v1.3.8
 
 - **Fix: HideKSU could remove every tweak from the whole phone** (`hideksu`, v1.3.6 and v1.3.7). Chrome's app zygote (`com.android.chrome_zygote_native`) and its sandboxed children run as app uids but in init's own mount namespace. The daemon treated them as user-installed apps and detached the module's mounts "in their namespace", which removed them for the whole system. Zygote then aborted every new app zygote and WebView process (`Failed open(/product/overlay/s23tweaks-aodbright.apk)`), so Chrome and apps that use a WebView crashed until a reboot. `hidemnt` now never detaches anything in init's namespace or its own. Seen and verified on an SM-S918B: aimed at init it detaches nothing; aimed at an app it detaches that app's mounts and init keeps them. **If you're on v1.3.6 or v1.3.7 with `hideksu`, update and reboot.**

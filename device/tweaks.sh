@@ -1389,6 +1389,21 @@ hidemnt_start() {
   fi
 }
 
+# After a framework restart SystemUI can come up while Wi-Fi is still reconnecting and then drop the
+# Wi-Fi *signal* icon from the status bar (Wi-Fi Calling stays), even though Wi-Fi is connected. Cycling
+# the Wi-Fi slot through SystemUI's icon blocklist makes it rebuild the slot from the live state; it's a
+# display-only nudge and never touches the radio. The user's existing blocklist is preserved exactly, and
+# if they've deliberately hidden the Wi-Fi icon (wifi already in the list) it's left alone.
+statusbar_wifi_refresh() {
+  cur=$(settings get secure icon_blacklist 2>/dev/null); [ "$cur" = null ] && cur=""
+  case ",$cur," in *,wifi,*) return 0 ;; esac
+  [ -n "$cur" ] && new="$cur,wifi" || new="wifi"
+  settings put secure icon_blacklist "$new" 2>/dev/null || return 0
+  sleep 1
+  if [ -n "$cur" ]; then settings put secure icon_blacklist "$cur"; else settings delete secure icon_blacklist; fi
+  log "status bar: nudged SystemUI to redraw the Wi-Fi icon after the framework restart"
+}
+
 restart_framework() {
   old=$(pidof system_server); log "restarting the Android framework (screen goes black for ~30 s)"
   setprop ctl.restart zygote
@@ -1566,6 +1581,7 @@ $CF_HLOCK"
   has camextras && directorsview_pref
   has callscreen && callscreen_apply
   has airdrop && airdrop_post
+  [ $restart = 1 ] && statusbar_wifi_refresh   # the framework restart can drop the Wi-Fi status-bar icon
   on=""; off=""; for x in $2; do if is_on $x; then on="$on $x"; else off="$off $x"; fi; done
   log "on:${on:- none}"
   [ -n "$off" ] && log "not on:$off (the reason is in the lines above)"
