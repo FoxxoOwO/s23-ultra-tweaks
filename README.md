@@ -147,7 +147,7 @@ Samsung's S24-and-newer phones do AirDrop through Google's **Mosey** stack. The 
 4. **`bwfix.ko`**: when AirDrop starts, the S24 firmware asks for a PCIe Gen3 link. The S23's PCIe root port tops out at Gen2, so the request is refused, and the firmware crashes on the refusal. bwfix sets Gen2 and acknowledges.
 5. **`wonder.ko`**: Google's virtual Wi-Fi driver that Mosey drives, with small S23 patches (`src/wonder-patch`).
 6. **Mosey**: `MoseyApp.apk`, `mosey_server` and `libmosey_daemon_ffi.so` from the S24 Ultra system image, added to `/system_ext` in an overlay. `moseyrun` starts the daemon as uid `system` with only `NET_ADMIN`/`NET_RAW`, the same way the S24's init script does.
-7. **Play services**: two Nearby flags (`45704091`, `45723015`) that make Play services hand AirDrop to Mosey, set as local overrides.
+7. **Play services**: three Nearby flags (`45704091`, `45723015`, and `sharing_package_whitelist_check_bypass` for Play services 26.46+) that make Play services hand AirDrop to Mosey, set as local overrides.
 
 A watchdog script also runs. If the Wi-Fi firmware ever crashes, it saves the kernel log and reboots cleanly. Without it, the S24 driver's recovery leaves the phone to hard-reset about a minute later.
 

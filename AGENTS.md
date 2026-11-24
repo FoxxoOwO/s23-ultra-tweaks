@@ -38,7 +38,7 @@ The release is built and tested for exactly one setup:
 | `cam24fps` | **Yes**: the exact `SamsungCamera.apk` (keyed on its MD5, not the firmware) | `python3 -I tools/cam24patch.py SamsungCamera.apk <build>`. If its patch lines equal an existing file's, reuse that file. Add a row (stock MD5, patched MD5, patch file, firmware) to `CAMERA_24FPS` in `device/tweaks.sh` and both MD5s to `CAM24_MD5` in `install.sh` |
 | `airdrop`, `wifi7` kernel modules | **Yes**: kernel build (all models of one build share them) | Same build, other model: check and add to `AIRDROP_FW` (see "Another model on the same build"). New build: rebuild all four `.ko`s (see "Kernel modules") |
 | `airdrop` payload (firmware, Mosey, supplicant) | Android version + S24 release | Re-extract from a matching S24 firmware (see "Payload") |
-| Play services flags `45704091`, `45723015` | Play services version | Re-check if AirDrop doesn't show up (see "Play services") |
+| Play services flags `45704091`, `45723015`, `sharing_package_whitelist_check_bypass` | Play services version | Re-check if AirDrop doesn't show up (see "Play services") |
 | `AIRDROP_KBASE`, `AIRDROP_FW`, `PAYLOAD*` | Yes | Update in `install.sh` and `device/tweaks.sh` |
 
 Every firmware or hardware condition a tweak needs is checked in one place: `why_not` in `device/tweaks.sh` prints the reason a tweak can't run (empty if it can), and `is_on` says whether it's in effect. The module page shows `why_not` as "Not available: ...", apply logs `<tweak>: skipped: ...` and leaves it out, and the log ends with `on:` / `not on:`. When a tweak gains a requirement, add it to `why_not` so it never gets offered and then silently skips.

@@ -11,7 +11,7 @@
 #   probe             one line of JSON: phone, which tweaks it can take and why not, what's active
 #   status            print what is active
 #   report            write a bug report (phone, tweaks, logs, crash summaries; no personal data) to Download
-#   unflag            remove the two Play services flag overrides that the airdrop tweak adds
+#   unflag            remove the Play services flag overrides that the airdrop tweak adds
 #   autostart on|off  re-apply the saved tweaks at every boot. DFRoot roots the phone by itself at
 #                     boot, then KernelSU runs the module's service.sh (module) or a script in
 #                     /data/adb/service.d (install.sh). Both call "boot".
@@ -26,7 +26,7 @@
 # runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
 # (/data/adb/s23tweaks), not in RAM: the kernel won't build an overlay from /data, so each overlay holds
 # only empty placeholders in tmpfs and the real file is bind-mounted over its placeholder (pbind). The one exception is
-# the airdrop tweak's two Play services flag overrides, stored in Play services' own database
+# the airdrop tweak's Play services flag overrides, stored in Play services' own database
 # (harmless without the rest; "unflag" removes them), camextras' camera app setting, and callscreen,
 # which installs Samsung Language Core as an ordinary app (undo: pm uninstall <package>).
 # Never touched: the sales code (mps_code.dat, sales_code.dat, omc.info, persist.sys.matched_code).
@@ -132,7 +132,7 @@ OMCDEC=$D/files/omcdec
 IN_MODEL=SM-S918B
 IN_MODEL_PROPS="ro.product.model ro.product.vendor.model ro.product.system.model ro.product.odm.model ro.product.product.model ro.product.system_ext.model ro.product.bootimage.model ro.product.system_dlkm.model ro.product.vendor_dlkm.model ro.boot.em.model"
 IN_SALES_PROPS="ro.csc.sales_code ro.boot.sales_code persist.audio.sales_code ril.sales_code"
-NEARBY_FLAGS="45704091 45723015"   # Nearby Sharing: enableExternalProviders + the provider-registry gate
+NEARBY_FLAGS="45704091 45723015 sharing_package_whitelist_check_bypass"   # Nearby Sharing: enableExternalProviders + provider-registry gate + GMS 26.46+ source-stamp bypass
 
 HIST=/dev/s23tweaks.history   # every apply's lines since boot (tweaks.log holds only the last apply)
 log() { m="$(cut -d' ' -f1 /proc/uptime) $*"; echo "$m" >> $L; echo "$m" >> $HIST 2>/dev/null; echo "s23tweaks: $*" > /dev/kmsg; sync; }
@@ -372,7 +372,7 @@ airdrop_post() {
   gms_flags
 }
 
-# Play services only binds Mosey when two server-side Nearby flags are on. Add them as local
+# Play services only binds Mosey when server-side Nearby flags are on. Add them as local
 # overrides (account 0 = the device) and patch the current flag snapshot so they apply right away.
 gms_flags() {
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db
@@ -391,26 +391,47 @@ gms_flags() {
   [ -f $V/backup/phenotype.db ] || cp $W/p.db* $V/backup/ 2>/dev/null
   id=$($SQ $W/p.db "select config_package_id from config_packages where name='com.google.android.gms.nearby'")
   [ -n "$id" ] || { log "airdrop: Play services has no Nearby config yet; open Quick Share once and run again"; return; }
-  sql="PRAGMA integrity_check;"
+  in_list=""; total=0; sql="PRAGMA integrity_check;"
   for f in $NEARBY_FLAGS; do
+    in_list="${in_list:+$in_list, }'$f'"
+    total=$((total + 1))
     sql="$sql INSERT OR IGNORE INTO flag_overrides (config_package_id, account_id, name, value, type, source) VALUES ($id, 0, '$f', 1, 2, 0);"
   done
   sql="$sql INSERT OR IGNORE INTO experiment_states_to_overrides (experiment_state_id, override_id)
     SELECT s.experiment_state_id, o.override_id FROM experiment_states s, flag_overrides o
-    WHERE s.config_package_id=$id AND o.config_package_id=$id AND o.name IN ('${NEARBY_FLAGS% *}', '${NEARBY_FLAGS#* }');
+    WHERE s.config_package_id=$id AND o.config_package_id=$id AND o.name IN ($in_list);
     PRAGMA wal_checkpoint(TRUNCATE);"
   ok=$($SQ $W/p.db "$sql" | head -1)
   [ "$ok" = ok ] || { log "airdrop: Play services database check failed ($ok); flags not set"; return; }
-  n=$($SQ $W/p.db "select count(*) from flag_overrides where config_package_id=$id and name in ('${NEARBY_FLAGS% *}', '${NEARBY_FLAGS#* }') and value=1")
+  n=$($SQ $W/p.db "select count(*) from flag_overrides where config_package_id=$id and name in ($in_list) and value=1")
   am force-stop com.google.android.gms
   cat $W/p.db > $DB && rm -f $DB-wal $DB-shm    # cat keeps the file's owner and SELinux label
   if [ -f $SNAP ]; then
-    cp $SNAP $W/s0.pb
-    $AIR/pbflag $W/s0.pb $W/s1.pb ${NEARBY_FLAGS% *} 1 >/dev/null && \
-    $AIR/pbflag $W/s1.pb $W/s2.pb ${NEARBY_FLAGS#* } 1 >/dev/null && cat $W/s2.pb > $SNAP
+    cp $SNAP $W/s.pb; pb_ok=1
+    for f in $NEARBY_FLAGS; do
+      if $AIR/pbflag $W/s.pb $W/s.next "$f" 1 >/dev/null 2>&1; then
+        mv $W/s.next $W/s.pb
+      else
+        # Fallback for pre-existing airdrop tarballs whose pbflag binary only accepts numeric names:
+        # append a valid protobuf field-5 boolean entry if the string flag isn't already in the snapshot.
+        case "$f" in
+          *[!0-9]*)
+            if ! grep -Fq "$f" $W/s.pb; then
+              nl=${#f}; el=$((nl + 4))
+              if [ $nl -lt 128 ] && [ $el -lt 128 ]; then
+                printf "\\$(printf '%03o' 42)\\$(printf '%03o' $el)\\$(printf '%03o' 10)\\$(printf '%03o' $nl)%s\\030\\001" "$f" >> $W/s.pb
+              else
+                pb_ok=0; break
+              fi
+            fi ;;
+          *) pb_ok=0; break ;;
+        esac
+      fi
+    done
+    [ $pb_ok = 1 ] && cat $W/s.pb > $SNAP
   fi
   rm -rf $W
-  log "airdrop: Play services Nearby flags on ($n of 2 overrides present)"
+  log "airdrop: Play services Nearby flags on ($n of $total overrides present)"
 }
 
 # ---------- Samsung feature flags (battery, features, display, logvideo) ----------
@@ -1776,8 +1797,10 @@ unflag)
   [ -x $SQ ] || { echo "the AirDrop download (with its sqlite3) isn't on the phone; pick AirDrop once to fetch it" >&2; exit 1; }
   rm -rf $W; mkdir -p $W; am force-stop com.google.android.gms
   cp $DB $W/p.db; [ -f $DB-wal ] && cp $DB-wal $W/p.db-wal
-  $SQ $W/p.db "DELETE FROM experiment_states_to_overrides WHERE override_id IN (SELECT override_id FROM flag_overrides WHERE name IN ('${NEARBY_FLAGS% *}', '${NEARBY_FLAGS#* }') AND account_id=0);
-    DELETE FROM flag_overrides WHERE name IN ('${NEARBY_FLAGS% *}', '${NEARBY_FLAGS#* }') AND account_id=0; PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
+  in_list=""
+  for f in $NEARBY_FLAGS; do in_list="${in_list:+$in_list, }'$f'"; done
+  $SQ $W/p.db "DELETE FROM experiment_states_to_overrides WHERE override_id IN (SELECT override_id FROM flag_overrides WHERE name IN ($in_list) AND account_id=0);
+    DELETE FROM flag_overrides WHERE name IN ($in_list) AND account_id=0; PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
   am force-stop com.google.android.gms; cat $W/p.db > $DB && rm -f $DB-wal $DB-shm; rm -rf $W
   echo "Play services flag overrides removed"
   ;;
