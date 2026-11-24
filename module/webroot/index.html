@@ -360,7 +360,7 @@ const CATS = [
 const TWEAKS = [
   { id: "airdrop", cat: "connect", name: "AirDrop", desc: "Quick Share → Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)" },
   { id: "wifi7", cat: "connect", name: "Wi-Fi 7 multi-link", desc: "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers; needs AirDrop" },
-  { id: "hotspot6g", cat: "connect", name: "6 GHz hotspot", desc: "6 GHz Mobile Hotspot (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz, needs WPA3" },
+  { id: "hotspot6g", cat: "connect", name: "6 GHz hotspot", desc: "6 GHz Mobile Hotspot (Wi-Fi 6E, 160 MHz): Mobile Hotspot → Band → 6 GHz, needs WPA3. Doesn't change the phone's country, so Samsung Wallet keeps working; restarts the framework once" },
   { id: "logvideo", cat: "camera", name: "Log video", desc: "Log recording in Pro video (10-bit HEVC)" },
   { id: "camextras", cat: "camera", name: "Director's view and horizon lock", desc: "Director's view (front and back camera at once) and Super steady's horizontal lock, which levels small tilts (up to about 20°), not a full 360° turn" },
   { id: "camerahdr", cat: "camera", name: "Camera HDR processing", desc: "Puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)" },
@@ -1018,7 +1018,7 @@ function installMock() {
     if (has("cam24fps")) add(0.4, "cam24fps: 24 FPS in standard Video on (Camera > Video > UHD 24)");
     if (has("vulkan")) add(0.3, "vulkan: apps render with Skia on Vulkan");
     if (["airdrop", "battery", "features", "callrec", "india", "display", "logvideo", "vulkan", "camerahdr", "hdr2023", "audioeraser", "colortone", "galaxyai"].some(has)) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(3.0, "framework back"); }
-    if (has("hotspot6g")) add(0.5, "hotspot6g: CSC country CA -> IN; Mobile hotspot > Band now offers 6 GHz (needs WPA3)");
+    if (has("hotspot6g")) add(0.5, "hotspot6g: Mobile hotspot > Band now offers 6 GHz (needs WPA3); country unchanged, Samsung Wallet unaffected");
     if (has("airdrop")) { add(0.4, "airdrop: mosey_server running"); add(0.4, "airdrop: Play services Nearby flags on (2 of 2 overrides present)"); }
     add(0.2, "on: " + ids.join(" "));
     add(0.4, "DONE");

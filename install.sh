@@ -8,7 +8,7 @@ set -euo pipefail
 # below can read the rest of the script from stdin (curl | bash).
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
-VERSION=v1.3.3
+VERSION=v1.3.4
 AIRDROP_KBASE=5.15.197-android13-8-34343818-ab; AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"   # as in device/tweaks.sh
 PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
 MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
@@ -95,7 +95,7 @@ cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
       "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds AirDrop)"
-      "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz)"
+      "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz); the country isn't changed, so Samsung Wallet keeps working"
       "Log video: Log recording in Camera > Pro video"
       "Camera extras: Director's view (front + back at once) and Super steady horizontal lock"
       "Camera HDR processing: puts back the multi-frame and low-light HDR steps One UI 9 removed (untested; 21 MB download)"

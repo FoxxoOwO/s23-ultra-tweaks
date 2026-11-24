@@ -6,6 +6,7 @@ The tweaks come in six categories. The module page lets you pick a whole categor
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 **What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.3.4**: the 6 GHz hotspot no longer changes the phone's country, so Samsung Wallet keeps working with it on.
 - **v1.3.3**: the India config now also makes Samsung Wallet India (UPI) and the 6 GHz hotspot work, by reporting the phone as the Indian model (reverts on reboot).
 - **v1.3.2**: call recording and the India carrier config work on any sales code, not just XAC/EUX. HideKSU also supports SM-S918B INS and SM-S918U1 (both untested on a phone).
 - **v1.3.1**: horizontal lock levels the viewfinder too and corrects up to about 20° instead of 8°, with its [limits](#horizontal-lock) spelled out. AirDrop and Wi-Fi 7 can try a custom kernel (opt-in, untested; see [Known limitations](#known-limitations)).
@@ -207,11 +208,12 @@ The switch stores `Settings.Secure sec_wifi_7_mode_enabled` (default 1 = on). Sa
 
 ## 📡 6 GHz hotspot
 
-The S23 Ultra's Wi-Fi chip and its stock `hostapd` run a 6 GHz hotspot fine (tested: channel 1, 5975 MHz, 160 MHz wide, with an iPhone connected). Samsung's Settings only offers the 6 GHz band when the firmware's CSC country is on a hard-coded list (`SemWifiApServiceImpl.isRegionFor6GCountry`). For most S23 firmware it isn't: Canada, for example, needs a phone that launched with Android 15. `hotspot6g` sets the runtime property `ro.csc.countryiso_code` to `IN`, which passes on every Qualcomm phone. The sales code isn't touched.
+The S23 Ultra's Wi-Fi chip and its stock `hostapd` run a 6 GHz hotspot fine (tested: channel 1, 5975 MHz, 160 MHz wide, with an iPhone connected). Samsung's Settings only offers the 6 GHz band when the firmware's CSC country is on a hard-coded list (`SemWifiApServiceImpl.isRegionFor6GCountry`). For most S23 firmware it isn't: Canada, for example, needs a phone that launched with Android 15. `hotspot6g` turns on Samsung's own debug override for that check (`vendor.wifiap.6gbandcountry=1`) instead of changing the country. `system_server` only honours it when `ro.product_ship` is `false` at the moment it starts, so the module sets that briefly, restarts the framework (the screen goes black for about 30 s), checks that 6 GHz is offered, and puts `ro.product_ship` back. Runtime properties only, reverting on reboot; the sales code and the country aren't touched, so **Samsung Wallet keeps working**.
 
 - The hotspot's security must be **WPA3** on 6 GHz (Settings switches it for you).
-- Transmit power and channels still follow the regulatory country the Wi-Fi driver detects, not this property.
-- Apps that read the CSC country see `IN` until the next reboot.
+- Transmit power and channels still follow the regulatory country the Wi-Fi driver detects.
+- Until the next reboot, Samsung's extra debug logging is on in the apps that started during the restart (logcat only).
+- v1.3.3 and earlier set the CSC country to `IN` instead. On a non-Indian model that made Samsung's servers refuse the phone, and Samsung Wallet showed "there's a problem with Google Play services". After updating and rebooting, clear Samsung Wallet's storage (Settings → Apps → Samsung Wallet → Storage → **Clear data**) if it still won't open.
 
 The hotspot can't do Wi-Fi 7 (802.11be): neither the S23's nor the S24's `hostapd` is built with it.
 

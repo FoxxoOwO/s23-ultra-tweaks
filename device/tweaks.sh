@@ -1205,14 +1205,37 @@ india_apply() {
   india_identity
 }
 
-# Samsung's Mobile Hotspot only offers 6 GHz when the firmware's CSC country is on its list
-# (SemWifiApServiceImpl.isRegionFor6GCountry). Most S23 CSCs aren't, though the hardware and the
-# stock hostapd run a 6 GHz hotspot fine. IN passes on every Qualcomm phone. Runtime property only;
-# the sales code is untouched. The radio still follows the real regulatory country.
-hotspot6g_apply() {
+# Samsung's Mobile Hotspot offers 6 GHz only when SemWifiApServiceImpl.supportWifiAp6GBasedOnCountry() says
+# so, and that wants the CSC country (ro.csc.countryiso_code) on a hard-coded list (isRegionFor6GCountry).
+# Most S23 CSCs aren't on it, though the hardware and the stock hostapd run a 6 GHz hotspot fine.
+# Setting the country to IN passes, but Samsung's servers then see a non-Indian model in India and refuse
+# it: Samsung Wallet won't open (v1.3.3 and earlier did that). Instead this uses the method's own debug
+# override, vendor.wifiap.6gbandcountry=1. system_server honours it only when SemWifiManager.MHSDBG is true,
+# which is SemWifiApCust.DBG, read once from ro.product_ship=false. So: ro.product_ship false and the
+# override (resetprop), restart the framework, wait for system_server to report 6g_Country:true (that
+# call latches the flag), then put ro.product_ship back. The country is never changed. Until a reboot,
+# Samsung's debug logging stays on in the processes that started during the restart (logcat only).
+# With india the country is IN anyway, so nothing is needed.
+H6_PROP=vendor.wifiap.6gbandcountry
+h6_offered() { dumpsys sem_wifi 2>/dev/null | grep -q '6g_Country:true'; }
+# before the framework restart: returns 0 when the restart is needed for it
+hotspot6g_pre() {
   RP=/data/adb/ksu/bin/resetprop; [ -x $RP ] || { log "hotspot6g: KernelSU resetprop not found; skipped"; return 1; }
-  c=$(getprop ro.csc.countryiso_code); [ "$c" = IN ] && { log "hotspot6g: already on"; return 0; }
-  $RP ro.csc.countryiso_code IN && log "hotspot6g: CSC country $c -> IN; Mobile hotspot > Band now offers 6 GHz (needs WPA3)"
+  [ "$(getprop ro.csc.countryiso_code)" = IN ] && { log "hotspot6g: CSC country is IN, which already offers 6 GHz"; return 1; }
+  $RP $H6_PROP 1
+  h6_offered && { log "hotspot6g: already on"; return 1; }
+  H6_SHIP=$(getprop ro.product_ship); [ "$H6_SHIP" = false ] && H6_SHIP=""
+  [ -n "$H6_SHIP" ] && $RP ro.product_ship false
+  H6_WAIT=1
+  log "hotspot6g: Samsung's 6 GHz hotspot override set; it loads with the framework restart (country stays $(getprop ro.csc.countryiso_code))"
+}
+# after the restart
+hotspot6g_post() {
+  [ "${H6_WAIT:-0}" = 1 ] || return 0
+  RP=/data/adb/ksu/bin/resetprop; n=30; until h6_offered; do n=$((n-1)); [ $n = 0 ] && break; sleep 2; done
+  [ -n "$H6_SHIP" ] && $RP ro.product_ship "$H6_SHIP"
+  if h6_offered; then log "hotspot6g: Mobile hotspot > Band now offers 6 GHz (needs WPA3); country unchanged, Samsung Wallet unaffected"
+  else log "hotspot6g: this firmware didn't take Samsung's 6 GHz override; 6 GHz not offered"; fi
 }
 
 # display: Always On Display auto brightness. The AOD app (BrightnessManager) builds its brightness curve
@@ -1348,7 +1371,7 @@ is_on() {
     features) bound $FF && grep -q SETTINGS_SUPPORT_AUTO_POWER_ON_OFF $FF 2>/dev/null ;;
     india) bound $CSCF && grep -q '<SalesCode>INS<' $CSCF 2>/dev/null ;;
     callrec) bound $CSCF && grep -q 'ConfigRecording>RecordingAllowed<' $CSCF 2>/dev/null ;;
-    hotspot6g) [ "$(getprop ro.csc.countryiso_code)" = IN ] ;;
+    hotspot6g) h6_offered ;;
     wifi7) bound $WPAS && bound $INI ;;
     display) bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<" $FF 2>/dev/null ;;
     logvideo) bound $CF && grep -q 'name="SUPPORT_LOG_VIDEO" value="true"' $CF 2>/dev/null ;;
@@ -1440,9 +1463,11 @@ $CF_HLOCK"
   ff_apply && restart=1
   if has india; then india_apply && { setprop ctl.restart ril-daemon; log "india: mobile network restarting"; restart=1; }
   elif has callrec; then callrec_apply && restart=1; fi
+  if has hotspot6g; then hotspot6g_pre && restart=1   # after india, which may set the country to IN
+  elif [ "$(getprop $H6_PROP)" = 1 ]; then /data/adb/ksu/bin/resetprop $H6_PROP 0 && log "hotspot6g: not picked; 6 GHz override off"; fi
   apk_binds
   [ $restart = 1 ] && restart_framework
-  has hotspot6g && hotspot6g_apply
+  has hotspot6g && hotspot6g_post
   has camextras && directorsview_pref
   has callscreen && callscreen_apply
   has airdrop && airdrop_post
@@ -1520,7 +1545,7 @@ status)
   echo "vulkan:   renderer $(getprop debug.hwui.renderer | grep . || echo default)"
   echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; })"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
-  echo "6ghz ap:  CSC country $(getprop ro.csc.countryiso_code)"
+  echo "6ghz ap:  $(h6_offered && echo offered || echo "not offered") (CSC country $(getprop ro.csc.countryiso_code), override $(getprop $H6_PROP | grep . || echo unset))"
   echo "csc:      $SC $(bound $CSCF && { grep -q '<SalesCode>INS<' $CSCF && echo "with the INS config" || echo "with call recording"; } || echo stock) ($CSYS)"
   echo "reported: model $(getprop ro.product.model), csc $(getprop ro.csc.sales_code), country $(getprop ro.csc.countryiso_code)$([ -e $V/india_identity ] && [ "$(getprop ro.product.model)" = $IN_MODEL ] && echo " (india identity on)")"
   ;;
