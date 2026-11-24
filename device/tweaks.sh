@@ -1011,12 +1011,33 @@ galaxyai_stage() {
   done
   ff_set FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE TRUE; ff_set FRAMEWORK_CONFIG_NOW_NUDGE_VERSION 2
   ff_set COMMON_CONFIG_AI_VERSION 20263
+  c2pa_stage
   return 0
+}
+# AI version 20263 also makes the S23's Visual Cloud Core pick its "V2" C2PA adapter (>= 20261), whose
+# four natives the S23's V1 libC2paDps.camera.samsung.so lacks: it crashed with UnsatisfiedLinkError
+# C2paLib.getVersion() (issue #19). floating_feature.xml is parsed in zygote, so the key can't be hidden
+# from that one app. files/libC2paDps-shim.so (src/c2pashim) goes over the library instead: it maps the
+# four V2 calls onto the V1 ones and forwards the rest to the original, added beside it as
+# libC2paDps_s23.camera.samsung.so. Skipped when the phone's library already has the V2 calls.
+C2PA=/system/lib64/libC2paDps.camera.samsung.so; C2PA_ORIG=$V/libC2paDps_s23.camera.samsung.so; C2PA_SHIM=$V/libC2paDps-shim.so
+c2pa_stage() {
+  c2pa=0
+  [ -f $C2PA ] && [ -f $D/files/libC2paDps-shim.so ] || return 1
+  if ! same_size $C2PA $D/files/libC2paDps-shim.so; then   # the firmware's library (not the shim of an earlier apply)
+    grep -q C2paLib_getVersion $C2PA && { log "galaxyai: this firmware's C2PA library already has the V2 calls; left as is"; return 1; }
+    cp $C2PA $C2PA_ORIG || return 1
+  fi
+  [ -s $C2PA_ORIG ] || return 1
+  cp $D/files/libC2paDps-shim.so $C2PA_SHIM || return 1
+  stage lib64 $C2PA_ORIG
+  c2pa=1
 }
 galaxyai_bind() {
   for p in $GAI_APPS; do n=${p#*/}
     bind_file $PL/galaxyai/$n.apk /system/$p/$n.apk system_file && rm -f /data/system/package_cache/*/$n-16-*
   done
+  [ "${c2pa:-0}" = 1 ] && [ -f /system/lib64/${C2PA_ORIG##*/} ] && bind_file $C2PA_SHIM $C2PA system_lib_file
   log "galaxyai: S24 Now Brief (Personal Data Intelligence), Creative Studio and Call Assist on"
 }
 # Settings search: the S24's Settings search app (com.android.settings.intelligence, same signature).
@@ -1652,7 +1673,7 @@ status)
   echo "cam24fps: Camera $(bound $CAM_APK && echo patched || echo stock), 24fps video modes $(is_on cam24fps && echo on || echo off)"
   echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
-  echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)"
+  echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)C2PA=$(same_size $C2PA $D/files/libC2paDps-shim.so && echo shim || echo stock)"
   echo "vulkan:   renderer $(getprop debug.hwui.renderer | grep . || echo default)"
   echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; }); mounts $(hidemnt_running && { n=$(hidemnt_count); [ "$n" -gt 0 ] 2>/dev/null && echo "hidden from user-installed apps ($n override(s))" || echo "hidden from user-installed apps"; } || echo "visible to apps")"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
