@@ -1190,6 +1190,28 @@ india_identity() {
   log "india: device reported as $IN_MODEL / INS, country IN (Samsung Wallet India + 6 GHz hotspot)"
   log "india: if Samsung Wallet still says 'not supported', clear its storage (Settings > Apps > Samsung Wallet > Storage > Clear data) and reopen it"
 }
+# Samsung's CID Manager (com.samsung.android.cidmanager) pops "Switch to <carrier>?" when the SIM's
+# carrier wants a different sales code than the phone reports. With india forcing INS on, that nags on
+# every boot and the dialog won't dismiss. The dialog is drawn by the com.android.phone process (shared
+# uid 1001) under this package's SYSTEM_ALERT_WINDOW appop, so disabling the package alone isn't enough -
+# denying that appop is the lever that actually blocks it. We do both. pm/appops persist across reboots,
+# so india_simprompt_on undoes it when india isn't picked. Marker: $V/india_simprompt (so we only
+# restore what we disabled).
+CIDMGR=com.samsung.android.cidmanager
+india_simprompt_off() {
+  pm disable-user --user 0 $CIDMGR 2>/dev/null
+  appops set $CIDMGR SYSTEM_ALERT_WINDOW ignore 2>/dev/null
+  for p in $(pidof $CIDMGR 2>/dev/null); do kill $p 2>/dev/null; done
+  touch $V/india_simprompt
+  log "india: carrier-switch prompt (CID Manager) suppressed"
+}
+india_simprompt_on() {
+  [ -e $V/india_simprompt ] || return 0
+  pm enable $CIDMGR 2>/dev/null
+  appops set $CIDMGR SYSTEM_ALERT_WINDOW allow 2>/dev/null
+  rm -f $V/india_simprompt
+  log "india: carrier-switch prompt restored (india not picked)"
+}
 india_apply() {
   csc_unbind; mkdir -p $R; I=$D/files/ins
   csc_bind $I/cscfeature.xml $CSCF csc_ins.xml
@@ -1204,6 +1226,7 @@ india_apply() {
   fi
   log "india: INS carrier config on (sales code stays $SC on disk)"
   india_identity
+  india_simprompt_off
 }
 
 # Samsung's Mobile Hotspot offers 6 GHz only when SemWifiApServiceImpl.supportWifiAp6GBasedOnCountry() says
@@ -1510,6 +1533,7 @@ $CF_HLOCK"
   ff_apply && restart=1
   if has india; then india_apply && { setprop ctl.restart ril-daemon; log "india: mobile network restarting"; restart=1; }
   elif has callrec; then callrec_apply && restart=1; fi
+  has india || india_simprompt_on   # restore the carrier-switch prompt we suppressed for india
   if has hotspot6g; then hotspot6g_pre && restart=1   # after india, which may set the country to IN
   elif [ "$(getprop $H6_PROP)" = 1 ]; then /data/adb/ksu/bin/resetprop $H6_PROP 0 && log "hotspot6g: not picked; 6 GHz override off"; fi
   apk_binds
@@ -1620,6 +1644,10 @@ cleanup)
   # parsed manifests of the apps the tweaks swap, in case a restart cached one; Android re-parses them
   for n in SamsungSmartSuggestions SketchBook CallAssistant SecSettingsIntelligence SecSettings EnvironmentAdaptiveDisplay MoseyApp SamsungCamera; do
     rm -f /data/system/package_cache/*/$n-[0-9]*; done
+  if [ -e $V/india_simprompt ]; then
+    pm enable $CIDMGR >/dev/null 2>&1; appops set $CIDMGR SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1
+    say "carrier-switch prompt (CID Manager) restored"
+  fi
   rm -f /data/adb/service.d/s23tweaks.sh
   cd /; rm -rf $V
   say "done; the next reboot removes what's still mounted"
