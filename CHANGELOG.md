@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.3.2
 
 - **Call recording on any sales code** (`callrec`). It used to run only on XAC (S918WVLU8GZIF) and EUX (S918BXXUAGZIF), with a decoded copy of each firmware's `cscfeature.xml` in the module and an MD5 check on the stock file. The module now decodes the phone's own stock file at every apply (new `files/omcdec`, a static arm64 build of `src/omcdec`, using the `SemCscFeature` tables), adds the two recording keys to every `FeatureSet` and binds that. The folder comes from `mdc.system.path`, so "single" multi-country layouts work too. On XAC this drops the Smart IVR and message card keys the old file also had; `india` still has them. Tested off the phone: on the stock XAC file it gives the same result as the old file without those two keys, and on EUX the same as the old EUX file. Not yet tested on a phone.
 - **India carrier config on any sales code** (`india`). The INS files now go over whatever sales code's files the phone uses (One UI 9 only, since they come from S918BXXUAGZIF). The INS keystrings are copied under the phone's own sales code's name. Its prism folder keeps the phone's `sales_code.dat`. Not yet tested on a phone other than XAC.
