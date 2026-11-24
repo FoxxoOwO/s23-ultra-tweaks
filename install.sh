@@ -115,7 +115,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "HideKSU: hide the KernelSU root manager from apps, so root-aware apps like CRED stop crashing (patched services.jar; 12 MB download; needs the KernelSU manager installed)"
       "Call recording in the Samsung Phone app"
-      "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards; the sales code stays as it is")
+      "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards, plus Samsung Wallet India (UPI, DigiLocker, transit) and the 6 GHz hotspot by reporting the phone as the Indian model; reverts on reboot, the sales code on disk is untouched")
 avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1 $can_c24  1 $can_ct 1  1 1 1 $can_lc 1  1 1 $can_ksu  $can_rec $can_csc)
 why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" "" "$why_c24"  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" "" "$why_ksu"  "$why_rec" "$why_csc")
 

@@ -124,6 +124,14 @@ csc_paths() {
 }
 csc_paths
 OMCDEC=$D/files/omcdec
+# india also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN), so
+# Samsung Wallet's India features (UPI, DigiLocker, transit) and the 6 GHz hotspot work. These are runtime
+# resetprop overrides: they revert on reboot and never write the CSC partition files (mps_code.dat,
+# sales_code.dat, omc.info), so there is no factory-reset risk. The reported model changes for every app
+# while it's on, and adding bank payment cards may still fail (that path checks the real model by hardware).
+IN_MODEL=SM-S918B
+IN_MODEL_PROPS="ro.product.model ro.product.vendor.model ro.product.system.model ro.product.odm.model ro.product.product.model ro.product.system_ext.model ro.product.bootimage.model ro.product.system_dlkm.model ro.product.vendor_dlkm.model ro.boot.em.model"
+IN_SALES_PROPS="ro.csc.sales_code ro.boot.sales_code persist.audio.sales_code ril.sales_code"
 NEARBY_FLAGS="45704091 45723015"   # Nearby Sharing: enableExternalProviders + the provider-registry gate
 
 HIST=/dev/s23tweaks.history   # every apply's lines since boot (tweaks.log holds only the last apply)
@@ -1167,6 +1175,19 @@ callrec_apply() {
 }
 # india: the INS (India) files of S918BXXUAGZIF over the phone's own sales code's. Only the config files
 # are swapped; the sales code (sales_code.dat, omc.info, mps_code.dat) is never touched.
+# Present the phone as the Indian S23 Ultra so Samsung Wallet's India features and the 6 GHz hotspot
+# work. Runtime only (see the IN_MODEL comment); the marker lets csc_paths/why_not tell our spoofed INS
+# from a phone that is genuinely INS.
+india_identity() {
+  RP=/data/adb/ksu/bin/resetprop
+  [ -x $RP ] || { log "india: KernelSU resetprop not found; device identity unchanged (Samsung Wallet may show 'not supported')"; return 1; }
+  for p in $IN_MODEL_PROPS; do [ -n "$(getprop $p)" ] && $RP $p $IN_MODEL; done
+  for p in $IN_SALES_PROPS; do [ -n "$(getprop $p)" ] && $RP $p INS; done
+  $RP ro.csc.countryiso_code IN
+  touch $V/india_identity
+  for a in com.samsung.android.spay com.samsung.android.spayfw; do am force-stop $a 2>/dev/null; done
+  log "india: device reported as $IN_MODEL / INS, country IN (Samsung Wallet India + 6 GHz hotspot)"
+}
 india_apply() {
   csc_unbind; mkdir -p $R; I=$D/files/ins
   csc_bind $I/cscfeature.xml $CSCF csc_ins.xml
@@ -1179,7 +1200,8 @@ india_apply() {
     chmod 755 $R/prism; chmod 644 $R/prism/*; chcon -R u:object_r:vendor_configs_file:s0 $R/prism
     mount --bind $R/prism $PRISM || fail "bind $PRISM"
   fi
-  log "india: INS carrier config on (sales code stays $SC)"
+  log "india: INS carrier config on (sales code stays $SC on disk)"
+  india_identity
 }
 
 # Samsung's Mobile Hotspot only offers 6 GHz when the firmware's CSC country is on its list
@@ -1283,7 +1305,7 @@ why_not() {
     callrec|india)
       [ -f "$CSCF" ] || { echo "can't find this phone's carrier config (mdc.system.path is '$CSYS')"; return; }
       if [ $1 = india ]; then
-        [ "$SC" = INS ] && { echo "this phone's sales code is INS already"; return; }
+        [ "$SC" = INS ] && [ ! -e $V/india_identity ] && { echo "this phone's sales code is INS already"; return; }
         [ "$(getprop ro.build.version.oneui | cut -c1)" = 9 ] || echo "needs One UI 9 (the INS files come from One UI 9 firmware)"
       else
         [ -f $OMCDEC ] || echo "files/omcdec is missing"
@@ -1499,6 +1521,7 @@ status)
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  CSC country $(getprop ro.csc.countryiso_code)"
   echo "csc:      $SC $(bound $CSCF && { grep -q '<SalesCode>INS<' $CSCF && echo "with the INS config" || echo "with call recording"; } || echo stock) ($CSYS)"
+  echo "reported: model $(getprop ro.product.model), csc $(getprop ro.csc.sales_code), country $(getprop ro.csc.countryiso_code)$([ -e $V/india_identity ] && [ "$(getprop ro.product.model)" = $IN_MODEL ] && echo " (india identity on)")"
   ;;
 cleanup)
   # Undo everything that outlives a reboot, then delete the state folder. module/uninstall.sh runs this

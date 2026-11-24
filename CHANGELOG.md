@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **India carrier config also fixes Samsung Wallet and the 6 GHz hotspot** (`india`). `hotspot6g` enables the 6 GHz band by setting `ro.csc.countryiso_code=IN`, but on a non-Indian model (e.g. the Canadian SM-S918W) that makes Samsung's server reject the phone: Samsung Wallet showed "there's a problem with Google Play services" and India features (UPI, DigiLocker, transit) were gated off, because the server saw an inconsistent model + country. `india` now also runs `resetprop` so the phone reports itself as the Indian S23 Ultra (model `SM-S918B`, sales code `INS`, country `IN`). The server then accepts it, so Samsung Wallet India and the 6 GHz hotspot both work. Runtime only: it reverts on reboot and writes none of the CSC files (no factory-reset risk). While on, the reported model changes for every app, and adding bank payment cards may still fail (that path checks the real model by hardware attestation). Verified on an SM-S918W (XAC): Samsung Wallet went from "not supported" to opening with UPI, and the enabler returned full `spay` support.
+
 ## v1.3.2
 
 - **Call recording on any sales code** (`callrec`). It used to run only on XAC (S918WVLU8GZIF) and EUX (S918BXXUAGZIF), with a decoded copy of each firmware's `cscfeature.xml` in the module and an MD5 check on the stock file. The module now decodes the phone's own stock file at every apply (new `files/omcdec`, a static arm64 build of `src/omcdec`, using the `SemCscFeature` tables), adds the two recording keys to every `FeatureSet` and binds that. The folder comes from `mdc.system.path`, so "single" multi-country layouts work too. On XAC this drops the Smart IVR and message card keys the old file also had; `india` still has them. Tested off the phone: on the stock XAC file it gives the same result as the old file without those two keys, and on EUX the same as the old EUX file. Not yet tested on a phone.
