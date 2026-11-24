@@ -57,18 +57,22 @@ k_ok=0; for f in $AIRDROP_FW; do [ "$kernel" = "$AIRDROP_KBASE$f" ] && k_ok=1; d
 case "$kernel" in 5.15.*-android13-*) [ "$(sh_ 'su -c "[ -f /data/adb/s23tweaks/allow-any-kernel ] && echo y"')" = y ] && [[ " $AIRDROP_FW " == *" $build "* ]] && k_ok=1 ;; esac
 [ $k_ok = 1 ] || { can_airdrop=0; why_airdrop="needs firmware ${AIRDROP_FW// /, } (this phone runs $build)"; }
 [ "${gms:-0}" -ge 261125000 ] || { can_airdrop=0; why_airdrop="needs Google Play services 26.11 or newer"; }
-can_csc=1; why_csc=""; [ "$csc" = XAC ] || { can_csc=0; why_csc="needs XAC (Canadian) firmware"; }
-can_rec=$can_csc; why_rec="needs XAC (Canadian) or EUX (European) firmware"; [ "$csc $build" = "EUX S918BXXUAGZIF" ] && can_rec=1   # CALLREC_CSC in device/tweaks.sh
+# callrec edits the phone's own carrier config (any sales code); india swaps in the INS files of One UI 9
+can_rec=1; why_rec=""
+can_csc=1; why_csc=""; oneui=$(sh_ getprop ro.build.version.oneui)
+[ "${oneui:0:1}" = 9 ] || { can_csc=0; why_csc="needs One UI 9 (the INS files come from One UI 9 firmware)"; }
+[ "$csc" = INS ] && { can_csc=0; why_csc="this phone's sales code is INS already"; }
 can_ct=1; why_ct=""; case "$build" in S918WVLU8GZIF|S918BXXUAGZIF) ;; *) can_ct=0; why_ct="needs firmware S918WVLU8GZIF or S918BXXUAGZIF (it patches that build's Settings app)" ;; esac   # SETTINGS_EAD in device/tweaks.sh
 # cam24fps goes by the Camera APK, not the firmware: stock and patched md5s as in CAMERA_24FPS (device/tweaks.sh)
 CAM24_MD5="174e38e111f53c92eea54fd8b9a8c1c6 167b412279d4fd5f3ce7e89232725bc8 e7c89df10d6607ea1ddeedceee961903 650dc854741a92f54be455fc19cd4c89"
 cam_md5=$(sh_ md5sum /system/priv-app/SamsungCamera/SamsungCamera.apk 2>/dev/null | cut -d' ' -f1)
 can_c24=0; why_c24="this phone's Samsung Camera isn't one the 24 fps patch was made for (Camera 17.0.00.43 of S918BXXUAGZIF or S918WVLU8GZIF)"
 case " $CAM24_MD5 " in *" ${cam_md5:-none} "*) can_c24=1; why_c24="" ;; esac
-# hideksu goes by the framework file, not the firmware: stock and patched services.jar md5s as HKS_STOCK/HKS_PATCHED in device/tweaks.sh
+# hideksu goes by the framework file, not the firmware: stock and patched services.jar md5s as in HIDEKSU_JARS (device/tweaks.sh)
+HKS_MD5="30d17f5d60b0d42585b97a94412f6e12 f4c5966939637df194bb465478234fc3 7dc62286f9f0675f84459943cdc397b6 a5449f73103be635f03fb6fdaf9f7d98 c438dd27a76486855d01e74379e13b5d f4918c7454965788ecc0c9003cbea941"
 jar_md5=$(sh_ md5sum /system/framework/services.jar 2>/dev/null | cut -d' ' -f1)
-can_ksu=0; why_ksu="this phone's services.jar isn't the one the patch was made from (S918WVLU8GZIF's)"
-case "${jar_md5:-none}" in 30d17f5d60b0d42585b97a94412f6e12|f4c5966939637df194bb465478234fc3) can_ksu=1; why_ksu="" ;; esac
+can_ksu=0; why_ksu="this phone's services.jar isn't one a patch was made from (S918W S918WVLU8GZIF, S918B INS, S918U1)"
+case " $HKS_MD5 " in *" ${jar_md5:-none} "*) can_ksu=1; why_ksu="" ;; esac
 # an Indian SIM (MCC 404/405) makes the carrier picks take the India config instead of plain call recording
 sim=$(sh_ getprop gsm.sim.operator.numeric | cut -d, -f1); sim_india=0; carrier_skip=india
 case "$sim" in 404*|405*) sim_india=1; carrier_skip=callrec ;; esac
@@ -88,7 +92,7 @@ ids=(airdrop wifi7 hotspot6g
      callrec india)
 cat=(A A A  B B B B B B B  C C C  D D D D D  E E E  F F)
 cats=(A B C D E F)
-catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier (XAC or EUX firmware)")
+catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
       "Wi-Fi 7 multi-link (MLO) with Wi-Fi 7 routers: S24 wpa_supplicant + driver MLO settings (adds AirDrop)"
       "6 GHz hotspot: Mobile Hotspot > Band offers 6 GHz (Wi-Fi 6E, 160 MHz)"
@@ -111,7 +115,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "HideKSU: hide the KernelSU root manager from apps, so root-aware apps like CRED stop crashing (patched services.jar; 12 MB download; needs the KernelSU manager installed)"
       "Call recording in the Samsung Phone app"
-      "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards; sales code stays XAC")
+      "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards; the sales code stays as it is")
 avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1 $can_c24  1 $can_ct 1  1 1 1 $can_lc 1  1 1 $can_ksu  $can_rec $can_csc)
 why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" "" "$why_c24"  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" "" "$why_ksu"  "$why_rec" "$why_csc")
 
@@ -203,8 +207,8 @@ fi
 # applying. Development: S23T_PAYLOADS=<folder of release files> pushes local copies instead.
 if [ -n "${S23T_PAYLOADS:-}" ]; then
   a shell "su -c 'mkdir -p $PHONE_DIR/dl'"
-  for f in "$S23T_PAYLOADS"/*-S918WVLU8GZIF.tar*; do
-    case " $picked " in *" $(basename "$f" | sed 's/-S918WVLU8GZIF.tar.*//') "*) ;; *) continue ;; esac
+  for f in "$S23T_PAYLOADS"/*.tar*; do
+    b=$(basename "$f"); case " $picked " in *" ${b%%-*} "*) ;; *) continue ;; esac
     a push "$f" /data/local/tmp/ >/dev/null && a shell "su -c 'mv /data/local/tmp/$(basename "$f") $PHONE_DIR/dl/'"
   done
 fi

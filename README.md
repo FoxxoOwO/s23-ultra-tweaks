@@ -56,14 +56,12 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 - 🩺 **19 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
 - ⏰ **20 · Auto power on/off** schedule and **louder VoIP calls** · `features`
-- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of S918WVLU8GZIF's, so it only runs on a phone whose stock `services.jar` is that exact file (checked by MD5, whatever the firmware name); applies on a framework restart · `hideksu`
+- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart · `hideksu`
 
 ### 📱 Carrier
 
-- ⏺️ **22 · Call recording** in the Samsung Phone app · `callrec`
-  - Works on: XAC (Canadian) firmware S918WVLU8GZIF, or EUX (European) firmware S918BXXUAGZIF
-- 🇮🇳 **23 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. The sales code stays XAC. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
-  - Works on: XAC (Canadian) firmware S918WVLU8GZIF
+- ⏺️ **22 · Call recording** in the Samsung Phone app, on any sales code: the module decodes the phone's own carrier config and allows recording in it · `callrec`
+- 🇮🇳 **23 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. Works on any sales code on One UI 9, which stays as it is. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
 only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
@@ -320,7 +318,7 @@ items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
   - **Custom kernels** (untested, opt-in): on one of those builds with a non-Samsung 5.15 android13 kernel, `su -c touch /data/adb/s23tweaks/allow-any-kernel` lets AirDrop and Wi-Fi 7 try anyway. The kernel needs `CONFIG_MODVERSIONS` and must not force module signatures. It still refuses the modules if any kernel symbol they use has a different CRC, and the module then puts the stock Wi-Fi driver back. Delete the file to go back to the check.
 - **Horizontal lock levels only up to about 20°** and isn't the S26's 360° lock (see [Horizontal lock](#horizontal-lock)).
 - The Wi-Fi link to the PCIe bus stays at Gen2, so very large transfers may be slower than on an S24.
-- `callrec` and `india` replace three carrier config files. They only apply when those files exactly match the S918WVLU8GZIF XAC ones (checked by MD5). On EUX firmware S918BXXUAGZIF `callrec` replaces one file, `cscfeature.xml`, under the same MD5 check. Neither tweak ever touches the sales code (`mps_code.dat`, `sales_code.dat`, `omc.info`). Changing the sales code can factory-reset the phone.
+- `callrec` and `india` work on the carrier config of whatever sales code the phone runs (the folder in `mdc.system.path`). `callrec` decodes the stock `cscfeature.xml` on the phone (`files/omcdec`, from `src/omcdec`) and adds the two recording keys to every `FeatureSet`, so it needs no per-firmware files. `india` binds the INS files of S918BXXUAGZIF (One UI 9) over the phone's `cscfeature.xml`, `customer_carrier_feature.json` and `customer.xml`, and adds the INS keystrings and regulatory images to a copy of its prism folder. So far `callrec` is tested on XAC and EUX, and `india` on XAC. Neither tweak ever touches the sales code (`mps_code.dat`, `sales_code.dat`, `omc.info`). Changing the sales code can factory-reset the phone.
 - Tested on an SM-S918W (S918WVLU8GZIF, XAC, Android 17, Play services 26.45). On an SM-S918B (S918BXXUAGZIF, EUX) `airdrop`, `wifi7` (without a multi-link connection), `colortone`, `callrec` and `battery` have also been tested. A contributor tested `cam24fps` on an S918B (S918BXXUAGZIF). On an SM-S918U1 (S918U1UEU8GZIF, XAA) `logvideo` records Log in HEVC, and `tenbit` found its three changes in that build's own camera driver. Reports from other models are welcome.
 
 <a id="other-firmware-let-your-ai-agent-build-it"></a>

@@ -80,11 +80,14 @@ AIR=$PL/airdrop                              # the airdrop/wifi7 download: kerne
 # The module zip holds only scripts. Every tweak that needs files downloads them from the GitHub release
 # $PAYLOAD_URL when it's picked: tweak, file, SHA-256. A tweak with several lines is one tar split into
 # parts (GitHub caps a file at 2 GB), joined on the phone. A copy in $V/dl/ (the installer can push one)
-# is used first.
+# is used first. "tweak:md5" lines are per stock file: only the one whose md5 matches this phone's is
+# fetched (hideksu: one patched services.jar per stock services.jar, see hks_row).
 PAYLOAD_URL=https://github.com/dtechterminal/s23-ultra-tweaks/releases/download/payloads-S918WVLU8GZIF
 PAYLOADS="airdrop airdrop-S918WVLU8GZIF-2.tar.gz deed1ee54334dbbf6086d2aa0d194183006826913a662900377f3760d7966e1c
 logvideo logvideo-luts.tar.gz ed688855d75d9ff964a2f9f904cb7189b6adb897940fb61fe3a4c8049c73ecbe
-hideksu hideksu-S918WVLU8GZIF.tar.gz 4732e4568d08254b80b60bbeeb1d03673dd259049303e5c43dcda6fe960fa647
+hideksu:30d17f5d60b0d42585b97a94412f6e12 hideksu-S918WVLU8GZIF.tar.gz 4732e4568d08254b80b60bbeeb1d03673dd259049303e5c43dcda6fe960fa647
+hideksu:7dc62286f9f0675f84459943cdc397b6 hideksu-7dc62286.tar.gz 38d5719706ec67331fb9199b0934e9551ac814f5d2970c1cbfc3099dd286d4e2
+hideksu:c438dd27a76486855d01e74379e13b5d hideksu-c438dd27.tar.gz 0b3f9991d5cb3e46cd8953d8d4e776005ff1a61b30f222aeb6af9ad919745dbf
 camerahdr camerahdr-S918WVLU8GZIF.tar.gz ed4d9be902918d1d014b91d3fd53cec42512f58744a398ec4e0888be04116bcc
 hdr2023 hdr2023-S918WVLU8GZIF.tar.gz 0f31937af2f04e2edcf1a2319298dfb97e3493aea558be6f3e0070fdb9b37eba
 audioeraser audioeraser-S918WVLU8GZIF.tar.gz a11d2868b3d8ba0121554ea2a31bb65256e0c141c6033c4e6ddb4770f4d11704
@@ -109,17 +112,18 @@ e7c89df10d6607ea1ddeedceee961903 650dc854741a92f54be455fc19cd4c89 SamsungCamera-
 # the row for the Camera APK in place now (stock, or our patched copy bound over it)
 cam24_row() { m=$(md5sum $CAM_APK 2>/dev/null | cut -d' ' -f1); echo "$CAMERA_24FPS" | awk -v m="$m" '$1 == m || $2 == m'; }
 cam24_builds() { echo "$CAMERA_24FPS" | awk '{print $4}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
-XAC=/optics/configs/carriers/XAC/conf; PRISM=/prism/etc/carriers/XAC
-# md5 of the stock (encoded) XAC files on S918WVLU8GZIF: the CSC tweaks replace them, so they only
-# run when the phone has exactly these
-XAC_CSC_MD5=4921cc4fa8a85213856630d0bf7b661a
-XAC_CCF_MD5=71e37a386615cc5db6b4e94fef72bea3
-XAC_CUST_MD5=8d2f19740e35a0d0f30759bebd033043
-# callrec on other sales codes: sales code, firmware, its stock (encoded) cscfeature.xml, that file's md5,
-# and the folder in files/ with the decoded file plus the recording keys (in every FeatureSet: these
-# multi-country files have one per country)
-CALLREC_CSC="EUX S918BXXUAGZIF /optics/configs/carriers/single/EUX/conf/system/cscfeature.xml fe43ce0679d14cb57dde71cff6475a81 eux-callrec"
-callrec_row() { echo "$CALLREC_CSC" | awk -v c="$(getprop ro.csc.sales_code)" '$1 == c'; }
+# Carrier config (callrec, india), on any sales code. SemCscFeature reads <mdc.system.path>/cscfeature.xml
+# (on multi-country firmware also that file's FeatureSet for the CSC country); customer_carrier_feature.json
+# sits next to it, customer.xml one folder up, and the prism folder (keystrings, regulatory images) mirrors
+# the optics path. Stock files are OMC-encoded; files/omcdec (src/omcdec) prints them as plain XML, which
+# the parser also accepts.
+csc_paths() {
+  SC=$(getprop ro.csc.sales_code); CSYS=$(getprop mdc.system.path)
+  CSCF=$CSYS/cscfeature.xml; CCF=$CSYS/customer_carrier_feature.json; CUST=${CSYS%/system}/customer.xml
+  case "$CSYS" in /optics/configs/carriers/*/conf/system) _p=${CSYS%/conf/system}; PRISM=/prism/etc/carriers/${_p#/optics/configs/carriers/} ;; *) PRISM="" ;; esac
+}
+csc_paths
+OMCDEC=$D/files/omcdec
 NEARBY_FLAGS="45704091 45723015"   # Nearby Sharing: enableExternalProviders + the provider-registry gate
 
 HIST=/dev/s23tweaks.history   # every apply's lines since boot (tweaks.log holds only the last apply)
@@ -1045,16 +1049,17 @@ dl() {   # dl <url> <file>: curl if the phone has it, else KernelSU's busybox wg
   else for b in /data/adb/ksu/bin/busybox /data/adb/magisk/busybox; do [ -x $b ] && { $b wget -q -O "$2" "$1"; return; }; done; return 1; fi
 }
 payload_fetch() {
-  for t in $(echo "$PAYLOADS" | awk '{print $1}' | uniq); do
-    has $t || continue
+  for k in $(echo "$PAYLOADS" | awk '{print $1}' | uniq); do
+    t=${k%%:*}; has $t || continue
+    case $k in *:*) [ $t = hideksu ] && [ "${k#*:}" = "$(hks_row | cut -d' ' -f1)" ] || continue ;; esac
     [ $t = callscreen ] && lc_ok && continue      # installed already; its 3.1 GB isn't kept
-    sums=$(echo "$PAYLOADS" | awk -v t=$t '$1 == t {print $3}' | tr '\n' ' ' | sed 's/ $//')
+    sums=$(echo "$PAYLOADS" | awk -v k=$k '$1 == k {print $3}' | tr '\n' ' ' | sed 's/ $//')
     [ "$(cat $PL/$t/.sha256 2>/dev/null)" = "$sums" ] && continue
     mkdir -p $V/dl
     [ $t = callscreen ] && [ "$(df -k /data | awk 'NR == 2 {print $4}')" -lt 7340032 ] &&
       { log "$t: needs 7 GB free on the phone for its download; skipped"; continue; }
     parts=""; ok=1
-    for f in $(echo "$PAYLOADS" | awk -v t=$t '$1 == t {print $2}'); do
+    for f in $(echo "$PAYLOADS" | awk -v k=$k '$1 == k {print $2}'); do
       sum=$(echo "$PAYLOADS" | awk -v f=$f '$2 == f {print $3}'); z=$V/dl/$f
       if [ "$(sha256sum $z 2>/dev/null | cut -d' ' -f1)" != "$sum" ]; then
         log "$t: downloading $f"
@@ -1130,39 +1135,51 @@ battery_auth() {
   log "battery: auth IC presented"
 }
 
-# ---------- CSC: india is XAC firmware only; callrec is XAC or a CALLREC_CSC sales code ----------
-csc_check() {
-  [ "$(getprop ro.csc.sales_code)" = XAC ] || { log "$1: needs XAC (Canadian) firmware; skipped"; return 1; }
-  for p in "$XAC/system/cscfeature.xml $XAC_CSC_MD5" "$XAC/system/customer_carrier_feature.json $XAC_CCF_MD5" "$XAC/customer.xml $XAC_CUST_MD5"; do
-    set -- $p; bound $1 && umount $1
-    [ "$(md5 $1)" = $2 ] || { log "csc: $1 differs from S918WVLU8GZIF; skipped"; return 1; }
-  done
-  bound $PRISM && umount $PRISM
+# ---------- CSC (callrec, india): any sales code; the paths come from csc_paths ----------
+# csc_unbind: drop the module's binds so the stock files show again (an apply always starts from stock)
+csc_unbind() {
+  for f in $CSCF $CCF $CUST $PRISM; do [ -n "$f" ] && bound $f && umount $f; done
   return 0
 }
 csc_bind() { cp "$1" $R/$3; chmod 644 $R/$3; chcon u:object_r:vendor_configs_file:s0 $R/$3; mount --bind $R/$3 "$2" || fail "bind $2"; }
-callrec_apply() {
-  set -- $(callrec_row)
-  if [ -n "$1" ]; then
-    bound $3 && umount $3
-    [ "$(md5 $3)" = $4 ] || { log "callrec: $3 differs from $2; skipped"; return 1; }
-    mkdir -p $R; csc_bind $D/files/$5/cscfeature.xml $3 csc_callrec.xml
-  else
-    csc_check callrec || return 1; mkdir -p $R
-    csc_bind $D/files/xac-callrec/cscfeature.xml $XAC/system/cscfeature.xml csc_xac.xml
+# callrec_make <out>: the phone's own stock cscfeature.xml, decoded, with call recording allowed in every
+# FeatureSet (multi-country files have one per country). Refuses a layout it can't edit line by line.
+REC_KEYS="<CscFeature_VoiceCall_ConfigRecording>RecordingAllowed</CscFeature_VoiceCall_ConfigRecording>
+<CscFeature_VoiceCall_SupportVoiceRecordingDuringHoldCall>TRUE</CscFeature_VoiceCall_SupportVoiceRecordingDuringHoldCall>"
+callrec_make() {
+  chmod 755 $OMCDEC 2>/dev/null; $OMCDEC $CSCF > $1.dec 2>>$L || { log "callrec: couldn't decode $CSCF"; rm -f $1.dec; return 1; }
+  sets=$(grep -c '</FeatureSet>' $1.dec); lines=$(grep -cE '^[[:space:]]*</FeatureSet>[[:space:]]*$' $1.dec)
+  if ! grep -q '</SamsungMobileFeature>' $1.dec || [ "$sets" = 0 ] || [ "$sets" != "$lines" ] || grep -q '<CscFeature_.*<CscFeature_' $1.dec; then
+    log "callrec: $CSCF isn't laid out one feature per line; skipped"; rm -f $1.dec; return 1
   fi
-  log "callrec: call recording on (Phone app > Settings > Record calls)"
+  echo "$REC_KEYS" | awk 'NR == FNR { k[++n] = $0; next }
+    /<CscFeature_VoiceCall_ConfigRecording>|<CscFeature_VoiceCall_SupportVoiceRecordingDuringHoldCall>/ { next }
+    /^[ \t]*<\/FeatureSet>/ { i = $0; sub(/<.*/, "", i); for (j = 1; j <= n; j++) print i "  " k[j] }
+    { print }' - $1.dec > $1 && rm -f $1.dec
+  [ "$(grep -c 'ConfigRecording>RecordingAllowed<' $1)" = "$sets" ] || { log "callrec: editing $CSCF failed"; rm -f $1; return 1; }
 }
+callrec_apply() {
+  csc_unbind; mkdir -p $R
+  callrec_make $R/csc_callrec.xml || return 1
+  chmod 644 $R/csc_callrec.xml; chcon u:object_r:vendor_configs_file:s0 $R/csc_callrec.xml
+  mount --bind $R/csc_callrec.xml $CSCF || fail "bind $CSCF"
+  log "callrec: call recording on in $SC's carrier config (Phone app > Settings > Record calls)"
+}
+# india: the INS (India) files of S918BXXUAGZIF over the phone's own sales code's. Only the config files
+# are swapped; the sales code (sales_code.dat, omc.info, mps_code.dat) is never touched.
 india_apply() {
-  csc_check india || return 1; mkdir -p $R; I=$D/files/ins
-  csc_bind $I/cscfeature.xml $XAC/system/cscfeature.xml csc_ins.xml
-  csc_bind $I/customer_carrier_feature.json $XAC/system/customer_carrier_feature.json ccf_ins.json
-  csc_bind $I/customer.xml $XAC/customer.xml customer_ins.xml
-  # prism: full copy of the XAC folder (sales_code.dat etc. unchanged) plus INS keystrings/images
-  rm -rf $R/prism; mkdir $R/prism; cp -p $PRISM/* $R/prism/; cp $I/prism/* $R/prism/
-  chmod 755 $R/prism; chmod 644 $R/prism/*; chcon -R u:object_r:vendor_configs_file:s0 $R/prism
-  mount --bind $R/prism $PRISM || fail "bind $PRISM"
-  log "india: INS carrier config on (sales code stays XAC)"
+  csc_unbind; mkdir -p $R; I=$D/files/ins
+  csc_bind $I/cscfeature.xml $CSCF csc_ins.xml
+  [ -f $CCF ] && csc_bind $I/customer_carrier_feature.json $CCF ccf_ins.json
+  [ -f $CUST ] && csc_bind $I/customer.xml $CUST customer_ins.xml
+  # prism: full copy of the phone's folder (its sales_code.dat etc. unchanged) plus INS keystrings/images
+  if [ -n "$PRISM" ] && [ -d $PRISM ]; then
+    rm -rf $R/prism; mkdir $R/prism; cp -p $PRISM/* $R/prism/
+    for f in $I/prism/*; do n=${f##*/}; case $n in INS_keystrings.dat) n=${SC}_keystrings.dat ;; esac; cp $f $R/prism/$n; done
+    chmod 755 $R/prism; chmod 644 $R/prism/*; chcon -R u:object_r:vendor_configs_file:s0 $R/prism
+    mount --bind $R/prism $PRISM || fail "bind $PRISM"
+  fi
+  log "india: INS carrier config on (sales code stays $SC)"
 }
 
 # Samsung's Mobile Hotspot only offers 6 GHz when the firmware's CSC country is on its list
@@ -1204,15 +1221,22 @@ aodb_on() { grep -q s23tweaks-aodbright /proc/$(pidof system_server)/maps 2>/dev
 # /proc/self/maps scan stays clean. Takes effect on a framework restart (system_server reloads the jar).
 KSUJAR=/system/framework/services.jar
 # The patched jar replaces the whole file, so it only goes on a phone whose stock services.jar is the exact
-# one it was made from (S918WVLU8GZIF's), whatever the firmware name. md5s: stock, patched.
-HKS_STOCK=30d17f5d60b0d42585b97a94412f6e12; HKS_PATCHED=f4c5966939637df194bb465478234fc3
+# one it was made from, whatever the firmware name. One row per stock jar: md5 stock, md5 patched, where
+# it came from. tools/hideksupatch.sh makes the payload for another jar and prints its row; each payload
+# is a PAYLOADS line "hideksu:<stock md5>".
+HIDEKSU_JARS="30d17f5d60b0d42585b97a94412f6e12 f4c5966939637df194bb465478234fc3 SM-S918W S918WVLU8GZIF (XAC)
+7dc62286f9f0675f84459943cdc397b6 a5449f73103be635f03fb6fdaf9f7d98 SM-S918B (INS)
+c438dd27a76486855d01e74379e13b5d f4918c7454965788ecc0c9003cbea941 SM-S918U1"
+# the row for the services.jar in place now (stock, or our patched copy bound over it)
+hks_row() { m=$(md5 $KSUJAR); echo "$HIDEKSU_JARS" | awk -v m="$m" '$1 == m || $2 == m'; }
 hideksu_apply() {
   [ -f $PL/hideksu/services.jar ] || { log "hideksu: payload missing; skipped"; return 1; }
   hideksu_on && { log "hideksu: patched services.jar already loaded"; return 1; }
   T=/dev/s23tweaks_svc; mkdir -p $T; mounted $T tmpfs || mount -t tmpfs -o mode=755 s23tweaks_svc $T
   bound $KSUJAR && umount $KSUJAR 2>/dev/null   # drop any earlier bind so one clean layer remains
-  [ "$(md5 $KSUJAR)" = $HKS_STOCK ] || { log "hideksu: this phone's services.jar isn't the one the patch was made from; skipped"; return 1; }
-  [ "$(md5 $PL/hideksu/services.jar)" = $HKS_PATCHED ] || { log "hideksu: the downloaded services.jar isn't the expected one; skipped"; return 1; }
+  set -- $(hks_row)
+  [ "$(md5 $KSUJAR)" = "$1" ] || { log "hideksu: this phone's services.jar isn't one a patch was made from; skipped"; return 1; }
+  [ "$(md5 $PL/hideksu/services.jar)" = $2 ] || { log "hideksu: the downloaded services.jar isn't the one for this phone's; skipped"; return 1; }
   cp $PL/hideksu/services.jar $T/services.jar && chmod 644 $T/services.jar && chcon u:object_r:system_file:s0 $T $T/services.jar || fail "hideksu stage"
   mount -o bind $T/services.jar $KSUJAR || fail "bind services.jar"
   pidof system_server > $T/ss_at_bind   # hideksu_on: a system_server started after this loaded the jar
@@ -1249,12 +1273,6 @@ phone_facts() {
   gms=$(dumpsys package com.google.android.gms 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2)
   lcv=$(lc_installed)
 }
-# the XAC files the carrier tweaks replace must be S918WVLU8GZIF's (a bound one is the module's own)
-csc_stock_ok() {
-  for p in "$XAC/system/cscfeature.xml $XAC_CSC_MD5" "$XAC/system/customer_carrier_feature.json $XAC_CCF_MD5" "$XAC/customer.xml $XAC_CUST_MD5"; do
-    set -- $p; bound $1 || [ "$(md5 $1)" = $2 ] || return 1
-  done
-}
 # why_not TWEAK: print why it can't run on this phone (nothing if it can). Needs phone_facts.
 why_not() {
   case "$model" in SM-S918*) ;; *) echo "this is for the Galaxy S23 Ultra (SM-S918*), not $model"; return ;; esac
@@ -1263,13 +1281,13 @@ why_not() {
       kernel_supported || { echo "needs firmware $(echo $AIRDROP_FW | sed 's/ /, /g') (this phone runs $build)"; return; }
       [ "${gms:-0}" -ge $GMS_MIN ] || echo "needs Google Play services 26.11 or newer" ;;
     callrec|india)
-      set -- $1 $(callrec_row)
-      if [ $1 = callrec ] && [ -n "$2" ]; then
-        bound $4 || [ "$(md5 $4)" = $5 ] || echo "needs the $2 carrier file of $3 (this phone runs $build)"; return
-      fi
-      [ $1 = callrec ] && [ "$csc" != XAC ] && { echo "needs XAC (Canadian) or EUX (European) firmware (this phone is $csc)"; return; }
-      [ "$csc" = XAC ] || { echo "needs XAC (Canadian) firmware (this phone is $csc)"; return; }
-      csc_stock_ok || echo "needs the XAC carrier files of S918WVLU8GZIF (this phone runs $build)" ;;
+      [ -f "$CSCF" ] || { echo "can't find this phone's carrier config (mdc.system.path is '$CSYS')"; return; }
+      if [ $1 = india ]; then
+        [ "$SC" = INS ] && { echo "this phone's sales code is INS already"; return; }
+        [ "$(getprop ro.build.version.oneui | cut -c1)" = 9 ] || echo "needs One UI 9 (the INS files come from One UI 9 firmware)"
+      else
+        [ -f $OMCDEC ] || echo "files/omcdec is missing"
+      fi ;;
     battery)
       for f in $BATT_EFS; do [ -f /efs/FactoryApp/$f ] || { echo "this phone has no $f in /efs/FactoryApp"; return; }; done ;;
     colortone)
@@ -1278,8 +1296,9 @@ why_not() {
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
     tenbit) [ -f $TB_LIB ] || echo "this phone has no $TB_LIB" ;;
     hideksu)
-      m=$(md5 $KSUJAR); [ "$m" = $HKS_STOCK ] || { bound $KSUJAR && [ "$m" = $HKS_PATCHED ]; } ||
-        { echo "this phone's /system/framework/services.jar isn't the one the patch was made from (S918WVLU8GZIF's, md5 $HKS_STOCK)"; return; }
+      set -- $(hks_row); m=$(md5 $KSUJAR)
+      [ -n "$1" ] && { [ "$m" = $1 ] || bound $KSUJAR; } ||
+        { echo "this phone's /system/framework/services.jar (md5 $m) isn't one a patch was made from ($(echo "$HIDEKSU_JARS" | cut -d' ' -f3- | tr '\n' ',' | sed 's/,$//; s/,/, /g')); tools/hideksupatch.sh can make one"; return; }
       pm path me.weishu.kernelsu >/dev/null 2>&1 || echo "the KernelSU manager (me.weishu.kernelsu) isn't installed, so there's nothing to hide" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
@@ -1304,8 +1323,8 @@ is_on() {
     airdrop) [ -d /sys/module/wonder ] && bound /system_ext/bin ;;
     battery) mounted /sys/class/power_supply tmpfs ;;
     features) bound $FF && grep -q SETTINGS_SUPPORT_AUTO_POWER_ON_OFF $FF 2>/dev/null ;;
-    india) bound $PRISM ;;
-    callrec) set -- $(callrec_row); bound ${3:-$XAC/system/cscfeature.xml} && ! bound $PRISM ;;
+    india) bound $CSCF && grep -q '<SalesCode>INS<' $CSCF 2>/dev/null ;;
+    callrec) bound $CSCF && grep -q 'ConfigRecording>RecordingAllowed<' $CSCF 2>/dev/null ;;
     hotspot6g) [ "$(getprop ro.csc.countryiso_code)" = IN ] ;;
     wifi7) bound $WPAS && bound $INI ;;
     display) bound $FF && grep -q "<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<" $FF 2>/dev/null ;;
@@ -1479,8 +1498,7 @@ status)
   echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; })"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  CSC country $(getprop ro.csc.countryiso_code)"
-  set -- $(callrec_row); f=${3:-$XAC/system/cscfeature.xml}
-  echo "csc:      $(bound $f && grep -m1 -oE '<SalesCode>[A-Z]+' $f | cut -c12- || echo stock)"
+  echo "csc:      $SC $(bound $CSCF && { grep -q '<SalesCode>INS<' $CSCF && echo "with the INS config" || echo "with call recording"; } || echo stock) ($CSYS)"
   ;;
 cleanup)
   # Undo everything that outlives a reboot, then delete the state folder. module/uninstall.sh runs this

@@ -32,7 +32,8 @@ The release is built and tested for exactly one setup:
 |---|---|---|
 | `battery`, `features` | No (One UI 9 floating features) | Check that the tags still exist in `/system/etc/floating_feature.xml` |
 | `hotspot6g` | Mostly no | Re-check `SemWifiApServiceImpl.isRegionFor6GCountry()` in `/system/framework/semwifi-service.jar`; `IN` must still pass |
-| `callrec`, `india` | **Yes**: XAC on S918W GZIF; `callrec` also EUX on S918B GZIF | New CSC files + new MD5 gates (see "Carrier config") |
+| `callrec`, `india` | `callrec`: no (decodes the phone's own file). `india`: One UI 9 | `india`: new INS files from a matching firmware (see "Carrier config") |
+| `hideksu` | **Yes**: the exact stock `services.jar` (keyed on its MD5) | `tools/hideksupatch.sh services.jar out/`, upload the tarball to the payloads release, add its row to `HIDEKSU_JARS` and its `hideksu:<md5>` line to `PAYLOADS` in `device/tweaks.sh`, and both MD5s to `HKS_MD5` in `install.sh` |
 | `colortone` | **Yes**: the build's `SecSettings.apk` | `python3 -I tools/eadpatch.py SecSettings.apk <build>`, put the patch in `device/files/`, add the two MD5s to `SETTINGS_EAD` in `device/tweaks.sh` and the build to `can_ct` in `install.sh` |
 | `cam24fps` | **Yes**: the exact `SamsungCamera.apk` (keyed on its MD5, not the firmware) | `python3 -I tools/cam24patch.py SamsungCamera.apk <build>`. If its patch lines equal an existing file's, reuse that file. Add a row (stock MD5, patched MD5, patch file, firmware) to `CAMERA_24FPS` in `device/tweaks.sh` and both MD5s to `CAM24_MD5` in `install.sh` |
 | `airdrop`, `wifi7` kernel modules | **Yes**: kernel build (all models of one build share them) | Same build, other model: check and add to `AIRDROP_FW` (see "Another model on the same build"). New build: rebuild all four `.ko`s (see "Kernel modules") |
@@ -151,12 +152,11 @@ If a newer Play services renames them, Google's server config is the place to lo
 
 ## Carrier config (`callrec`, `india`)
 
-These replace three XAC files with plain-XML versions. Samsung's parser accepts plain files, although stock files are OMC-encoded.
+These bind plain-XML versions over the phone's own carrier files, whatever its sales code: `csc_paths` in `tweaks.sh` takes the folder from `mdc.system.path` (what `SemCscFeature` reads). Samsung's parser accepts plain files, although stock files are OMC-encoded.
 
-- Decode a stock file: `tools/omcdecode.py salts.txt shifts.txt in out`. The 256-entry `salts` and `shifts` arrays come from `SemCscFeature` in the phone's `/system/framework/framework.jar`; decompile that one class.
-- `callrec` is the decoded XAC `cscfeature.xml` plus the call-recording keys. `india` uses the INS files from an S918B INS firmware (`HOME_CSC`).
-- Another sales code for `callrec`: add a line to `CALLREC_CSC` in `tweaks.sh` (sales code, firmware, path and MD5 of the stock `cscfeature.xml`, folder in `device/files/`) and to `can_rec` in `install.sh`. The file is the decoded stock one plus the two recording keys. Multi-country files (`/optics/configs/carriers/single/<CSC>`, e.g. EUX) have one `FeatureSet` per country; add the keys to every one.
-- The MD5 gates in `tweaks.sh` (`XAC_*_MD5`) make the tweak refuse to run on any other stock file. For a new firmware, make new files from **that** firmware's stock files and update the MD5s. Never reuse files across firmware versions.
+- Decoding: `device/files/omcdec` (static arm64, `src/omcdec/build.sh`) on the phone, `tools/omcdecode.py salts.txt shifts.txt in out` on a computer. The 256-entry `salts` and `shifts` arrays come from `SemCscFeature` in `/system/framework/framework.jar` (`jadx --no-replace-consts --single-class com.samsung.android.feature.SemCscFeature`). If a firmware changes them, `omcdec` exits 2 ("not an OMC-encoded file") and `callrec` skips.
+- `callrec` decodes the stock `cscfeature.xml` at every apply and adds the two call-recording keys to every `FeatureSet` (multi-country files, e.g. EUX, have one per country). It refuses a file that isn't one feature per line.
+- `india` uses the INS files from an S918B INS One UI 9 firmware (`HOME_CSC`); `INS_keystrings.dat` is copied under the phone's own sales code's name. For another One UI version, take the INS files from a firmware of that version.
 
 ## Releasing
 
