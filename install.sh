@@ -8,7 +8,7 @@ set -euo pipefail
 # below can read the rest of the script from stdin (curl | bash).
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
-VERSION=v1.4.0
+VERSION=v1.5.0
 AIRDROP_KBASE=5.15.197-android13-8-34343818-ab; AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"   # as in device/tweaks.sh
 PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
 MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
@@ -86,11 +86,11 @@ lc_have=$(sh_ "dumpsys package com.samsung.android.offline.languagemodel 2>/dev/
 # Tweaks, grouped in categories. A category letter picks every available tweak in it.
 ids=(airdrop wifi7 hotspot6g
      logvideo camextras camerahdr hdr2023 autoframe tenbit cam24fps
-     display colortone vulkan
+     display colortone vulkan weather
      galaxyai audioeraser settingssearch callscreen bargein
      battery features hideksu
      callrec india)
-cat=(A A A  B B B B B B B  C C C  D D D D D  E E E  F F)
+cat=(A A A  B B B B B B B  C C C C  D D D D D  E E E  F F)
 cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
@@ -106,6 +106,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Always On Display: lock screen wallpaper, and AOD brightness that follows the room light"
       "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
       "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
+      "Lock screen weather effect: rain, snow, fog or sun over the lock screen wallpaper, following Samsung Weather (installs a 12 KB AI Core stub app)"
       "Galaxy AI apps: the S24's Now Brief, Creative Studio and Call Assist (219 MB download)"
       "Audio Eraser: remove wind, noise, music or voices from videos in Gallery (34 MB download)"
       "Settings search: the S24's new Settings search bar; natural-language answers stay off (10 MB download)"
@@ -116,8 +117,8 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "HideKSU: hide the KernelSU root manager from apps, so root-aware apps like CRED stop crashing (patched services.jar; 12 MB download; needs the KernelSU manager installed)"
       "Call recording in the Samsung Phone app"
       "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards, plus Samsung Wallet India (UPI, DigiLocker, transit) and the 6 GHz hotspot by reporting the phone as the Indian model; reverts on reboot, the sales code on disk is untouched")
-avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1 $can_c24  1 $can_ct 1  1 1 1 $can_lc 1  1 1 $can_ksu  $can_rec $can_csc)
-why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" "" "$why_c24"  "" "$why_ct" ""  "" "" "" "$why_lc" ""  "" "" "$why_ksu"  "$why_rec" "$why_csc")
+avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1 $can_c24  1 $can_ct 1 1  1 1 1 $can_lc 1  1 1 $can_ksu  $can_rec $can_csc)
+why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" "" "$why_c24"  "" "$why_ct" "" ""  "" "" "" "$why_lc" ""  "" "" "$why_ksu"  "$why_rec" "$why_csc")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
@@ -243,6 +244,7 @@ case " $picked " in *" cam24fps "*) info "24 FPS in standard Video: Camera > Vid
 case " $picked " in *" settingssearch "*) info "Settings search: open Settings and tap the search bar." ;; esac
 case " $picked " in *" callscreen "*) info "Call screening: Phone > Settings > Call screening. The AI summary shows an error on the S23; screening and voice messages work." ;; esac
 case " $picked " in *" autoframe "*) info "4K auto framing was reported to make the camera fail (S918B); turn it off if the camera fails to open." ;; esac
+case " $picked " in *" weather "*) info "Weather effect: Wallpaper and style > Lock screen > Weather > Done. It animates only for rain, snow, fog or daytime sun." ;; esac
 case " $picked " in *" bargein "*) info "Bixby barge-in is untested; turn it off if anything misbehaves." ;; esac
 case " $picked " in *" hotspot6g "*) info "6 GHz hotspot: Settings > Connections > Mobile Hotspot > Band > 6 GHz (security must be WPA3)." ;; esac
 case " $picked " in *" india "*) info "India config: the phone reports itself as the Indian model so Samsung Wallet India (UPI) and the 6 GHz hotspot work. If Samsung Wallet still says 'not supported', clear its storage (Settings > Apps > Samsung Wallet > Storage > Clear data) and reopen it." ;; esac

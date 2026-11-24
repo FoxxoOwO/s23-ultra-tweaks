@@ -20,15 +20,16 @@
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
 #         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
-#         callscreen tenbit hideksu cam24fps  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
+#         callscreen tenbit hideksu cam24fps weather  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
 # runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
 # (/data/adb/s23tweaks), not in RAM: the kernel won't build an overlay from /data, so each overlay holds
 # only empty placeholders in tmpfs and the real file is bind-mounted over its placeholder (pbind). The one exception is
 # the airdrop tweak's two Play services flag overrides, stored in Play services' own database
-# (harmless without the rest; "unflag" removes them), camextras' camera app setting, and callscreen,
-# which installs Samsung Language Core as an ordinary app (undo: pm uninstall <package>).
+# (harmless without the rest; "unflag" removes them), camextras' camera app setting, callscreen,
+# which installs Samsung Language Core as an ordinary app (undo: pm uninstall <package>), and weather,
+# which installs a 12 KB AI Core stub app and turns Samsung's live wallpaper app back on if it was off.
 # Never touched: the sales code (mps_code.dat, sales_code.dat, omc.info, persist.sys.matched_code).
 # Changing those can factory-reset the phone.
 
@@ -40,7 +41,7 @@ mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
 STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu cam24fps"
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps weather"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -1085,6 +1086,39 @@ callscreen_apply() {
   esac
 }
 
+# weather: the lock screen Weather effect (rain, snow, fog or sun over the wallpaper, following Samsung
+# Weather). The effect is SpriteWallpaper's WeatherWallpaperService and runs on the S23 as is, but the
+# wallpaper editor (DressRoom) hides its Weather button unless LOCKSCREEN_CONFIG_WALLPAPER_STYLE has
+# GENWEATHER and Samsung AI Core reports FEATURE_WALLPAPER/FEATURE_DOWNLOAD and its "visionlvm" model
+# as downloaded. The S23 has no AI Core, so files/aicore-stub.apk (src/aicorestub; WX_VER = its
+# versionCode) answers just those checks and runs nothing; the model only feeds the S25's AI-generated
+# weather images, which the S23 can't make. A real AI Core, if installed, is left alone. The effect
+# also needs the live wallpaper app enabled: debloat lists often disable it, and then Android drops the
+# wallpaper ("WeatherWallpaperService is unavailable") and the lock screen goes black.
+WX_PKG=com.samsung.android.aicore; WX_LIVE=com.samsung.android.wallpaper.live; WX_VER=2
+WX_KEY=LOCKSCREEN_CONFIG_WALLPAPER_STYLE
+wx_style() {   # the stock value plus GENWEATHER (the file may be our own copy, which has it already)
+  v=$(grep -m1 -o "<SEC_FLOATING_FEATURE_$WX_KEY>[^<]*" $FF | cut -d'>' -f2 | tr ',' '\n' | grep -vx GENWEATHER | grep . | tr '\n' ',')
+  echo "${v}GENWEATHER"
+}
+wx_code() { dumpsys package $WX_PKG 2>/dev/null | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2; }
+wx_stub() { dumpsys package $WX_PKG 2>/dev/null | grep -q 'versionName=[^ ]*-s23tweaks'; }
+wx_real() { pm path $WX_PKG >/dev/null 2>&1 && ! wx_stub; }
+wx_live_off() { pm list packages -d --user 0 2>/dev/null | grep -qx "package:$WX_LIVE"; }
+weather_apply() {   # after the framework restart, so the package manager is settled
+  if wx_live_off; then pm enable --user 0 $WX_LIVE >/dev/null 2>&1 && log "weather: Samsung's live wallpaper app was disabled; turned it back on"; fi
+  if wx_real; then log "weather: Samsung AI Core is installed; it answers the editor itself"
+  elif [ "$(wx_code)" = $WX_VER ] && wx_stub; then :
+  else
+    T=/data/local/tmp/s23t-aicore-stub.apk   # the installer can't read files under /data/adb
+    cp $D/files/aicore-stub.apk $T && chmod 644 $T && chcon u:object_r:shell_data_file:s0 $T && r=$(pm install -r $T 2>&1)
+    case "$r" in *UPDATE_INCOMPATIBLE*) pm uninstall $WX_PKG >/dev/null 2>&1; r=$(pm install $T 2>&1) ;; esac   # signed by another build
+    rm -f $T
+    case "$r" in *Success*) ;; *) log "weather: couldn't install the AI Core stub: $r"; return 1 ;; esac
+  fi
+  log "weather: on; pick it in the lock screen editor (Wallpaper and style > Lock screen > Weather)"
+}
+
 # payload_fetch: download and unpack the files of each picked tweak that has them, unless the
 # unpacked copy already matches the pinned checksum. A failed download skips that tweak, not the rest.
 dl() {   # dl <url> <file>: curl if the phone has it, else KernelSU's busybox wget
@@ -1467,6 +1501,9 @@ why_not() {
     colortone)
       [ -n "$(ead_row)" ] || echo "needs firmware $(ead_builds) (it patches that build's Settings app; this phone runs $build)" ;;
     hotspot6g) [ -x /data/adb/ksu/bin/resetprop ] || echo "needs KernelSU's resetprop" ;;
+    weather)
+      pm path $WX_LIVE >/dev/null 2>&1 || { echo "this phone has no Samsung live wallpaper app ($WX_LIVE)"; return; }
+      pm path com.samsung.android.app.dressroom >/dev/null 2>&1 || echo "this phone has no Wallpaper and style app (DressRoom)" ;;
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
     tenbit) [ -f $TB_LIB ] || echo "this phone has no $TB_LIB" ;;
     hideksu)
@@ -1506,6 +1543,7 @@ is_on() {
     camextras) bound $CF && grep -q 'name="SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK" value="true"' $CF 2>/dev/null ;;
     autoframe) grep -q "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>uhd<" $FF 2>/dev/null ;;
     bargein) grep -q "<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<" $FF 2>/dev/null ;;
+    weather) grep -q "<SEC_FLOATING_FEATURE_$WX_KEY>[^<]*GENWEATHER" $FF 2>/dev/null && pm path $WX_PKG >/dev/null 2>&1 && ! wx_live_off ;;
     settingssearch) bound /system/$SSI/SecSettingsIntelligence.apk ;;
     callscreen) [ "$(lc_installed)" -ge 400000000 ] 2>/dev/null ;;
     vulkan) [ "$(getprop debug.hwui.renderer)" = skiavk ] ;;
@@ -1585,6 +1623,8 @@ $CF_HLOCK"
   elif bound $HL_LIB || bound $HA_LIB || bound $HL2_LIB || bound $HA2_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
+  # Lock screen Weather effect: the editor's Weather button (weather_apply adds the AI Core stub)
+  has weather && ff_set $WX_KEY "$(wx_style)"
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
   has vulkan && { setprop debug.hwui.renderer skiavk; log "vulkan: apps render with Skia on Vulkan"; restart=1; }
   has hideksu && hideksu_apply && restart=1   # patched services.jar: needs a framework restart to load
@@ -1601,6 +1641,8 @@ $CF_HLOCK"
   has hotspot6g && hotspot6g_post
   has camextras && directorsview_pref
   has callscreen && callscreen_apply
+  if has weather; then weather_apply
+  elif wx_stub; then pm uninstall $WX_PKG >/dev/null 2>&1 && log "weather: not picked; AI Core stub uninstalled"; fi
   has airdrop && airdrop_post
   [ $restart = 1 ] && statusbar_wifi_refresh   # the framework restart can drop the Wi-Fi status-bar icon
   on=""; off=""; for x in $2; do if is_on $x; then on="$on $x"; else off="$off $x"; fi; done
@@ -1665,6 +1707,7 @@ status)
   echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && echo "on ($(hl_desc))" || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
   echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
+  echo "weather:  flag $(grep -q "<SEC_FLOATING_FEATURE_$WX_KEY>[^<]*GENWEATHER" $FF && echo on || echo off), AI Core $(wx_stub && echo "stub $(wx_code)" || { wx_real && echo Samsung || echo none; }), live wallpaper app $(wx_live_off && echo disabled || echo enabled)"
   echo "settingssearch: $(bound /system/$SSI/SecSettingsIntelligence.apk && echo S24 || echo stock)"
   echo "callscreen: Language Core $(dumpsys package $LC_PKG 2>/dev/null | grep -m1 -oE 'versionName=[^ ]+' | cut -d= -f2)"
   echo "camerahdr: libraries $([ -f /system/lib64/liblow_light_hdr.arcsoft.so ] && echo on || echo off), list entries $(grep -q 'mfhdr.arcsoft.v4' $FF && echo on || echo off)"
@@ -1694,6 +1737,7 @@ cleanup)
     for k in call_screening call_screening_auto_screening_onoff call_screening_voice call_screening_voice_speech_rate; do
       settings delete system $k >/dev/null 2>&1; done
   fi
+  wx_stub && pm uninstall $WX_PKG >/dev/null 2>&1 && say "AI Core stub uninstalled"
   if [ -f $V/undo/directors_view ] && [ -f $CAM_PREFS ]; then
     v=$(cat $V/undo/directors_view); am force-stop com.sec.android.app.camera; mkdir -p $R
     if [ "$v" = absent ]; then grep -v 'name="directors_view_mode"' $CAM_PREFS > $R/camprefs.new

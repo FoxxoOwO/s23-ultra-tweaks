@@ -43,35 +43,37 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 - 🌤️ **12 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
   - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
 - ⚡ **13 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
+- 🌧️ **14 · Lock screen weather effect**: rain, snow, fog or sun animated over your own lock screen wallpaper, following Samsung Weather. Brings back the **Weather** button in the lock screen editor (Wallpaper and style → Lock screen → Weather → Done). It animates only when the weather calls for it: cloudy weather and clear nights show nothing. The editor asks Samsung AI Core before it offers Weather, and the S23 has none, so the module installs a 12 KB stub app (`com.samsung.android.aicore`, source in `src/aicorestub`) that answers just those checks; a real AI Core is left alone. It also turns Samsung's live wallpaper app back on if a debloat disabled it · `weather`
 
 ### ✨ Galaxy AI and Samsung apps
 
-- 🧠 **14 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
+- 🧠 **15 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
   - Works on: firmware S918WVLU8GZIF (219 MB download)
-- 🔇 **15 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
+- 🔇 **16 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
   - Works on: firmware S918WVLU8GZIF (34 MB download)
-- 🔎 **16 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
+- 🔎 **17 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
   - Works on: firmware S918WVLU8GZIF (10 MB download)
-- 📞 **17 · Call screening** in the Phone app: screening, greeting, voice messages and the AI summary work. **Stays after a reboot** · `callscreen`
+- 📞 **18 · Call screening** in the Phone app: screening, greeting, voice messages and the AI summary work. **Stays after a reboot** · `callscreen`
   - Works on: firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs)
-- 🗣️ **18 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
+- 🗣️ **19 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
 
 ### 🔋 Battery and settings
 
-- 🩺 **19 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
-- ⏰ **20 · Auto power on/off** schedule and **louder VoIP calls** · `features`
-- 🫥 **21 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart. It also **hides the module's own mounts** from every user-installed app automatically (keeping them for the preinstalled Samsung apps that consume them; see [Hiding the module's mounts](#hiding-the-modules-mounts)), so mount-scanning detectors and banking apps don't see the tweaks' bind/overlay mounts · `hideksu`
+- 🩺 **20 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
+- ⏰ **21 · Auto power on/off** schedule and **louder VoIP calls** · `features`
+- 🫥 **22 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart. It also **hides the module's own mounts** from every user-installed app automatically (keeping them for the preinstalled Samsung apps that consume them; see [Hiding the module's mounts](#hiding-the-modules-mounts)), so mount-scanning detectors and banking apps don't see the tweaks' bind/overlay mounts · `hideksu`
 
 ### 📱 Carrier
 
-- ⏺️ **22 · Call recording** in the Samsung Phone app, on any sales code: the module decodes the phone's own carrier config and allows recording in it · `callrec`
-- 🇮🇳 **23 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. It also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN) so **Samsung Wallet India** (UPI, DigiLocker, transit) and the **6 GHz hotspot** work; this is a runtime change that reverts on reboot and never writes the sales code to disk (no factory-reset risk). If Samsung Wallet still shows "not supported" after applying (it can cache the earlier state), clear its storage — Settings → Apps → Samsung Wallet → Storage → **Clear data** — and reopen it. It also **stops Samsung's "Switch to \<carrier\>?" prompt** (the CID Manager dialog that keeps asking to restart and re-flash the carrier customization when the SIM's carrier doesn't match the reported sales code), which is reverted when you unpick `india` or remove the module. Works on any sales code on One UI 9. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+- ⏺️ **23 · Call recording** in the Samsung Phone app, on any sales code: the module decodes the phone's own carrier config and allows recording in it · `callrec`
+- 🇮🇳 **24 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. It also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN) so **Samsung Wallet India** (UPI, DigiLocker, transit) and the **6 GHz hotspot** work; this is a runtime change that reverts on reboot and never writes the sales code to disk (no factory-reset risk). If Samsung Wallet still shows "not supported" after applying (it can cache the earlier state), clear its storage — Settings → Apps → Samsung Wallet → Storage → **Clear data** — and reopen it. It also **stops Samsung's "Switch to \<carrier\>?" prompt** (the CID Manager dialog that keeps asking to restart and re-flash the carrier customization when the SIM's carrier doesn't match the reported sales code), which is reverted when you unpick `india` or remove the module. Works on any sales code on One UI 9. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
 
-Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
-only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
+Not included, because they don't work on the S23: the AI-generated weather wallpaper, which redraws the
+photo for each kind of weather (its model is built only for newer NPUs; the weather effect above is a
+different feature), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
 Portrait video (they crash the camera).
 
-**Nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), and Samsung Language Core, which `callscreen` installs as an app update (see [Undo](#undo)).
+**Nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), Samsung Language Core, which `callscreen` installs as an app update, and the AI Core stub app that `weather` installs (see [Undo](#undo)).
 
 **Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
 
@@ -340,6 +342,7 @@ boot the module cleans up after itself once the phone is unlocked:
 
 - removes AirDrop's two Play services flag overrides;
 - uninstalls Samsung Language Core and its Call screening settings, if `callscreen` installed it;
+- uninstalls the AI Core stub, if `weather` installed it (unpicking `weather` also removes it);
 - puts the Camera app's Director's view setting back the way it was (`camextras`);
 - drops Android's cached manifests of the apps the tweaks swap, so the stock apps are re-read;
 - deletes `/data/adb/s23tweaks` (downloads, logs, backups) and the boot script.
