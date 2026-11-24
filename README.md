@@ -191,7 +191,7 @@ The S23 Ultra's chip (WCN7850) does Wi-Fi 7, including multi-link operation (MLO
 - **S24 `wpa_supplicant`** bind-mounted over the S23's. It speaks the same Samsung HAL extensions and needs one library the S23 vendor image lacks (`android.hardware.wifi.supplicant-V2-ndk.so`), which is added to `/vendor/lib64` with a read-only RAM overlay.
 - **Driver config:** the S23's own `WCNSS_qcom_cfg.ini` plus the S24's four MLO lines (`mlo_support_link_num=2`, `mlo_5gl_5gh_mlsr=1`, `oem_eht_mlo_crypto_bitmap=0`, `epcs_support_enable=1`).
 
-If Wi-Fi doesn't come up with the S24 supplicant, the tweak switches back to the S23's and carries on without MLO.
+If Wi-Fi doesn't come up with the S24 supplicant, the tweak switches back to the S23's and carries on without MLO. If the S24 driver itself doesn't bring Wi-Fi up with these settings (seen on a custom kernel, issue #21), `airdrop` drops all of `wifi7` for that boot, reloads the driver and carries on, so AirDrop still works.
 
 Tested so far: Wi-Fi runs and connects normally with the S24 supplicant, and the driver's MLO code checks each network it joins. A multi-link connection itself hasn't been tested yet; that needs a Wi-Fi 7 router with MLO on. With one, Settings → Wi-Fi → (network) should show Wi-Fi 7, and `adb shell cmd wifi status` shows `MLO Link Id`s.
 
@@ -312,7 +312,9 @@ injected, and the files it would have seen are simply the stock ones.
   root detectors that have no business seeing them) and **keeps them for every preinstalled system/Samsung
   app** (Camera, Gallery, Settings, the Galaxy AI apps …) — the only apps that actually consume the
   tweaks. The split is by install origin (the app's `FLAG_SYSTEM`), which stays set even on a system app
-  updated through the Galaxy Store, so updated consumers are kept too. You don't have to list anything.
+  updated through the Galaxy Store, so updated consumers are kept too. Samsung's own apps installed from
+  the Galaxy Store (`com.samsung.*`, `com.sec.*`: Voice Recorder, Samsung Health, …) are kept as well. The
+  list of system apps comes from the package manager at each apply. You don't have to list anything.
 - **Overrides:** `/data/adb/s23tweaks/hide-apps.txt` (created on first apply) fine-tunes the default, one
   package per line (`#` starts a comment): a plain `com.example.app` **force-hides** a system app, and a
   leading-dash `-com.example.app` **force-keeps** a user-installed one. The daemon reloads the file when
@@ -325,6 +327,8 @@ injected, and the files it would have seen are simply the stock ones.
   patched `services.jar` (above). Together they clear mount- and package-based detection; verified against
   Native Detector 7.7.0, which went from flagging suspicious/inconsistent mounts to "The Environment is
   normal".
+- It never detaches anything in init's own mount namespace. Some app processes share it (Chrome's app
+  zygote does), and a detach there would remove the tweaks for the whole phone.
 - It runs only while `hideksu` is on.
 
 <a id="undo"></a>

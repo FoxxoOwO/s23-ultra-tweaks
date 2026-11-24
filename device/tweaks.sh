@@ -248,6 +248,14 @@ airdrop_kernel() {
     mount -o bind,ro $A/fw/$f /vendor/firmware/kiwi/$f || { back_to_stock; fail "firmware bind $f"; }; done
   insmod $A/kiwi_v2.ko || { back_to_stock; fail "S24 Wi-Fi driver: $(dmesg | tail -2 | tr '\n' ' ')"; }
   wifi_up; sleep 5
+  # Some custom kernels bring the S24 driver up fine alone but not with wifi7's MLO config and S24
+  # supplicant (issue #21): drop wifi7 for this boot and retry, so AirDrop still works
+  if ! wlan_up && { bound $INI || bound $WPAS; }; then
+    log "airdrop: Wi-Fi didn't come up with the wifi7 settings; retrying without them (wifi7 off until a reboot)"
+    wifi_down; wifi7_drop
+    insmod $A/kiwi_v2.ko || { back_to_stock; fail "S24 Wi-Fi driver: $(dmesg | tail -2 | tr '\n' ' ')"; }
+    wifi_up; sleep 5
+  fi
   # bwfix: the S24 firmware asks for a PCIe Gen3 link when AirDrop starts; the S23 refuses (Gen2
   # max) and the firmware crashes on the refusal. bwfix sets Gen2 and acknowledges.
   cb=$(ksym cnss_mhi_bw_scale.cfi_jt cnss2)
@@ -263,8 +271,10 @@ airdrop_kernel() {
 # read-only RAM overlay) and the S23's own driver config plus the S24's four MLO lines.
 W7=$LY/mlo; INI=/vendor/etc/wifi/kiwi_v2/WCNSS_qcom_cfg.ini; WPAS=/vendor/bin/hw/wpa_supplicant
 MLO_INI="mlo_support_link_num=2 mlo_5gl_5gh_mlsr=1 oem_eht_mlo_crypto_bitmap=0 epcs_support_enable=1"
+W7_FAIL=/dev/s23tweaks_w7fail   # set by wifi7_drop: Wi-Fi didn't come up with wifi7 this boot
 wifi7_bind() {   # sets W7_INI_NEW=1 when the driver has to be reloaded to read the config
   A=$AIR/wifi7
+  [ -e $W7_FAIL ] && { log "wifi7: skipped: Wi-Fi didn't come up with it earlier in this boot (custom kernel?); a reboot retries it"; W7_OFF=1; return 0; }
   ly_init; mkdir -p $W7
   if ! bound $WPAS; then
     pbind $A/wpa_supplicant $WPAS hal_wifi_supplicant_default_exec exec
@@ -286,6 +296,9 @@ wifi7_bind() {   # sets W7_INI_NEW=1 when the driver has to be reloaded to read 
   log "wifi7: S24 wpa_supplicant and MLO driver settings in place"
 }
 wifi7_unbind_sup() { bound $WPAS && umount $WPAS; mounted /vendor/lib64 overlay && umount /vendor/lib64; }
+wifi7_drop() {   # undo wifi7's binds, with the supplicant stopped and the driver unloaded
+  bound $INI && umount $INI; wifi7_unbind_sup; : > $W7_FAIL; W7_OFF=1; W7_INI_NEW=0
+}
 wifi7_reload() {   # the AirDrop driver was already loaded before the config was bound
   log "wifi7: reloading the Wi-Fi driver so it reads the MLO settings (Wi-Fi drops for ~15 s)"
   wifi_down
@@ -1335,7 +1348,7 @@ hideksu_on() {
 # package force-hides a system app, a leading '-' force-keeps a user-installed one; re-apply or reboot
 # (or just edit it - the watcher reloads it on change) to apply.
 HIDEMNT=$D/files/hidemnt
-HIDEAPPS=$V/hide-apps.txt
+HIDEAPPS=$V/hide-apps.txt; HIDESYS=$V/hidemnt-system.txt
 seed_hideapps() {
   [ -f $HIDEAPPS ] && return
   cat > $HIDEAPPS <<'EOF'
@@ -1360,11 +1373,20 @@ hidemnt_start() {
   [ -x $HIDEMNT ] || { chmod 755 $HIDEMNT 2>/dev/null; [ -x $HIDEMNT ] || { log "hideksu: files/hidemnt missing; app mount-hiding skipped"; return 1; }; }
   seed_hideapps
   hidemnt_stop                          # restart so an edited override list takes effect
-  setsid $HIDEMNT daemon $HIDEAPPS </dev/null >/dev/null 2>&1 &
+  # The system packages, from the package manager: One UI 7+ stores packages.xml as binary XML (ABX),
+  # which hidemnt can't read. Apps installed later aren't system apps, so the list needn't be refreshed
+  # until an update adds system apps, and every boot rewrites it. -u: also those removed for this user.
+  pm list packages -s -u 2>/dev/null | sed -n 's/^package://p' > $HIDESYS.tmp && mv $HIDESYS.tmp $HIDESYS
+  ns=$(grep -c . $HIDESYS 2>/dev/null); ns=${ns:-0}
+  setsid $HIDEMNT daemon $HIDEAPPS $HIDESYS </dev/null >/dev/null 2>&1 &
   echo $! > $V/hidemnt.pid
   n=$(hidemnt_count)
   [ "$n" -gt 0 ] 2>/dev/null && ov=" ($n override(s) in ${HIDEAPPS##*/})" || ov=""
-  log "hideksu: hiding the module's mounts from user-installed apps$ov"
+  if [ "$ns" -lt 32 ] 2>/dev/null; then
+    log "hideksu: warning: the package manager listed only $ns system apps; hiding mounts only from the apps in ${HIDEAPPS##*/}"
+  else
+    log "hideksu: hiding the module's mounts from user-installed apps ($ns system apps keep them)$ov"
+  fi
 }
 
 restart_framework() {
@@ -1491,7 +1513,7 @@ apply)
   if has airdrop; then
     has wifi7 && wifi7_bind   # before the driver loads, so it reads the MLO settings
     airdrop_kernel
-    if has wifi7; then [ "${AK_LOADED:-0}" = 1 ] && [ "${W7_INI_NEW:-0}" = 1 ] && wifi7_reload; wifi7_check; fi
+    if has wifi7 && [ "${W7_OFF:-0}" = 0 ]; then [ "${AK_LOADED:-0}" = 1 ] && [ "${W7_INI_NEW:-0}" = 1 ] && wifi7_reload; wifi7_check; fi
   fi
   restart=0
   has airdrop && airdrop_overlays && restart=1

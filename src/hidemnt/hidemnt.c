@@ -28,9 +28,12 @@
  *
  * Modes:
  *   hidemnt once <pid>            umount module mounts in that pid's mount namespace, now (no policy).
- *   hidemnt daemon <override>     watch process spawns (kernel proc connector) and umount in each
+ *   hidemnt daemon <override> [<syslist>]
+ *                                 watch process spawns (kernel proc connector) and umount in each
  *                                 app the policy says to hide from; also sweeps already-running apps
  *                                 at startup. Reloads the override file and the package db on change.
+ *                                 <syslist>: system packages, one per line (`pm list packages -s`);
+ *                                 without it, packages.xml is scanned (text XML only, not ABX).
  *
  * A single setns()+umount2() pass is microseconds, so when the daemon fires on the fork/comm event
  * it finishes before the app's own code (e.g. a native root check in onCreate) reads the mounts.
@@ -154,6 +157,30 @@ static int tag_is_system(const char *tag, const char *end)
 	return (v & 1) || (v & 0x80);	/* FLAG_SYSTEM=0x1, FLAG_UPDATED_SYSTEM_APP=0x80 */
 }
 
+/* system-package list file (one name per line, from `pm list packages -s`), if given. Preferred:
+ * One UI 7+ writes packages.xml as binary XML (ABX), which the text scan below can't read. */
+static const char *g_sysfile;
+
+static void load_system_list(void)
+{
+	FILE *f = fopen(g_sysfile, "re");
+	if (!f)
+		return;
+	char line[256];
+	while (g_nsys < SYS_CAP && fgets(line, sizeof(line), f)) {
+		char *p = line;
+		if (strncmp(p, "package:", 8) == 0)
+			p += 8;
+		size_t l = strcspn(p, " \t\r\n");
+		if (l == 0 || l > 127 || !memchr(p, '.', l))
+			continue;
+		memcpy(g_sys[g_nsys], p, l);
+		g_sys[g_nsys][l] = '\0';
+		g_nsys++;
+	}
+	fclose(f);
+}
+
 static void load_system_pkgs(void)
 {
 	g_nsys = 0;
@@ -161,6 +188,10 @@ static void load_system_pkgs(void)
 		g_sys = malloc((size_t)SYS_CAP * 128);
 		if (!g_sys)
 			return;
+	}
+	if (g_sysfile) {
+		load_system_list();
+		return;
 	}
 	FILE *f = fopen(PKGXML, "re");
 	if (!f)
@@ -210,7 +241,7 @@ static int is_system(const char *pkg)
 static void refresh_tables(const char *ovfile)
 {
 	struct stat st;
-	if (stat(PKGXML, &st) == 0 && st.st_mtime != g_sys_mtime) {
+	if (stat(g_sysfile ? g_sysfile : PKGXML, &st) == 0 && st.st_mtime != g_sys_mtime) {
 		load_system_pkgs();
 		g_sys_mtime = st.st_mtime;
 	}
@@ -240,6 +271,11 @@ static int should_hide(int pid, const char *name)
 		base[i] = name[i];
 	base[i] = '\0';
 	if (!base[0] || !strchr(base, '.'))	/* not a package-like name */
+		return 0;
+	/* Samsung's own apps installed from the Galaxy Store (Voice Recorder, Samsung Health, the
+	 * on-device language packs, ...) aren't FLAG_SYSTEM but can read the feature files the tweaks
+	 * change; no bank or detector uses Samsung's package prefixes, so keep the mounts for them. */
+	if (strncmp(base, "com.samsung.", 12) == 0 || strncmp(base, "com.sec.", 8) == 0)
 		return 0;
 	return !is_system(base);		/* hide from user-installed apps */
 }
@@ -296,6 +332,16 @@ static int hide_in(int pid)
 	int fd = open(p, O_RDONLY | O_CLOEXEC);
 	if (fd < 0)
 		return -1;
+	/* Never umount in init's namespace (or ours): some app-uid processes share it - Chrome's app
+	 * zygote (com.android.chrome_zygote_native) and its sandboxed children do - and a detach there
+	 * removes the module's mounts for the whole system, not for one app. */
+	struct stat ns, ns1, nsme;
+	if (fstat(fd, &ns) != 0 || stat("/proc/1/ns/mnt", &ns1) != 0 || stat("/proc/self/ns/mnt", &nsme) != 0 ||
+	    (ns.st_ino == ns1.st_ino && ns.st_dev == ns1.st_dev) ||
+	    (ns.st_ino == nsme.st_ino && ns.st_dev == nsme.st_dev)) {
+		close(fd);
+		return 0;
+	}
 	if (setns(fd, CLONE_NEWNS) != 0) {
 		close(fd);
 		return -1;
@@ -421,9 +467,12 @@ int main(int argc, char **argv)
 		printf("hidemnt: %d mounts hidden from pid %s\n", r, argv[2]);
 		return 0;
 	}
-	if (argc == 3 && strcmp(argv[1], "daemon") == 0)
+	if ((argc == 3 || argc == 4) && strcmp(argv[1], "daemon") == 0) {
+		if (argc == 4)
+			g_sysfile = argv[3];
 		return daemon_loop(argv[2]);
+	}
 
-	fprintf(stderr, "usage: %s once <pid> | daemon <override-file>\n", argv[0]);
+	fprintf(stderr, "usage: %s once <pid> | daemon <override-file> [<system-package-list>]\n", argv[0]);
 	return 2;
 }
