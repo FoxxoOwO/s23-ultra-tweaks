@@ -6,6 +6,7 @@ The tweaks come in six categories. The module page lets you pick a whole categor
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 **What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.6.0**: flash in Photo and torch in Video on the 0.6× ultrawide (`wideflash`), plus its Camera Assistant option.
 - **v1.3.5**: HideKSU can now also hide the module's own mounts from apps you list, so mount-scanning root detectors and banking apps no longer see the tweaks (verified against Native Detector).
 - **v1.3.4**: the 6 GHz hotspot no longer changes the phone's country, so Samsung Wallet keeps working with it on.
 - **v1.3.3**: the India config now also makes Samsung Wallet India (UPI) and the 6 GHz hotspot work, by reporting the phone as the Indian model (reverts on reboot).
@@ -36,37 +37,39 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
   - Works on: any S23 Ultra whose camera driver has the expected code (found in One UI 6 and 9 builds; tested on S918WVLU8GZIF)
 - 🎥 **10 · 24 FPS in standard Video**: unlocks 24 fps for FHD (1080p), UHD (4K) and 8K in Samsung Camera's standard Video mode (not just Pro video). Adds `video` to the 24 fps entries in `camera-feature.xml` and adds `RESOLUTION_3840X2160_24FPS` + `RESOLUTION_1920X1080_24FPS` to `te.f0.i` (8K 24 is already allowlisted) in a copy of `SamsungCamera.apk` (`device/files/SamsungCamera-24fps-<firmware>.patch`, made by `tools/cam24patch.py`) · `cam24fps`
   - Works on: a stock Samsung Camera 17.0.00.43 the patch knows, checked by MD5 whatever the firmware name (so far S918BXXUAGZIF and S918WVLU8GZIF; no download needed). `tools/cam24patch.py` adds another
+- 🔦 **11 · Flash on the 0.6× ultrawide**: Photo's flash and Video's torch work on the 0.6× ultrawide lens, and Camera Assistant gets the matching wide-flash option. Two switches in `camera-feature.xml` (`SUPPORT_FLASH_IN_WIDE_LENS`, `SUPPORT_CAMERA_ASSISTANT_WIDE_FLASH_MENU`); no APK or HAL patch · `wideflash`
+  - Works on: any S23 Ultra whose `camera-feature.xml` can be edited (validated on-device on an S23 Ultra)
 
 ### 🎨 Display and graphics
 
-- 🖌️ **11 · Always On Display: lock screen wallpaper, and AOD brightness that follows the room light** · `display`
-- 🌤️ **12 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
+- 🖌️ **12 · Always On Display: lock screen wallpaper, and AOD brightness that follows the room light** · `display`
+- 🌤️ **13 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
   - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
-- ⚡ **13 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
-- 🌧️ **14 · Lock screen weather effect**: rain, snow, fog or sun animated over your own lock screen wallpaper, following Samsung Weather. Brings back the **Weather** button in the lock screen editor (Wallpaper and style → Lock screen → Weather → Done). It animates only when the weather calls for it: cloudy weather and clear nights show nothing. The editor asks Samsung AI Core before it offers Weather, and the S23 has none, so the module installs a 12 KB stub app (`com.samsung.android.aicore`, source in `src/aicorestub`) that answers just those checks; a real AI Core is left alone. It also turns Samsung's live wallpaper app back on if a debloat disabled it · `weather`
+- ⚡ **14 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
+- 🌧️ **15 · Lock screen weather effect**: rain, snow, fog or sun animated over your own lock screen wallpaper, following Samsung Weather. Brings back the **Weather** button in the lock screen editor (Wallpaper and style → Lock screen → Weather → Done). It animates only when the weather calls for it: cloudy weather and clear nights show nothing. The editor asks Samsung AI Core before it offers Weather, and the S23 has none, so the module installs a 12 KB stub app (`com.samsung.android.aicore`, source in `src/aicorestub`) that answers just those checks; a real AI Core is left alone. It also turns Samsung's live wallpaper app back on if a debloat disabled it · `weather`
 
 ### ✨ Galaxy AI and Samsung apps
 
-- 🧠 **15 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
+- 🧠 **16 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
   - Works on: firmware S918WVLU8GZIF (219 MB download)
-- 🔇 **16 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
+- 🔇 **17 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
   - Works on: firmware S918WVLU8GZIF (34 MB download)
-- 🔎 **17 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
+- 🔎 **18 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
   - Works on: firmware S918WVLU8GZIF (10 MB download)
-- 📞 **18 · Call screening** in the Phone app: screening, greeting, voice messages and the AI summary work. **Stays after a reboot** · `callscreen`
+- 📞 **19 · Call screening** in the Phone app: screening, greeting, voice messages and the AI summary work. **Stays after a reboot** · `callscreen`
   - Works on: firmware S918WVLU8GZIF (3.1 GB download, about 7 GB free while it installs)
-- 🗣️ **19 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
+- 🗣️ **20 · Bixby barge-in**: talk over Bixby while it answers. **Untested** · `bargein`
 
 ### 🔋 Battery and settings
 
-- 🩺 **20 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
-- ⏰ **21 · Auto power on/off** schedule and **louder VoIP calls** · `features`
-- 🫥 **22 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart. It also **hides the module's own mounts** from every user-installed app automatically (keeping them for the preinstalled Samsung apps that consume them; see [Hiding the module's mounts](#hiding-the-modules-mounts)), so mount-scanning detectors and banking apps don't see the tweaks' bind/overlay mounts · `hideksu`
+- 🩺 **21 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
+- ⏰ **22 · Auto power on/off** schedule and **louder VoIP calls** · `features`
+- 🫥 **23 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart. It also **hides the module's own mounts** from every user-installed app automatically (keeping them for the preinstalled Samsung apps that consume them; see [Hiding the module's mounts](#hiding-the-modules-mounts)), so mount-scanning detectors and banking apps don't see the tweaks' bind/overlay mounts · `hideksu`
 
 ### 📱 Carrier
 
-- ⏺️ **23 · Call recording** in the Samsung Phone app, on any sales code: the module decodes the phone's own carrier config and allows recording in it · `callrec`
-- 🇮🇳 **24 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. It also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN) so **Samsung Wallet India** (UPI, DigiLocker, transit) and the **6 GHz hotspot** work; this is a runtime change that reverts on reboot and never writes the sales code to disk (no factory-reset risk). If Samsung Wallet still shows "not supported" after applying (it can cache the earlier state), clear its storage — Settings → Apps → Samsung Wallet → Storage → **Clear data** — and reopen it. It also **stops Samsung's "Switch to \<carrier\>?" prompt** (the CID Manager dialog that keeps asking to restart and re-flash the carrier customization when the SIM's carrier doesn't match the reported sales code), which is reverted when you unpick `india` or remove the module. Works on any sales code on One UI 9. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+- ⏺️ **24 · Call recording** in the Samsung Phone app, on any sales code: the module decodes the phone's own carrier config and allows recording in it · `callrec`
+- 🇮🇳 **25 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. It also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN) so **Samsung Wallet India** (UPI, DigiLocker, transit) and the **6 GHz hotspot** work; this is a runtime change that reverts on reboot and never writes the sales code to disk (no factory-reset risk). If Samsung Wallet still shows "not supported" after applying (it can cache the earlier state), clear its storage — Settings → Apps → Samsung Wallet → Storage → **Clear data** — and reopen it. It also **stops Samsung's "Switch to \<carrier\>?" prompt** (the CID Manager dialog that keeps asking to restart and re-flash the carrier customization when the SIM's carrier doesn't match the reported sales code), which is reverted when you unpick `india` or remove the module. Works on any sales code on One UI 9. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
 
 Not included, because they don't work on the S23: the AI-generated weather wallpaper, which redraws the
 photo for each kind of weather (its model is built only for newer NPUs; the weather effect above is a
