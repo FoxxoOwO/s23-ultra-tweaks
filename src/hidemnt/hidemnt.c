@@ -1,12 +1,25 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * hidemnt - hide the module's bind/overlay mounts from chosen apps (hideksu).
+ * hidemnt - hide the module's bind/overlay mounts from apps that shouldn't see them (hideksu).
  *
  * The module binds every tweak into init's mount namespace (nsenter -t 1 -m), so the mounts are
- * inherited by every app. Detectors flag them as "suspicious"/"inconsistent" mounts. KernelSU's
- * own umount is global (all non-root apps) and would also strip them from the Samsung apps that
- * consume them (Camera, Gallery, Settings, ...), breaking those tweaks. So instead we umount the
- * module mounts only in the mount namespace of apps the user names.
+ * inherited by every app. Root/environment detectors flag them as "suspicious"/"inconsistent".
+ * KernelSU's own umount is global (all non-root apps) and would also strip them from the Samsung
+ * apps that consume them (Camera, Gallery, Settings, the galaxyai apps, ...), breaking those
+ * tweaks. So we umount the module mounts per app, in that app's own mount namespace only.
+ *
+ * Policy (install-origin): a tweak consumer is always a *preinstalled* system/Samsung app; a
+ * root-detector or bank is always a *user-installed* app. So by default we hide the mounts from
+ * every user-installed app (uid >= 10000 whose package is not flagged FLAG_SYSTEM) and keep them
+ * for every preinstalled system app. FLAG_SYSTEM stays set even on a system app updated into
+ * /data/app via the store, so updated consumers (e.g. a Galaxy-Store Camera) are still kept.
+ * This protects every bank/detector automatically and can't silently break a tweak, because no
+ * consumer is ever user-installed.
+ *
+ * The override file (one entry per line, '#' comments) adjusts that default:
+ *   <pkg>     force-hide this package even if it is a system app
+ *   -<pkg>    force-keep this package even if it is user-installed
+ * Both match the exact package or a "<pkg>:suffix" private process.
  *
  * Every module mount line in /proc/<pid>/mountinfo contains the token "s23tweaks" (overlay source
  * names s23tweaks_*, or a bind whose mount-root is /adb/s23tweaks/...). We enter the target's mount
@@ -14,11 +27,10 @@
  * changes; init and every other process keep the mounts.
  *
  * Modes:
- *   hidemnt once <pid>              umount module mounts in that pid's mount namespace, now.
- *   hidemnt daemon <hidelist-file>  watch for processes of the listed packages (kernel proc
- *                                   connector) and umount in each as it starts; also cleans any
- *                                   already-running ones at startup. One package per line, '#'
- *                                   comments and blanks ignored; a ':' process suffix still matches.
+ *   hidemnt once <pid>            umount module mounts in that pid's mount namespace, now (no policy).
+ *   hidemnt daemon <override>     watch process spawns (kernel proc connector) and umount in each
+ *                                 app the policy says to hide from; also sweeps already-running apps
+ *                                 at startup. Reloads the override file and the package db on change.
  *
  * A single setns()+umount2() pass is microseconds, so when the daemon fires on the fork/comm event
  * it finishes before the app's own code (e.g. a native root check in onCreate) reads the mounts.
@@ -33,7 +45,9 @@
 #include <sched.h>
 #include <signal.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -45,8 +59,12 @@
 #define MAX_MP     512
 #define MAX_PKGS   256
 #define PATH_MAX_  512
+#define SYS_CAP    4096		/* max system packages tracked (Samsung ships ~700) */
+#define APP_UID    10000	/* first application uid; below this is root/system, never touched */
 
-/* ---- read this pid's process name (cmdline[0] basename of the package) ---- */
+#define PKGXML "/data/system/packages.xml"
+
+/* ---- read this pid's process name (cmdline[0], the package or "<pkg>:proc") ---- */
 static int proc_name(int pid, char *out, size_t n)
 {
 	char p[64];
@@ -62,7 +80,18 @@ static int proc_name(int pid, char *out, size_t n)
 	return 0;
 }
 
-/* true if proc name matches a package: exact, or "<pkg>:suffix" (private process) */
+/* owner uid of a pid, or -1 */
+static int proc_uid(int pid)
+{
+	char p[64];
+	snprintf(p, sizeof(p), "/proc/%d", pid);
+	struct stat st;
+	if (stat(p, &st) != 0)
+		return -1;
+	return (int)st.st_uid;
+}
+
+/* true if proc name matches a package in the list: exact, or "<pkg>:suffix" (private process) */
 static int name_matches(const char *name, char pkgs[][128], int npkgs)
 {
 	for (int i = 0; i < npkgs; i++) {
@@ -71,6 +100,148 @@ static int name_matches(const char *name, char pkgs[][128], int npkgs)
 			return 1;
 	}
 	return 0;
+}
+
+/* ---- override lists: force-hide (plain) and force-keep (leading '-') ---- */
+static char g_hide[MAX_PKGS][128];
+static int  g_nhide;
+static char g_keep[MAX_PKGS][128];
+static int  g_nkeep;
+static time_t g_ov_mtime;
+
+static void load_overrides(const char *file)
+{
+	g_nhide = g_nkeep = 0;
+	FILE *f = fopen(file, "re");
+	if (!f)
+		return;
+	char line[256];
+	while (fgets(line, sizeof(line), f)) {
+		char *s = line;
+		while (*s == ' ' || *s == '\t') s++;
+		if (*s == '#' || *s == '\n' || *s == '\r' || *s == '\0')
+			continue;
+		char *e = s + strlen(s);
+		while (e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t'))
+			*--e = '\0';
+		int keep = 0;
+		if (*s == '-') { keep = 1; s++; while (*s == ' ' || *s == '\t') s++; }
+		if (!*s)
+			continue;
+		if (keep && g_nkeep < MAX_PKGS) {
+			strncpy(g_keep[g_nkeep], s, 127); g_keep[g_nkeep][127] = '\0'; g_nkeep++;
+		} else if (!keep && g_nhide < MAX_PKGS) {
+			strncpy(g_hide[g_nhide], s, 127); g_hide[g_nhide][127] = '\0'; g_nhide++;
+		}
+	}
+	fclose(f);
+}
+
+/* ---- system-package set, parsed from packages.xml (FLAG_SYSTEM | FLAG_UPDATED_SYSTEM_APP) ---- */
+static char (*g_sys)[128];
+static int  g_nsys;
+static time_t g_sys_mtime;
+
+/* true if the <package ...> opening tag in [tag,end) carries a system flag */
+static int tag_is_system(const char *tag, const char *end)
+{
+	const char *k = memmem(tag, end - tag, "publicFlags=\"", 13);
+	int off = 13;
+	if (!k) { k = memmem(tag, end - tag, " flags=\"", 8); off = 8; }
+	if (!k)
+		return 0;
+	long v = strtol(k + off, NULL, 10);
+	return (v & 1) || (v & 0x80);	/* FLAG_SYSTEM=0x1, FLAG_UPDATED_SYSTEM_APP=0x80 */
+}
+
+static void load_system_pkgs(void)
+{
+	g_nsys = 0;
+	if (!g_sys) {
+		g_sys = malloc((size_t)SYS_CAP * 128);
+		if (!g_sys)
+			return;
+	}
+	FILE *f = fopen(PKGXML, "re");
+	if (!f)
+		return;
+	if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return; }
+	long sz = ftell(f);
+	if (sz <= 0) { fclose(f); return; }
+	rewind(f);
+	char *buf = malloc((size_t)sz + 1);
+	if (!buf) { fclose(f); return; }
+	size_t got = fread(buf, 1, (size_t)sz, f);
+	fclose(f);
+	buf[got] = '\0';
+
+	char *p = buf, *end = buf + got;
+	const char *tagkey = "<package name=\"";
+	size_t tklen = strlen(tagkey);
+	while (g_nsys < SYS_CAP && (p = memmem(p, (size_t)(end - p), tagkey, tklen))) {
+		p += tklen;
+		char *q = memchr(p, '"', (size_t)(end - p));	/* end of the name value */
+		if (!q)
+			break;
+		char *tagend = memchr(q, '>', (size_t)(end - q));
+		if (!tagend)
+			tagend = end;
+		if (tag_is_system(q, tagend)) {
+			size_t l = (size_t)(q - p);
+			if (l > 127) l = 127;
+			memcpy(g_sys[g_nsys], p, l);
+			g_sys[g_nsys][l] = '\0';
+			g_nsys++;
+		}
+		p = tagend;
+	}
+	free(buf);
+}
+
+static int is_system(const char *pkg)
+{
+	for (int i = 0; i < g_nsys; i++)
+		if (strcmp(g_sys[i], pkg) == 0)
+			return 1;
+	return 0;
+}
+
+/* reload the override file and package db if either changed on disk */
+static void refresh_tables(const char *ovfile)
+{
+	struct stat st;
+	if (stat(PKGXML, &st) == 0 && st.st_mtime != g_sys_mtime) {
+		load_system_pkgs();
+		g_sys_mtime = st.st_mtime;
+	}
+	if (ovfile && stat(ovfile, &st) == 0 && st.st_mtime != g_ov_mtime) {
+		load_overrides(ovfile);
+		g_ov_mtime = st.st_mtime;
+	}
+}
+
+/* policy: should the module's mounts be hidden from this process? */
+static int should_hide(int pid, const char *name)
+{
+	if (proc_uid(pid) < APP_UID)		/* root/system process: never touch */
+		return 0;
+	if (name_matches(name, g_keep, g_nkeep))	/* force-keep override */
+		return 0;
+	if (name_matches(name, g_hide, g_nhide))	/* force-hide override */
+		return 1;
+	/* fail-safe: if the package db didn't parse (wrong/absent schema, unreadable), g_nsys is
+	 * tiny/zero. Never auto-hide then - that would strip mounts from the system consumers too.
+	 * Degrade to overrides-only (a real device has hundreds of FLAG_SYSTEM packages). */
+	if (g_nsys < 32)
+		return 0;
+	char base[128];				/* strip ":proc" private-process suffix */
+	size_t i = 0;
+	for (; name[i] && name[i] != ':' && i < sizeof(base) - 1; i++)
+		base[i] = name[i];
+	base[i] = '\0';
+	if (!base[0] || !strchr(base, '.'))	/* not a package-like name */
+		return 0;
+	return !is_system(base);		/* hide from user-installed apps */
 }
 
 /* collect module mount points from /proc/<pid>/mountinfo, longest path first */
@@ -87,7 +258,7 @@ static int collect_mounts(int pid, char mps[][PATH_MAX_])
 		if (!strstr(line, TOKEN))
 			continue;
 		/* field 5 (1-based) is the mount point: skip 4 space-separated fields */
-		char *s = line, *mp = NULL;
+		char *mp = NULL;
 		int field = 1;
 		for (char *c = line; *c; c++) {
 			if (*c == ' ') {
@@ -95,7 +266,6 @@ static int collect_mounts(int pid, char mps[][PATH_MAX_])
 				if (field == 5) { mp = c + 1; }
 				else if (field == 6) { *c = '\0'; break; }
 			}
-			(void)s;
 		}
 		if (!mp || !*mp)
 			continue;
@@ -150,33 +320,8 @@ static void hide_fork(int pid)
 	}
 }
 
-static int load_pkgs(const char *file, char pkgs[][128])
-{
-	FILE *f = fopen(file, "re");
-	if (!f)
-		return 0;
-	int n = 0;
-	char line[256];
-	while (n < MAX_PKGS && fgets(line, sizeof(line), f)) {
-		char *s = line;
-		while (*s == ' ' || *s == '\t') s++;
-		if (*s == '#' || *s == '\n' || *s == '\0')
-			continue;
-		char *e = s + strlen(s);
-		while (e > s && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ' || e[-1] == '\t'))
-			*--e = '\0';
-		if (*s) {
-			strncpy(pkgs[n], s, 127);
-			pkgs[n][127] = '\0';
-			n++;
-		}
-	}
-	fclose(f);
-	return n;
-}
-
-/* clean any already-running listed apps */
-static void sweep(char pkgs[][128], int npkgs)
+/* clean any already-running apps the policy says to hide from */
+static void sweep(void)
 {
 	DIR *d = opendir("/proc");
 	if (!d)
@@ -187,21 +332,16 @@ static void sweep(char pkgs[][128], int npkgs)
 		int pid = atoi(e->d_name);
 		if (pid <= 0)
 			continue;
-		if (proc_name(pid, name, sizeof(name)) == 0 && name_matches(name, pkgs, npkgs))
+		if (proc_name(pid, name, sizeof(name)) == 0 && should_hide(pid, name))
 			hide_fork(pid);
 	}
 	closedir(d);
 }
 
-static int daemon_loop(const char *file)
+static int daemon_loop(const char *ovfile)
 {
-	static char pkgs[MAX_PKGS][128];
-	int npkgs = load_pkgs(file, pkgs);
-	if (npkgs == 0) {
-		fprintf(stderr, "hidemnt: no packages in %s\n", file);
-		return 0;		/* nothing to do, exit cleanly */
-	}
-	sweep(pkgs, npkgs);	/* catch apps already running */
+	refresh_tables(ovfile);		/* load package db + overrides */
+	sweep();			/* catch apps already running */
 
 	int s = socket(PF_NETLINK, SOCK_DGRAM | SOCK_CLOEXEC, NETLINK_CONNECTOR);
 	if (s < 0) {
@@ -244,6 +384,7 @@ static int daemon_loop(const char *file)
 				continue;
 			break;
 		}
+		refresh_tables(ovfile);	/* pick up edits to the override file / new installs */
 		for (struct nlmsghdr *nlh = (struct nlmsghdr *)buf; NLMSG_OK(nlh, (unsigned)len);
 		     nlh = NLMSG_NEXT(nlh, len)) {
 			if (nlh->nlmsg_type != NLMSG_DONE)
@@ -251,8 +392,8 @@ static int daemon_loop(const char *file)
 			struct cn_msg *cn = (struct cn_msg *)NLMSG_DATA(nlh);
 			struct proc_event *ev = (struct proc_event *)cn->data;
 			int pid = 0;
-			/* COMM: process name was just set (zygote specialization) - earliest reliable point.
-			 * EXEC/FORK: also handle, cheap. */
+			/* COMM: process name was just set (zygote specialization) - earliest reliable
+			 * point. EXEC: also handle, cheap. */
 			if (ev->what == PROC_EVENT_COMM)
 				pid = ev->event_data.comm.process_pid;
 			else if (ev->what == PROC_EVENT_EXEC)
@@ -261,8 +402,7 @@ static int daemon_loop(const char *file)
 				continue;
 			if (pid <= 0)
 				continue;
-			if (proc_name(pid, name, sizeof(name)) == 0 &&
-			    name_matches(name, pkgs, npkgs))
+			if (proc_name(pid, name, sizeof(name)) == 0 && should_hide(pid, name))
 				hide_fork(pid);
 		}
 	}
@@ -284,6 +424,6 @@ int main(int argc, char **argv)
 	if (argc == 3 && strcmp(argv[1], "daemon") == 0)
 		return daemon_loop(argv[2]);
 
-	fprintf(stderr, "usage: %s once <pid> | daemon <hidelist-file>\n", argv[0]);
+	fprintf(stderr, "usage: %s once <pid> | daemon <override-file>\n", argv[0]);
 	return 2;
 }
