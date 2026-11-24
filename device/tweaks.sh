@@ -161,8 +161,9 @@ to_root_cgroup() { echo $$ > /sys/fs/cgroup/cgroup.procs 2>/dev/null; }
 # kallsyms address of a symbol in a module (kptr_restrict is lowered only for the read)
 ksym() {
   o=$(cat /proc/sys/kernel/kptr_restrict); echo 1 > /proc/sys/kernel/kptr_restrict
-  # lines are "<address> <type> <name>\t[<module>]": match the name and module fields exactly
-  a=$(awk -v s="$1" -v m="[$2]" '$3 == s && $4 == m {print $1; exit}' /proc/kallsyms)
+  # lines are "<address> <type> <name>\t[<module>]": match the name and module fields exactly. A kernel
+  # built with ThinLTO may rename a static symbol to "<name>.llvm.<hash>" (issue #10): take that too.
+  a=$(awk -v s="$1" -v m="[$2]" '($3 == s || index($3, s ".llvm.") == 1) && $4 == m {print $1; exit}' /proc/kallsyms)
   echo $o > /proc/sys/kernel/kptr_restrict
   [ -n "$a" ] && [ "$a" != 0000000000000000 ] && echo $a
 }
