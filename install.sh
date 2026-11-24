@@ -8,7 +8,7 @@ set -euo pipefail
 # below can read the rest of the script from stdin (curl | bash).
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
-VERSION=v1.3.2
+VERSION=v1.3.3
 AIRDROP_KBASE=5.15.197-android13-8-34343818-ab; AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"   # as in device/tweaks.sh
 PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
 MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
@@ -245,6 +245,7 @@ case " $picked " in *" callscreen "*) info "Call screening: Phone > Settings > C
 case " $picked " in *" autoframe "*) info "4K auto framing was reported to make the camera fail (S918B); turn it off if the camera fails to open." ;; esac
 case " $picked " in *" bargein "*) info "Bixby barge-in is untested; turn it off if anything misbehaves." ;; esac
 case " $picked " in *" hotspot6g "*) info "6 GHz hotspot: Settings > Connections > Mobile Hotspot > Band > 6 GHz (security must be WPA3)." ;; esac
+case " $picked " in *" india "*) info "India config: the phone reports itself as the Indian model so Samsung Wallet India (UPI) and the 6 GHz hotspot work. If Samsung Wallet still says 'not supported', clear its storage (Settings > Apps > Samsung Wallet > Storage > Clear data) and reopen it." ;; esac
 if [ "$auto" = on ]; then
   info "At each boot DFRoot roots the phone by itself and the tweaks re-apply about a minute later (the screen"
   info "goes black for ~30 s once). A notification says when they're on. To stop: run this again and answer n."

@@ -1187,6 +1187,7 @@ india_identity() {
   touch $V/india_identity
   for a in com.samsung.android.spay com.samsung.android.spayfw; do am force-stop $a 2>/dev/null; done
   log "india: device reported as $IN_MODEL / INS, country IN (Samsung Wallet India + 6 GHz hotspot)"
+  log "india: if Samsung Wallet still says 'not supported', clear its storage (Settings > Apps > Samsung Wallet > Storage > Clear data) and reopen it"
 }
 india_apply() {
   csc_unbind; mkdir -p $R; I=$D/files/ins

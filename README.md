@@ -6,6 +6,7 @@ The tweaks come in six categories. The module page lets you pick a whole categor
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 **What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.3.3**: the India config now also makes Samsung Wallet India (UPI) and the 6 GHz hotspot work, by reporting the phone as the Indian model (reverts on reboot).
 - **v1.3.2**: call recording and the India carrier config work on any sales code, not just XAC/EUX. HideKSU also supports SM-S918B INS and SM-S918U1 (both untested on a phone).
 - **v1.3.1**: horizontal lock levels the viewfinder too and corrects up to about 20° instead of 8°, with its [limits](#horizontal-lock) spelled out. AirDrop and Wi-Fi 7 can try a custom kernel (opt-in, untested; see [Known limitations](#known-limitations)).
 - **v1.3.0**: 24 fps in standard Video (`cam24fps`). AirDrop finds Apple devices again after Mosey updates itself from Google Play. No more SmartSuggestions crashes during an apply. HideKSU checks the framework file's MD5 instead of the firmware name.
@@ -62,7 +63,7 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 ### 📱 Carrier
 
 - ⏺️ **22 · Call recording** in the Samsung Phone app, on any sales code: the module decodes the phone's own carrier config and allows recording in it · `callrec`
-- 🇮🇳 **23 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. It also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN) so **Samsung Wallet India** (UPI, DigiLocker, transit) and the **6 GHz hotspot** work; this is a runtime change that reverts on reboot and never writes the sales code to disk (no factory-reset risk). Works on any sales code on One UI 9. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+- 🇮🇳 **23 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. It also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN) so **Samsung Wallet India** (UPI, DigiLocker, transit) and the **6 GHz hotspot** work; this is a runtime change that reverts on reboot and never writes the sales code to disk (no factory-reset risk). If Samsung Wallet still shows "not supported" after applying (it can cache the earlier state), clear its storage — Settings → Apps → Samsung Wallet → Storage → **Clear data** — and reopen it. Works on any sales code on One UI 9. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
 
 Not included, because they don't work on the S23: the S24's AI weather wallpaper (its model is built
 only for the S24's NPU), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
