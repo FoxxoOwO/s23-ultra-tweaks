@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.8.1
+
+- **New: `rambler`, Gboard's Rambler voice typing** (the Pixel 10 and 11's Gemini dictation: natural speech in, clean text out, spoken edits). Gboard 18.6 ships all of it, but Google's server sends `enable_agentic_dictation=false` and turns off Rambler's toolbar and motion flags on other phones. Gboard reads a flag from its hermetic override first, then from its own local override store (`shared_prefs/flag_override.xml`), then from the server, so the tweak writes Rambler's flags there. It uses the set from PixelBoard's `GboardRambler1803StockPolicy`, which includes `ad_activation_type=2` and the newer motion and spotlight animations. Other overrides in the file are kept, and the original file is saved once and put back on undo or cleanup. Tested on an S23 Ultra with Gboard 18.6.10: Voice typing gains Dictation type (Rambler or Standard), and Rambler works with its Pixel animation.
+
 ## v1.8.0
 
 - **New: `nronly`, LTE only and 5G only in Network mode** (Settings → Connections → Mobile networks) for both SIMs. Samsung's TelephonyUI 18.1 adds LTE only when the SIM's carrier feature `CarrierFeature_Setting_CustNetworkSelMenu4` contains `LTEONLY`, and 5G only (network type NR only) when `CarrierFeature_VoiceCall_ConfigNetworkList` contains `_Add5gOnly`. The S23's carrier files set neither (only Jio SIMs got LTE only). The tweak decodes the carrier feature file in use (the phone's own, or `india`'s INS copy), adds both keys to every carrier block, encodes it again (retail builds read only OMC-encoded files) and binds it, then restarts the framework. `omcdec` gains `-e` (encode). Tested on an S23 Ultra (S918W) with Airtel and Jio: both list LTE only and 5G only, and Airtel on 5G only stays in service on NR SA.
