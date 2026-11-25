@@ -68,7 +68,7 @@ All twelve camera tweaks added in this fork — 24 fps (rear and front), flash o
 - 🖌️ **22 · Always On Display: lock screen wallpaper, and AOD brightness that follows the room light** · `display`
 - 🌤️ **23 · Adaptive color tone**: Settings → Display, the screen's colour follows the room light · `colortone`
   - Works on: firmware S918WVLU8GZIF or S918BXXUAGZIF (1 MB download)
-- ⚡ **24 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24 · `vulkan`
+- ⚡ **24 · Vulkan rendering**: apps draw with Vulkan instead of OpenGL, as on the S24. It can make some lock screen animations stutter more, such as Samsung's stretchable clocks between AOD and the lock screen (issue #27); unpick it if you see that · `vulkan`
 - 🌧️ **25 · Lock screen weather effect**: rain, snow, fog or sun animated over your own lock screen wallpaper, following Samsung Weather. Brings back the **Weather** button in the lock screen editor (Wallpaper and style → Lock screen → Weather → Done). It animates only when the weather calls for it: cloudy weather and clear nights show nothing. The editor asks Samsung AI Core before it offers Weather, and the S23 has none, so the module installs a 12 KB stub app (`com.samsung.android.aicore`, source in `src/aicorestub`) that answers just those checks; a real AI Core is left alone. It also turns Samsung's live wallpaper app back on if a debloat disabled it · `weather`
 
 ### ✨ Galaxy AI and Samsung apps
