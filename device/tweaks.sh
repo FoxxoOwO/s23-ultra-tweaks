@@ -514,19 +514,29 @@ camfeat_apply() {
     grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
     printf '%s\n' "$nl" >> $R/cf.new
   done
-  # Slow motion: add slow_motion to the 4K120 and FHD120 entries, keeping their stock attributes
-  for n in ${cf_slowmo_modes:-}; do
-    o=$(grep -m1 "name=\"$n\"" $R/cf.new || true)
-    [ -n "$o" ] || { log "slowmo4k120: $n not found in $CF; skipped"; continue; }
-    m=$(printf '%s' "$o" | sed -n 's/.*supported-mode="\([^"]*\)".*/\1/p')
-    case ",$m," in
-      *,slow_motion,*) nl=$o ;;
-      ,,) nl=$(printf '%s' "$o" | sed 's|supported-mode=""|supported-mode="slow_motion"|') ;;
-      *) nl=$(printf '%s' "$o" | sed "s|supported-mode=\"$m\"|supported-mode=\"$m,slow_motion\"|") ;;
-    esac
-    grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
-    printf '%s\n' "$nl" >> $R/cf.new
-  done
+  # Slow motion: add slow_motion to the 4K120 and FHD120 entries in place (keeping their position
+  # and stock attributes), then put the rebuilt FHD240 entry last, as the working adb rebuild does.
+  if has slowmo4k120; then
+    for n in ${cf_slowmo_modes:-}; do
+      o=$(grep -m1 "name=\"$n\"" $R/cf.new || true)
+      [ -n "$o" ] || { log "slowmo4k120: $n not found in $CF; skipped"; continue; }
+      m=$(printf '%s' "$o" | sed -n 's/.*supported-mode="\([^"]*\)".*/\1/p')
+      case ",$m," in
+        *,slow_motion,*) ;;
+        ,,)
+          if printf '%s' "$o" | grep -q 'supported-mode="'; then
+            sed "/name=\"$n\"/ s|supported-mode=\"\"|supported-mode=\"slow_motion\"|" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
+          else
+            sed "/name=\"$n\"/ s|/>| supported-mode=\"slow_motion\"/>|" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
+          fi ;;
+        *)
+          sed "/name=\"$n\"/ s|supported-mode=\"$m\"|supported-mode=\"$m,slow_motion\"|" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new ;;
+      esac
+    done
+    grep -v 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_240FPS"' $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
+    echo "    $CF_SM_240FPS" >> $R/cf.new
+    log "slowmo4k120: 4K120 and FHD120 in Slow motion, FHD240 menu entry rebuilt"
+  fi
   # USB-C storage: allow recording straight to an external drive in every video mode
   if has extstorage; then
     sed '/<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_/ s/external-storage-support="false"/external-storage-support="true"/g' $R/cf.new > $R/cf.tmp &&
@@ -537,8 +547,9 @@ camfeat_apply() {
   echo '</resources>' >> $R/cf.new
   mv $R/cf.new $R/camera-feature.xml; chmod 644 $R/camera-feature.xml
   chcon u:object_r:system_file:s0 $R/camera-feature.xml
-  mount --bind $R/camera-feature.xml $CF || fail "camera-feature bind mount"
+  mount -o bind,ro $R/camera-feature.xml $CF || fail "camera-feature bind mount"
   log "camera settings on: $(printf '%s\n' "$cf_add" | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' ')${cf_video_modes:-}$(has extstorage && echo ' external-storage')"
+  am force-stop com.sec.android.app.camera 2>/dev/null   # make the camera re-read the file, as the adb rebuild does
 }
 
 # Gallery's Log color correction (Edit > LUT, done by Samsung's video editor) reads the S24's LUTs
@@ -1711,8 +1722,6 @@ $CF_ANAMORPHIC
 $CF_ANAMORPHIC_SCALER"
   has profps && cf_add="$cf_add
 $CF_PROFPS"
-  has slowmo4k120 && cf_add="$cf_add
-$CF_SM_240FPS"
   has slowmo4k120 && cf_slowmo_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_120FPS"
   has cam24fps && cf_video_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_7680X4320_24FPS FRONT_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS FRONT_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS"
   camfeat_apply && restart=1
