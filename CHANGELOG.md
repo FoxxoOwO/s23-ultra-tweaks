@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.7.2
 
 - **Fix: Chromium browsers such as Vivaldi crashing on launch with `hideksu` on** ("GPU process isn't usable. Goodbye."). Some apps run their own app zygote (`<package>_zygote`) to start their sandboxed processes. It inherits Android's zygote's open files, which include the framework resource overlays, such as the `display` tweak's `/product/overlay/s23tweaks-aodbright.apk`. On every fork, zygote code reopens those files by path. Once `hidemnt` had detached the module's mounts in the app zygote's namespace, the reopen failed (`Failed open(/product/overlay/s23tweaks-aodbright.apk)`), so the sandboxed GPU and renderer processes died before they started. In an app zygote's namespace (the zygote and the sandboxed children that share it), `hidemnt` now keeps only the mounts that hold a file the app zygote has open, which is `/product/overlay` here, and detaches every other module mount. The app's own process still sees no module mounts. Seen with Vivaldi 8.3 on an S23 Ultra: it crashed on every launch, and after the fix it opens normally.
 
