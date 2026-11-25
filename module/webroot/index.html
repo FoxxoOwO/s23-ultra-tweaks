@@ -378,7 +378,7 @@ const TWEAKS = [
   { id: "slowmoaf", cat: "camera", name: "Touch focus in Slow motion", desc: "Tap the viewfinder to focus while recording a Slow motion video" },
   { id: "extstorage", cat: "camera", name: "Record to USB-C storage", desc: "Records straight to a USB-C SSD or drive in every video mode (4K60, 4K60 21:9, 8K, FHD120)" },
   { id: "anamorphic", cat: "camera", name: "Anamorphic desqueeze", desc: "Camera Assistant's anamorphic lens desqueeze (1.33× / 1.55× / 2.0×) for anamorphic lenses" },
-  { id: "profps", cat: "camera", name: "Extra Pro video frame rates", desc: "4K 25/48/50, FHD 25/48/50/100 and 8K 25 in Pro video; on a patched Samsung Camera (S918BXXUAGZIF) it also unhides the 10× super tele at 25/48/50 fps" },
+  { id: "profps", cat: "camera", name: "Extra Pro video frame rates", desc: "4K 25/48/50/100/120 (120 on the Wide and Ultrawide), FHD 25/48/50/100 and 8K 25 in Pro video, plus 21:9 Cinema 25/48/50/100/120; on a patched Samsung Camera (S918BXXUAGZIF) it also unhides the 10× super tele at 25/48/50 fps" },
   { id: "slowmo4k120", cat: "camera", name: "4K120 in Slow motion", desc: "Adds 4K120 and FHD120 to Slow motion, and rebuilds the FHD240 entry so the Slow motion resolution list is complete (Log works with the Log video tweak on)" },
   { id: "display", cat: "display", name: "Full-screen AOD", desc: "The lock screen wallpaper on Always On Display, and AOD brightness that follows the room light" },
   { id: "colortone", cat: "display", name: "Adaptive color tone", desc: "Display colour follows the room light, as on the S24 (1 MB download)" },
@@ -400,7 +400,7 @@ const TWEAKS = [
 const BUNDLES = [
   { id: "cameratweaks", cat: "camera", name: "Camera Tweaks",
     ids: ["cam24fps", "wideflash", "prowbtint", "zoomrocker", "videosoftening", "afcontrol", "aelimit", "autohdr", "slowmoaf", "extstorage", "anamorphic", "profps", "slowmo4k120"],
-    desc: "Everything we added to the camera, in one switch: 24 FPS in Video (rear and front), flash and torch on the 0.6× ultrawide, white-balance tint, Video zoom rocker, 4K120 in Slow motion, Camera Assistant's video softening, AF speed/sensitivity, auto exposure limit and anamorphic desqueeze, Auto HDR, touch focus in Slow motion, USB-C recording and the extra Pro video rates (up to 8K 25, and the 10× at 25/48/50 on the patched Camera)." },
+    desc: "Everything we added to the camera, in one switch: 24 FPS in Video (rear and front), flash and torch on the 0.6× ultrawide, white-balance tint, Video zoom rocker, 4K120 in Slow motion, Camera Assistant's video softening, AF speed/sensitivity, auto exposure limit and anamorphic desqueeze, Auto HDR, touch focus in Slow motion, USB-C recording and the extra Pro video rates (4K 120, 21:9 Cinema, up to 8K 25, and the 10× at 25/48/50 on the patched Camera)." },
 ];
 const BUNDLE_OF = {};
 for (const b of BUNDLES) for (const id of b.ids) BUNDLE_OF[id] = b;
@@ -435,7 +435,7 @@ const WHERE = {
   slowmoaf: ["Focus in Slow motion", "Camera → Slow motion → tap the viewfinder to focus while recording."],
   extstorage: ["USB-C recording", "Plug an exFAT USB-C SSD or drive, then Camera → Settings → Storage → USB storage; recording works in every video mode."],
   anamorphic: ["Anamorphic desqueeze", "Camera → Settings → Camera Assistant → Anamorphic lens desqueeze."],
-  profps: ["Pro video frame rates", "Camera → More → Pro video → resolution/FPS: 4K 25/48/50, FHD 25/48/50/100, 8K 25. The 10× tele appears at 25/48/50 on S918BXXUAGZIF with the patched Camera APK; on other firmwares it stays hidden."],
+  profps: ["Pro video frame rates", "Camera → More → Pro video → resolution/FPS: 4K 25/48/50/100/120 (120 on the Wide and Ultrawide), FHD 25/48/50/100, 8K 25, and 21:9 Cinema 25/48/50/100/120. The 10× tele appears at 25/48/50 on S918BXXUAGZIF with the patched Camera APK; on other firmwares it stays hidden."],
   autoframe: ["4K auto framing", "Reported to make the camera fail (S918B). Video at UHD with Auto framing on; turn it off if the camera fails to open."],
   settingssearch: ["Settings search", "Open Settings and tap the search bar."],
   callscreen: ["Call screening", "Phone → Settings → Call screening. On the S23 the AI summary shows an error; screening and voice messages work."],

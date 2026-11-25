@@ -113,7 +113,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Touch focus in Slow motion: tap the viewfinder to focus while recording a slow-motion video"
       "Record to USB-C storage: record straight to a USB-C SSD or drive in every video mode"
       "Anamorphic desqueeze: Camera Assistant's 1.33x / 1.55x / 2.0x anamorphic lens desqueeze"
-      "Extra Pro video frame rates: 4K 25/48/50, FHD 25/48/50/100, 8K 25, and the 10x super tele at 25/48/50 with the patched Camera APK"
+      "Extra Pro video frame rates: 4K 25/48/50/100/120 (120 on Wide and Ultrawide), FHD 25/48/50/100, 8K 25, 21:9 Cinema 25/48/50/100/120, and the 10x super tele at 25/48/50 with the patched Camera APK"
       "4K120 in Slow motion: adds 4K120 and FHD120 to Slow motion and rebuilds the FHD240 menu entry"
       "Always On Display: lock screen wallpaper, and AOD brightness that follows the room light"
       "Adaptive color tone: Settings > Display, the screen's colour follows the room light (1 MB download)"
@@ -263,7 +263,7 @@ case " $picked " in *" autohdr "*) info "Auto HDR: Camera > Settings > Auto HDR.
 case " $picked " in *" slowmoaf "*) info "Focus in Slow motion: Camera > Slow motion > tap the viewfinder while recording." ;; esac
 case " $picked " in *" extstorage "*) info "USB-C storage: plug an exFAT USB-C SSD/drive; Camera > Settings > Storage > USB storage, then record in any mode." ;; esac
 case " $picked " in *" anamorphic "*) info "Anamorphic desqueeze: Camera > Settings > Camera Assistant > anamorphic lens desqueeze (1.33x / 1.55x / 2.0x)." ;; esac
-case " $picked " in *" profps "*) info "Pro video frame rates: Camera > More > Pro video; 4K 25/48/50, FHD 25/48/50/100, 8K 25. The 10x works on S918BXXUAGZIF with the patched Camera APK; on other firmwares it stays hidden." ;; esac
+case " $picked " in *" profps "*) info "Pro video frame rates: Camera > More > Pro video; 4K 25/48/50/100/120 (120 on Wide and Ultrawide), FHD 25/48/50/100, 8K 25, 21:9 Cinema 25/48/50/100/120. The 10x works on S918BXXUAGZIF with the patched Camera APK; on other firmwares it stays hidden." ;; esac
 case " $picked " in *" slowmo4k120 "*) info "4K120 in Slow motion: Camera > Slow motion > 4K120; turn on Log video for the Log profile." ;; esac
 case " $picked " in *" settingssearch "*) info "Settings search: open Settings and tap the search bar." ;; esac
 case " $picked " in *" callscreen "*) info "Call screening: Phone > Settings > Call screening. The AI summary shows an error on the S23; screening and voice messages work." ;; esac
