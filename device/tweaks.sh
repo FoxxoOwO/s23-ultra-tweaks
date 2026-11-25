@@ -20,7 +20,9 @@
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
 #         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
-#         callscreen tenbit hideksu cam24fps weather wideflash  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
+#         callscreen tenbit hideksu cam24fps weather wideflash
+#         prowbtint zoomrocker videosoftening afcontrol aelimit autohdr slowmoaf extstorage
+#         anamorphic profps slowmo4k120  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
 # runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
@@ -41,7 +43,7 @@ mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
 STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu cam24fps"
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps weather wideflash"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps weather wideflash prowbtint zoomrocker videosoftening afcontrol aelimit autohdr slowmoaf extstorage anamorphic profps slowmo4k120"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -108,10 +110,12 @@ CAM_APK=/system/priv-app/SamsungCamera/SamsungCamera.apk
 # cam24fps, keyed on the Camera APK itself, not the firmware: md5 of a stock SamsungCamera.apk, md5 once
 # patched, the patch in files/, and the firmware it came from. Any firmware whose stock Camera APK is listed
 # works; tools/cam24patch.py makes the patch and prints both md5s for another APK.
-CAMERA_24FPS="174e38e111f53c92eea54fd8b9a8c1c6 167b412279d4fd5f3ce7e89232725bc8 SamsungCamera-24fps-17.0.00.43.patch S918BXXUAGZIF
+CAMERA_24FPS="174e38e111f53c92eea54fd8b9a8c1c6 b22942b22ec14896bc02277d319b7623 SamsungCamera-24fps-S918BXXUAGZIF.patch S918BXXUAGZIF
 e7c89df10d6607ea1ddeedceee961903 650dc854741a92f54be455fc19cd4c89 SamsungCamera-24fps-17.0.00.43.patch S918WVLU8GZIF"
 # the row for the Camera APK in place now (stock, or our patched copy bound over it)
 cam24_row() { m=$(md5sum $CAM_APK 2>/dev/null | cut -d' ' -f1); echo "$CAMERA_24FPS" | awk -v m="$m" '$1 == m || $2 == m'; }
+# the bound Camera APK is one whose patch also unhides the 10x (the patch header says so)
+cam24_profps_on() { bound $CAM_APK || return 1; set -- $(cam24_row); [ -n "$1" ] && grep -q BACK_SECOND_TELE $D/files/$3 2>/dev/null; }
 cam24_builds() { echo "$CAMERA_24FPS" | awk '{print $4}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
 # Carrier config (callrec, india), on any sales code. SemCscFeature reads <mdc.system.path>/cscfeature.xml
 # (on multi-country firmware also that file's FeatureSet for the CSC country); customer_carrier_feature.json
@@ -450,15 +454,41 @@ ff_apply() {
 #  camextras: Super steady's horizontal lock (a third Super steady option; hlock_apply makes it level)
 #  wideflash: the flash in Photo and the torch in Video on the 0.6x ultrawide, and Camera Assistant's
 #             matching wide-flash option. Both are switches in camera-feature.xml; no APK or HAL patch.
+#  prowbtint: the Tint slider next to the colour temperature in Pro and Pro video's white balance.
+#  zoomrocker: the smooth zoom rocker/slider in the standard Video mode.
+#  autohdr: the Auto HDR switch in the camera's own settings.
+#  slowmoaf: tap-to-focus while recording in Slow motion (its Camera Assistant flag is set in apply).
+#  extstorage: recording straight to a USB-C SSD/drive, in every video mode (camfeat_apply flips
+#              external-storage-support="false" to "true" on the resolution map lines).
+#  anamorphic: Camera Assistant's anamorphic lens desqueeze (1.33x / 1.55x / 2.0x).
+#  profps: extra Pro video frame rates: 4K 25/48/50, FHD 25/48/50/100 and 8K 25. The 10x tele
+#          stays hidden in these modes unless the Camera APK patch is bound (cam24fps/profps).
+#  slowmo4k120: 4K120 and FHD120 in Slow motion (slow_motion added to their modes), and the
+#          FHD240 entry rebuilt for the Slow motion menu so the resolution list is complete.
 # Never add SUPPORT_BACK_WIDE_NORMAL_DUAL_PORTRAIT_VIDEO, SUPPORT_BACK_PORTRAIT_VIDEO_TELE_DUAL or
 # CAMERA_SUPPORT_SEAMLESS_PORTRAITVIDEO: on the S23 they crash the camera ("Zoom is not supported").
 CF_LOG='<local name="SUPPORT_LOG_VIDEO" value="true"/>'
 CF_HLOCK='<local name="SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK" value="true"/>'
 CF_WIDEFLASH='<local name="SUPPORT_FLASH_IN_WIDE_LENS" value="true"/>'
 CF_WIDEFLASH_CA='<local name="SUPPORT_CAMERA_ASSISTANT_WIDE_FLASH_MENU" value="true"/>'
-cf_add=""
+CF_PROWBTINT='<local name="SUPPORT_PRO_WHITE_BALANCE_TINT" value="true"/>'
+CF_ZOOMROCKER='<local name="SUPPORT_VIDEO_MODE_ZOOM_ROCKER" value="true"/>'
+CF_AUTOHDR='<local name="SUPPORT_AUTO_HDR_MENU" value="true"/>'
+CF_SLOWMOAF='<local name="SUPPORT_SLOW_MOTION_AF_DURING_RECORDING" value="true"/>'
+CF_ANAMORPHIC='<local name="SUPPORT_CAMERA_ASSISTANT_ANAMORPHIC_LENS" value="true"/>'
+CF_ANAMORPHIC_SCALER='<local name="SUPPORT_CAMERA_ASSISTANT_ANAMORPHIC_LENS_HW_SCALER" value="true"/>'
+CF_SM_240FPS='<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_240FPS" value="true" hdr="true" hdr10="false" snapshot-support="false" snapshot-size="4000x2252" vdis="false" super-vdis="false" effect="false" object-tracking="false" seamless-zoom-support="false" physical-zoom-supported="false" external-storage-support="true" supported-mode="slow_motion"/>'
+CF_PROFPS='<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_25FPS" value="true" hdr="true" hdr10="true" snapshot-support="true" snapshot-size="4000x2252" vdis="true" super-vdis="false" effect="false" object-tracking="true" seamless-zoom-support="true" physical-zoom-supported="false" external-storage-support="true" touch-af="true" supported-mode="pro_video"/>
+<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_48FPS" value="true" hdr="true" hdr10="true" snapshot-support="true" snapshot-size="4000x2252" vdis="true" super-vdis="false" effect="false" object-tracking="true" seamless-zoom-support="false" physical-zoom-supported="true" external-storage-support="true" touch-af="true" supported-mode="pro_video"/>
+<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_50FPS" value="true" hdr="true" hdr10="true" snapshot-support="true" snapshot-size="4000x2252" vdis="true" super-vdis="false" effect="false" object-tracking="true" seamless-zoom-support="false" physical-zoom-supported="true" external-storage-support="true" touch-af="true" supported-mode="pro_video"/>
+<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_25FPS" value="true" hdr="true" hdr10="true" snapshot-support="true" snapshot-size="4000x2252" vdis="true" super-vdis="true" effect="true" object-tracking="true" seamless-zoom-support="true" physical-zoom-supported="false" external-storage-support="true" touch-af="true" supported-mode="pro_video"/>
+<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_48FPS" value="true" hdr="true" hdr10="true" snapshot-support="true" snapshot-size="4000x2252" vdis="true" super-vdis="true" effect="true" object-tracking="true" seamless-zoom-support="true" physical-zoom-supported="false" external-storage-support="true" touch-af="true" supported-mode="pro_video"/>
+<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_50FPS" value="true" hdr="true" hdr10="true" snapshot-support="true" snapshot-size="4000x2252" vdis="true" super-vdis="true" effect="true" object-tracking="true" seamless-zoom-support="true" physical-zoom-supported="false" external-storage-support="true" touch-af="true" supported-mode="pro_video"/>
+<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_100FPS" value="true" hdr="true" hdr10="false" snapshot-support="false" snapshot-size="4000x2252" vdis="false" super-vdis="false" effect="false" object-tracking="false" seamless-zoom-support="false" physical-zoom-supported="false" external-storage-support="true" supported-mode="pro_video"/>
+<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_7680X4320_25FPS" value="true" hdr="true" hdr10="false" snapshot-support="true" snapshot-size="4000x2252" vdis="true" super-vdis="false" effect="false" object-tracking="false" seamless-zoom-support="false" physical-zoom-supported="false" external-storage-support="true" touch-af="true" supported-mode="pro_video"/>'
+cf_add=""; cf_slowmo_modes=""
 camfeat_apply() {
-  [ -n "$cf_add" ] || [ -n "${cf_video_modes:-}" ] || return 1
+  [ -n "$cf_add" ] || [ -n "${cf_video_modes:-}" ] || [ -n "${cf_slowmo_modes:-}" ] || has extstorage || return 1
   mkdir -p $R; bound $CF && umount $CF
   grep -q '</resources>' $CF || { log "camera: $CF has no </resources>; camera settings skipped"; return 1; }
   grep -v '</resources>' $CF > $R/cf.new
@@ -484,11 +514,31 @@ camfeat_apply() {
     grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
     printf '%s\n' "$nl" >> $R/cf.new
   done
+  # Slow motion: add slow_motion to the 4K120 and FHD120 entries, keeping their stock attributes
+  for n in ${cf_slowmo_modes:-}; do
+    o=$(grep -m1 "name=\"$n\"" $R/cf.new || true)
+    [ -n "$o" ] || { log "slowmo4k120: $n not found in $CF; skipped"; continue; }
+    m=$(printf '%s' "$o" | sed -n 's/.*supported-mode="\([^"]*\)".*/\1/p')
+    case ",$m," in
+      *,slow_motion,*) nl=$o ;;
+      ,,) nl=$(printf '%s' "$o" | sed 's|supported-mode=""|supported-mode="slow_motion"|') ;;
+      *) nl=$(printf '%s' "$o" | sed "s|supported-mode=\"$m\"|supported-mode=\"$m,slow_motion\"|") ;;
+    esac
+    grep -v "name=\"$n\"" $R/cf.new > $R/cf.tmp && mv $R/cf.tmp $R/cf.new
+    printf '%s\n' "$nl" >> $R/cf.new
+  done
+  # USB-C storage: allow recording straight to an external drive in every video mode
+  if has extstorage; then
+    sed '/<local name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_/ s/external-storage-support="false"/external-storage-support="true"/g' $R/cf.new > $R/cf.tmp &&
+      mv $R/cf.tmp $R/cf.new
+    sed '/<local name="FRONT_CAMCORDER_RESOLUTION_FEATURE_MAP_/ s/external-storage-support="false"/external-storage-support="true"/g' $R/cf.new > $R/cf.tmp &&
+      mv $R/cf.tmp $R/cf.new
+  fi
   echo '</resources>' >> $R/cf.new
   mv $R/cf.new $R/camera-feature.xml; chmod 644 $R/camera-feature.xml
   chcon u:object_r:system_file:s0 $R/camera-feature.xml
   mount --bind $R/camera-feature.xml $CF || fail "camera-feature bind mount"
-  log "camera settings on: $(printf '%s\n' "$cf_add" | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' ')${cf_video_modes:-}"
+  log "camera settings on: $(printf '%s\n' "$cf_add" | sed -n 's/.*name="\([^"]*\)".*/\1/p' | tr '\n' ' ')${cf_video_modes:-}$(has extstorage && echo ' external-storage')"
 }
 
 # Gallery's Log color correction (Edit > LUT, done by Samsung's video editor) reads the S24's LUTs
@@ -980,9 +1030,16 @@ colortone_bind() {
   log "colortone: Adaptive color tone on (Settings > Display)"
 }
 cam24fps_bind() {
+  cam24_soft=${1:-}
   set -- $(cam24_row)
-  [ -n "$1" ] || { log "cam24fps: this Camera APK isn't one the patch was made for (Camera 17.0.00.43 of $(cam24_builds)), so 24 fps stays hidden"; return 1; }
+  if [ -z "$1" ]; then
+    if [ -n "$cam24_soft" ]; then log "profps: this Camera APK has no 10x patch; the XML frame rates still apply and the 10x stays hidden"; return 0; fi
+    log "cam24fps: this Camera APK isn't one the patch was made for (Camera 17.0.00.43 of $(cam24_builds)), so 24 fps stays hidden"; return 1
+  fi
   CAM_STOCK_MD5=$1; CAM_PATCHED_MD5=$2; cpf=$3
+  if [ -n "$cam24_soft" ] && ! grep -q BACK_SECOND_TELE $D/files/$cpf 2>/dev/null; then
+    log "profps: this firmware's Camera patch doesn't unhide the 10x; the XML frame rates still apply"; return 0
+  fi
   cm=$(md5sum $CAM_APK | cut -d' ' -f1)
   if [ "$cm" = $CAM_PATCHED_MD5 ]; then :   # already patched (an earlier apply this boot)
   else
@@ -992,14 +1049,19 @@ cam24fps_bind() {
       cp $CAM_APK $P.new
       grep -v '^#' $D/files/$cpf | while read off oct; do
         printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
-      [ "$(md5sum $P.new | cut -d' ' -f1)" = $CAM_PATCHED_MD5 ] || { rm -f $P.new; fail "cam24fps: Camera patch gave the wrong file"; }
+      if [ "$(md5sum $P.new | cut -d' ' -f1)" != $CAM_PATCHED_MD5 ]; then
+        rm -f $P.new
+        [ -n "$cam24_soft" ] && { log "profps: the Camera patch didn't match this APK; the 10x stays hidden"; return 0; }
+        fail "cam24fps: Camera patch gave the wrong file"
+      fi
       mv $P.new $P
     fi
     chmod 644 $P; chcon u:object_r:system_file:s0 $P
     mount -o bind,ro $P $CAM_APK || fail "cam24fps: bind $CAM_APK"
     am force-stop com.sec.android.app.camera
   fi
-  log "cam24fps: 24 FPS in standard Video on (Camera > Video > FHD / UHD / 8K at 24 fps)"
+  if [ -n "$cam24_soft" ]; then log "profps: 10x super tele unhidden at 25/48/50 fps in Pro video"
+  else log "cam24fps: 24 FPS in standard Video on (Camera > Video > FHD / UHD / 8K at 24 fps)"; fi
 }
 
 # Now Brief, Creative Studio, Call Assist: the S24 firmware ships newer builds of these three apps.
@@ -1509,6 +1571,7 @@ why_not() {
       pm path $WX_LIVE >/dev/null 2>&1 || { echo "this phone has no Samsung live wallpaper app ($WX_LIVE)"; return; }
       pm path com.samsung.android.app.dressroom >/dev/null 2>&1 || echo "this phone has no Wallpaper and style app (DressRoom)" ;;
     camerahdr) grep -q "<SEC_FLOATING_FEATURE_$CH_KEY>[^<]" $FF 2>/dev/null || echo "this firmware has no $CH_KEY camera setting to add the HDR steps to" ;;
+    videosoftening|afcontrol|aelimit) grep -q '</SecFloatingFeatureSet>' $FF 2>/dev/null || echo "this firmware's $FF can't be edited" ;;
     tenbit) [ -f $TB_LIB ] || echo "this phone has no $TB_LIB" ;;
     hideksu)
       set -- $(hks_row); m=$(md5 $KSUJAR)
@@ -1516,7 +1579,10 @@ why_not() {
         { echo "this phone's /system/framework/services.jar (md5 $m) isn't one a patch was made from ($(echo "$HIDEKSU_JARS" | cut -d' ' -f3- | tr '\n' ',' | sed 's/,$//; s/,/, /g')); tools/hideksupatch.sh can make one"; return; }
       pm path me.weishu.kernelsu >/dev/null 2>&1 || echo "the KernelSU manager (me.weishu.kernelsu) isn't installed, so there's nothing to hide" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
-    logvideo|camextras|wideflash) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
+    logvideo|camextras|wideflash|prowbtint|zoomrocker|autohdr|slowmoaf|extstorage|anamorphic|profps) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
+    slowmo4k120)
+      grep -q '</resources>' $CF 2>/dev/null || { echo "this firmware's $CF can't be edited"; return; }
+      grep -q 'BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS' $CF 2>/dev/null || echo "this firmware has no 4K120 entry to enable in Slow motion" ;;
     cam24fps)
       [ -f $CAM_APK ] || { echo "this phone has no $CAM_APK"; return; }
       pm path com.sec.android.app.camera 2>/dev/null | grep -q "^package:$CAM_APK$" || { echo "uninstall Samsung Camera updates first so stock $CAM_APK is active"; return; }
@@ -1546,6 +1612,17 @@ is_on() {
     logvideo) bound $CF && grep -q 'name="SUPPORT_LOG_VIDEO" value="true"' $CF 2>/dev/null ;;
     camextras) bound $CF && grep -q 'name="SUPPORT_SUPER_STEADY_HORIZONTAL_LOCK" value="true"' $CF 2>/dev/null ;;
     wideflash) bound $CF && grep -q 'name="SUPPORT_FLASH_IN_WIDE_LENS" value="true"' $CF 2>/dev/null ;;
+    prowbtint) bound $CF && grep -q 'name="SUPPORT_PRO_WHITE_BALANCE_TINT" value="true"' $CF 2>/dev/null ;;
+    zoomrocker) bound $CF && grep -q 'name="SUPPORT_VIDEO_MODE_ZOOM_ROCKER" value="true"' $CF 2>/dev/null ;;
+    videosoftening) grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_VIDEO_SOFTENING>TRUE<' $FF 2>/dev/null ;;
+    afcontrol) grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AFSPEED>TRUE<' $FF 2>/dev/null && grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AFSENSITIVITY>TRUE<' $FF 2>/dev/null ;;
+    aelimit) grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AUTO_EXPOSURE_LIMIT>TRUE<' $FF 2>/dev/null ;;
+    autohdr) bound $CF && grep -q 'name="SUPPORT_AUTO_HDR_MENU" value="true"' $CF 2>/dev/null ;;
+    slowmoaf) bound $CF && grep -q 'name="SUPPORT_SLOW_MOTION_AF_DURING_RECORDING" value="true"' $CF 2>/dev/null && grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AF_DURING_SLOWMOTION_RECORDING>TRUE<' $FF 2>/dev/null ;;
+    extstorage) bound $CF && grep -q 'BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_60FPS.*external-storage-support="true"' $CF 2>/dev/null ;;
+    anamorphic) bound $CF && grep -q 'name="SUPPORT_CAMERA_ASSISTANT_ANAMORPHIC_LENS" value="true"' $CF 2>/dev/null ;;
+    profps) bound $CF && grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_25FPS" value="true"' $CF 2>/dev/null ;;
+    slowmo4k120) bound $CF && grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS".*slow_motion' $CF 2>/dev/null ;;
     autoframe) grep -q "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>uhd<" $FF 2>/dev/null ;;
     bargein) grep -q "<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<" $FF 2>/dev/null ;;
     weather) grep -q "<SEC_FLOATING_FEATURE_$WX_KEY>[^<]*GENWEATHER" $FF 2>/dev/null && pm path $WX_PKG >/dev/null 2>&1 && ! wx_live_off ;;
@@ -1621,11 +1698,34 @@ $CF_HLOCK"
   has wideflash && cf_add="$cf_add
 $CF_WIDEFLASH
 $CF_WIDEFLASH_CA"
-  has cam24fps && cf_video_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_7680X4320_24FPS"
+  has prowbtint && cf_add="$cf_add
+$CF_PROWBTINT"
+  has zoomrocker && cf_add="$cf_add
+$CF_ZOOMROCKER"
+  has autohdr && cf_add="$cf_add
+$CF_AUTOHDR"
+  has slowmoaf && cf_add="$cf_add
+$CF_SLOWMOAF"
+  has anamorphic && cf_add="$cf_add
+$CF_ANAMORPHIC
+$CF_ANAMORPHIC_SCALER"
+  has profps && cf_add="$cf_add
+$CF_PROFPS"
+  has slowmo4k120 && cf_add="$cf_add
+$CF_SM_240FPS"
+  has slowmo4k120 && cf_slowmo_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_120FPS"
+  has cam24fps && cf_video_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_7680X4320_24FPS FRONT_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS FRONT_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS"
   camfeat_apply && restart=1
-  has cam24fps && cam24fps_bind
+  if has cam24fps; then cam24fps_bind
+  elif has profps; then cam24fps_bind soft   # only where the APK patch is compatible; one bind either way
+  fi
   # 4K auto framing (untested): the S24's UHD setting for auto framing in video
   has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
+  # Camera Assistant: video softening (Off / Medium / High) and the AF speed/sensitivity controls
+  has videosoftening && ff_set CAMERA_SUPPORT_VIDEO_SOFTENING TRUE
+  has afcontrol && { ff_set CAMERA_SUPPORT_AFSPEED TRUE; ff_set CAMERA_SUPPORT_AFSENSITIVITY TRUE; }
+  has aelimit && ff_set CAMERA_SUPPORT_AUTO_EXPOSURE_LIMIT TRUE
+  has slowmoaf && ff_set CAMERA_SUPPORT_AF_DURING_SLOWMOTION_RECORDING TRUE
   has tenbit && tenbit_apply   # restarts only the camera driver
   if has camextras; then hlock_apply   # restarts only the camera driver
   elif bound $HL_LIB || bound $HA_LIB || bound $HL2_LIB || bound $HA2_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
@@ -1723,6 +1823,17 @@ status)
   echo "tenbit:   front-camera 10-bit $(is_on tenbit && echo on || echo off)"
   echo "cam24fps: Camera $(bound $CAM_APK && echo patched || echo stock), 24fps video modes $(is_on cam24fps && echo on || echo off)"
   echo "wideflash: $(is_on wideflash && echo on || echo off)"
+  echo "prowbtint: $(is_on prowbtint && echo on || echo off)"
+  echo "zoomrocker: $(is_on zoomrocker && echo on || echo off)"
+  echo "videosoftening: $(is_on videosoftening && echo on || echo off)"
+  echo "afcontrol: $(is_on afcontrol && echo on || echo off)"
+  echo "aelimit: $(is_on aelimit && echo on || echo off)"
+  echo "autohdr: $(is_on autohdr && echo on || echo off)"
+  echo "slowmoaf: $(is_on slowmoaf && echo on || echo off)"
+  echo "extstorage: $(is_on extstorage && echo on || echo off)"
+  echo "anamorphic: $(is_on anamorphic && echo on || echo off)"
+  echo "profps: $(is_on profps && echo on || echo off), 10x Camera $(cam24_profps_on && echo "APK patched" || echo "XML only")"
+  echo "slowmo4k120: $(is_on slowmo4k120 && echo on || echo off)"
   echo "audioeraser: $([ -f /system/etc/fastScanner.tflite ] && echo on || echo off), engine $(same_size /system/lib64/$VE $PL/audioeraser/$VE && echo S24 || echo stock)"
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)C2PA=$(same_size $C2PA $D/files/libC2paDps-shim.so && echo shim || echo stock)"
