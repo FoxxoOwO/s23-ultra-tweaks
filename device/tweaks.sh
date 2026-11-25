@@ -21,7 +21,7 @@
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
 #         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
 #         callscreen tenbit hideksu cam24fps weather wideflash
-#         prowbtint zoomrocker videosoftening afcontrol aelimit autohdr slowmoaf extstorage
+#         prowbtint zoomrocker videosoftening afcontrol aelimit slowmoaf extstorage
 #         anamorphic profps slowmo4k120  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
@@ -43,7 +43,7 @@ mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
 STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu cam24fps"
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps weather wideflash prowbtint zoomrocker videosoftening afcontrol aelimit autohdr slowmoaf extstorage anamorphic profps slowmo4k120"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps weather wideflash prowbtint zoomrocker videosoftening afcontrol aelimit slowmoaf extstorage anamorphic profps slowmo4k120"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -456,7 +456,6 @@ ff_apply() {
 #             matching wide-flash option. Both are switches in camera-feature.xml; no APK or HAL patch.
 #  prowbtint: the Tint slider next to the colour temperature in Pro and Pro video's white balance.
 #  zoomrocker: the smooth zoom rocker/slider in the standard Video mode.
-#  autohdr: the Auto HDR switch in the camera's own settings.
 #  slowmoaf: tap-to-focus while recording in Slow motion (its Camera Assistant flag is set in apply).
 #  extstorage: recording straight to a USB-C SSD/drive, in every video mode (camfeat_apply flips
 #              external-storage-support="false" to "true" on the resolution map lines).
@@ -473,7 +472,6 @@ CF_WIDEFLASH='<local name="SUPPORT_FLASH_IN_WIDE_LENS" value="true"/>'
 CF_WIDEFLASH_CA='<local name="SUPPORT_CAMERA_ASSISTANT_WIDE_FLASH_MENU" value="true"/>'
 CF_PROWBTINT='<local name="SUPPORT_PRO_WHITE_BALANCE_TINT" value="true"/>'
 CF_ZOOMROCKER='<local name="SUPPORT_VIDEO_MODE_ZOOM_ROCKER" value="true"/>'
-CF_AUTOHDR='<local name="SUPPORT_AUTO_HDR_MENU" value="true"/>'
 CF_SLOWMOAF='<local name="SUPPORT_SLOW_MOTION_AF_DURING_RECORDING" value="true"/>'
 CF_ANAMORPHIC='<local name="SUPPORT_CAMERA_ASSISTANT_ANAMORPHIC_LENS" value="true"/>'
 CF_ANAMORPHIC_SCALER='<local name="SUPPORT_CAMERA_ASSISTANT_ANAMORPHIC_LENS_HW_SCALER" value="true"/>'
@@ -1602,7 +1600,7 @@ why_not() {
         { echo "this phone's /system/framework/services.jar (md5 $m) isn't one a patch was made from ($(echo "$HIDEKSU_JARS" | cut -d' ' -f3- | tr '\n' ',' | sed 's/,$//; s/,/, /g')); tools/hideksupatch.sh can make one"; return; }
       pm path me.weishu.kernelsu >/dev/null 2>&1 || echo "the KernelSU manager (me.weishu.kernelsu) isn't installed, so there's nothing to hide" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
-    logvideo|camextras|wideflash|prowbtint|zoomrocker|autohdr|slowmoaf|extstorage|anamorphic|profps) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
+    logvideo|camextras|wideflash|prowbtint|zoomrocker|slowmoaf|extstorage|anamorphic|profps) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     slowmo4k120)
       grep -q '</resources>' $CF 2>/dev/null || { echo "this firmware's $CF can't be edited"; return; }
       grep -q 'BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS' $CF 2>/dev/null || echo "this firmware has no 4K120 entry to enable in Slow motion" ;;
@@ -1640,7 +1638,6 @@ is_on() {
     videosoftening) grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_VIDEO_SOFTENING>TRUE<' $FF 2>/dev/null ;;
     afcontrol) grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AFSPEED>TRUE<' $FF 2>/dev/null && grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AFSENSITIVITY>TRUE<' $FF 2>/dev/null ;;
     aelimit) grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AUTO_EXPOSURE_LIMIT>TRUE<' $FF 2>/dev/null ;;
-    autohdr) bound $CF && grep -q 'name="SUPPORT_AUTO_HDR_MENU" value="true"' $CF 2>/dev/null ;;
     slowmoaf) bound $CF && grep -q 'name="SUPPORT_SLOW_MOTION_AF_DURING_RECORDING" value="true"' $CF 2>/dev/null && grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AF_DURING_SLOWMOTION_RECORDING>TRUE<' $FF 2>/dev/null ;;
     extstorage) bound $CF && grep -q 'BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_60FPS.*external-storage-support="true"' $CF 2>/dev/null ;;
     anamorphic) bound $CF && grep -q 'name="SUPPORT_CAMERA_ASSISTANT_ANAMORPHIC_LENS" value="true"' $CF 2>/dev/null ;;
@@ -1725,8 +1722,6 @@ $CF_WIDEFLASH_CA"
 $CF_PROWBTINT"
   has zoomrocker && cf_add="$cf_add
 $CF_ZOOMROCKER"
-  has autohdr && cf_add="$cf_add
-$CF_AUTOHDR"
   has slowmoaf && cf_add="$cf_add
 $CF_SLOWMOAF"
   has anamorphic && cf_add="$cf_add
@@ -1849,7 +1844,6 @@ status)
   echo "videosoftening: $(is_on videosoftening && echo on || echo off)"
   echo "afcontrol: $(is_on afcontrol && echo on || echo off)"
   echo "aelimit: $(is_on aelimit && echo on || echo off)"
-  echo "autohdr: $(is_on autohdr && echo on || echo off)"
   echo "slowmoaf: $(is_on slowmoaf && echo on || echo off)"
   echo "extstorage: $(is_on extstorage && echo on || echo off)"
   echo "anamorphic: $(is_on anamorphic && echo on || echo off)"
