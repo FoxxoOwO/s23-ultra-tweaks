@@ -64,6 +64,13 @@ kernel_override() {
   case " $AIRDROP_FW " in *" $(getprop ro.build.PDA) "*) return 0 ;; esac; return 1
 }
 kernel_supported() { kernel_stock || kernel_override; }
+# A custom kernel that ships its own Wi-Fi stack (cfg80211.ko built for that kernel, not the stock GKI one)
+# lays out cfg80211's structures differently. The S24 driver's modules still load, but wiphy_new/
+# wiphy_register reject it (WARNs at core.c:431/772, err -5) and the phone froze during the driver swap
+# (issue #21). The stock module's vermagic names the GKI build the airdrop modules are made for.
+CFG80211_KO=/vendor_dlkm/lib/modules/cfg80211.ko
+cfg80211_vermagic() { grep -a -o -m1 'vermagic=[^ ]*' $CFG80211_KO 2>/dev/null | head -n 1 | cut -d= -f2; }
+cfg80211_stock() { case "$(cfg80211_vermagic)" in "$AIRDROP_KBASE"*) return 0 ;; esac; return 1; }
 STOCK_KO=/vendor_dlkm/lib/modules/qca_cld3_kiwi_v2.ko
 FF=/system/etc/floating_feature.xml
 CF=/system/cameradata/camera-feature.xml
@@ -1704,6 +1711,9 @@ why_not() {
   case $1 in
     airdrop|wifi7)
       kernel_supported || { echo "needs firmware $(echo $AIRDROP_FW | sed 's/ /, /g') (this phone runs $build)"; return; }
+      if [ $1 = airdrop ] && ! kernel_stock && ! cfg80211_stock; then
+        echo "this kernel ships its own Wi-Fi stack (cfg80211.ko built for $(cfg80211_vermagic | grep . || echo "an unknown kernel"), not $AIRDROP_KBASE*), which the S24 Wi-Fi driver can't register with; Wi-Fi 7 and the 6 GHz hotspot still work"; return
+      fi
       [ "${gms:-0}" -ge $GMS_MIN ] || echo "needs Google Play services 26.11 or newer" ;;
     callrec|india)
       [ -f "$CSCF" ] || { echo "can't find this phone's carrier config (mdc.system.path is '$CSYS')"; return; }
