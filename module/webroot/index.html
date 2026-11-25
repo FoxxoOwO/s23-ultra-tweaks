@@ -636,6 +636,9 @@ function initialSelection(p) {
   if (!ids.length) ids = IDS.filter(i => autoPick(i) && available(i));
   ids = ids.filter(available);
   const s = new Set(ids);
+  // a bundle is all-or-nothing: an old saved pick with any member gets the whole bundle
+  // (so a newly added tweak such as slowmo4k120 is not left out after a module update)
+  for (const b of BUNDLES) if (b.ids.some(i => s.has(i))) for (const i of b.ids) if (available(i)) s.add(i);
   if (s.has("wifi7")) { if (available("airdrop")) s.add("airdrop"); else s.delete("wifi7"); }
   if (s.has("india")) s.delete("callrec");
   return s;
