@@ -20,7 +20,7 @@
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
 #         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
-#         callscreen tenbit hideksu cam24fps weather  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
+#         callscreen tenbit hideksu cam24fps weather dual5g  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
 #
 # Nothing here writes to a partition. Every change is a module load, an overlay, a bind mount or a
 # runtime setting, so a reboot always returns the phone to stock. The files themselves stay on storage
@@ -30,6 +30,10 @@
 # (harmless without the rest; "unflag" removes them), camextras' camera app setting, callscreen,
 # which installs Samsung Language Core as an ordinary app (undo: pm uninstall <package>), and weather,
 # which installs a 12 KB AI Core stub app and turns Samsung's live wallpaper app back on if it was off.
+# dual5g is the one change inside the modem: it edits one policy file in the modem's own storage (EFS),
+# which stays across reboots and module removal until it's put back. The original is backed up before
+# the first write (state folder and Download/s23tweaks-modem-backup); un-picking dual5g, removing the
+# module, or "dual5g-restore" puts it back.
 # Never touched: the sales code (mps_code.dat, sales_code.dat, omc.info, persist.sys.matched_code).
 # Changing those can factory-reset the phone.
 
@@ -41,7 +45,7 @@ mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
 STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu cam24fps"
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps weather"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu cam24fps weather dual5g"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -1459,6 +1463,111 @@ statusbar_wifi_refresh() {
   log "status bar: nudged SystemUI to redraw the Wi-Fi icon after the framework restart"
 }
 
+# dual5g: 5G standalone on both SIMs at once (5G+5G DSDS). The modem's Qualcomm policyman decides it:
+# device_config.xml has <msim_config mode="5G_PLUS_5G" list="msim_plmns"/>, and global_defines.xml limits
+# msim_plmns to 460-* 712-* (China, Costa Rica). Anywhere else the modem runs 5G_PLUS_4G, and
+# disable_sa_ndds.xml takes the SA bands away from the SIM that isn't the data SIM. This adds the MCCs of
+# the SIMs in the phone to msim_plmns. It is a file in the modem's own storage (EFS), so unlike the other
+# tweaks it stays after a reboot: dual5g_restore puts the original back. files/efstool (src/efstool) reads
+# and writes EFS through the stock /vendor/bin/diag_socket_log; policyman reads the file when the modem
+# boots, so a write is followed by a modem-only restart (remoteproc, ~15 s without signal).
+D5G=$V/dual5g; D5G_F=/policyman/global_defines.xml; D5G_SD=/sdcard/Download/s23tweaks-modem-backup
+EFST=$D/files/efstool   # module files ship 0644; cleanup runs from /dev after the module folder is gone
+if [ -f $EFST ]; then [ -x $EFST ] || chmod 755 $EFST 2>/dev/null; else EFST=/dev/s23tweaks_efstool; fi
+d5g_mccs() {   # MCCs of the SIMs and of the networks they're on; countries with several MCCs get all of them
+  for n in $(getprop gsm.sim.operator.numeric | tr ',' ' ') $(getprop gsm.operator.numeric | tr ',' ' '); do
+    m=$(echo "$n" | cut -c1-3)
+    case $m in
+      404|405|406) echo 404 405 406 ;;                       # India (a carrier's SIM and towers can differ)
+      310|311|312|313|314|315|316) echo 310 311 312 313 314 315 316 ;;   # United States
+      440|441) echo 440 441 ;;                               # Japan
+      234|235) echo 234 235 ;;                               # United Kingdom
+      [0-9][0-9][0-9]) echo $m ;;
+    esac
+  done | tr ' ' '\n' | grep -E '^[0-9]{3}$' | sort -u | tr '\n' ' '
+}
+d5g_line() { grep -v '<!--' "$1" | grep '<plmn_list name="msim_plmns"'; }   # skips the commented-out stock line
+d5g_list() { d5g_line "$1" | sed -E 's/.*<plmn_list name="msim_plmns"[^>]*>([^<]*)<\/plmn_list>.*/\1/'; }
+d5g_added() { grep -m1 -o 's23tweaks dual5g added:[ 0-9]*' "$1" 2>/dev/null | cut -d: -f2; }
+d5g_strip() {   # $1 -> $2 without what dual5g added (used only when there is no stock backup)
+  rm_list=$(d5g_added "$1")
+  awk -v rm="$rm_list" 'BEGIN { n = split(rm, a, " ") }
+    /s23tweaks dual5g added:/ { next }
+    /<plmn_list name="msim_plmns"/ && !/<!--/ { for (i = 1; i <= n; i++) gsub(" " a[i] "-\\*", "") }
+    { print }' "$1" > "$2"
+}
+d5g_modem_restart() {
+  r=""; for x in /sys/class/remoteproc/remoteproc*; do grep -q 'remoteproc-mss' $x/name 2>/dev/null && r=$x; done
+  [ -n "$r" ] || { log "dual5g: can't find the modem's remoteproc; reboot the phone to use the new setting"; return 1; }
+  log "dual5g: restarting the modem so it reads the new setting (no signal for ~15 s)"
+  echo stop > $r/state 2>/dev/null; sleep 2
+  for i in 1 2 3; do echo start > $r/state 2>/dev/null; wait_for 20 [ "$(cat $r/state)" = running ] && break; done
+  [ "$(cat $r/state)" = running ] || { log "dual5g: the modem didn't come back; reboot the phone"; return 1; }
+  wait_for 60 sh -c 'getprop gsm.sim.state | grep -q LOADED'; log "dual5g: modem back up"
+}
+d5g_put() {   # $1 new file, $2 the file it replaces (rollback). Write, read back, compare; roll back on mismatch
+  $EFST put "$1" $D5G_F 2>>$L && $EFST get $D5G_F $R/d5g_check.xml 2>>$L && cmp -s "$1" $R/d5g_check.xml && return 0
+  log "dual5g: the write didn't verify; putting the previous file back"
+  $EFST put "$2" $D5G_F 2>>$L && $EFST get $D5G_F $R/d5g_check.xml 2>>$L && cmp -s "$2" $R/d5g_check.xml &&
+    { log "dual5g: previous file restored"; return 1; }
+  log "dual5g: COULD NOT RESTORE the modem file. The original is in $D5G/stock and $D5G_SD; run 'tweaks.sh dual5g-restore', or use *#27663368378# > ETC > MCFG > MCFG HW & SW RELOAD"
+  return 1
+}
+d5g_backup_stock() {   # once, before the first write ever; never overwritten
+  [ -f $D5G/stock/global_defines.xml ] && return 0
+  mkdir -p $D5G/stock
+  if [ -n "$(d5g_added $1)" ]; then d5g_strip $1 $D5G/stock/global_defines.xml   # ours already: rebuild the original
+  else cp $1 $D5G/stock/global_defines.xml; fi
+  for f in device_config.xml disable_sa_ndds.xml; do $EFST get /policyman/$f $D5G/stock/$f 2>/dev/null; done
+  mkdir -p $D5G_SD && cp $D5G/stock/* $D5G_SD/ && cat > $D5G_SD/README.txt <<EOF
+Original modem files from before s23-ultra-tweaks' "dual5g" tweak changed /policyman/global_defines.xml
+(model $(getprop ro.product.model), firmware $(getprop ro.build.PDA), saved $(date '+%Y-%m-%d %H:%M')).
+To put the original back: un-pick dual5g and apply, or run as root: sh <module folder>/tweaks.sh dual5g-restore
+Without the module: dial *#27663368378# > ETC > MCFG > MCFG HW & SW RELOAD (rewrites the modem's stock config).
+EOF
+  log "dual5g: original modem file backed up to $D5G/stock and $D5G_SD"
+}
+dual5g_apply() {
+  mkdir -p $R $D5G
+  wait_for 90 sh -c 'getprop gsm.sim.state | grep -q LOADED' || { log "dual5g: skipped: no SIM is ready"; return 1; }
+  sleep 3; mccs=$(d5g_mccs)
+  [ -n "$mccs" ] || { log "dual5g: skipped: the SIMs report no network code yet (try again later)"; return 1; }
+  $EFST get $D5G_F $R/d5g_live.xml 2>>$L || { log "dual5g: can't read $D5G_F from the modem"; return 1; }
+  [ "$(d5g_line $R/d5g_live.xml | wc -l)" = 1 ] || { log "dual5g: skipped: this modem has no single msim_plmns list in $D5G_F"; return 1; }
+  d5g_backup_stock $R/d5g_live.xml || { log "dual5g: couldn't back up the original; not changing anything"; return 1; }
+  cur=" $(d5g_list $R/d5g_live.xml) "; add=""
+  for m in $mccs; do case "$cur" in *" $m-* "*) ;; *) add="$add $m" ;; esac; done
+  if [ -z "$add" ]; then
+    log "dual5g: on; the modem already allows 5G on both SIMs for $(echo $mccs | sed 's/[0-9][0-9]*/&-*/g')"
+    echo "$cur" > $D5G/applied; return 0
+  fi
+  cp $R/d5g_live.xml $D5G/before-$(date +%Y%m%d-%H%M%S).xml   # every write gets its own backup
+  ours=$(echo $(d5g_added $R/d5g_live.xml) $add | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/ $//')
+  plmns=$(echo $add | sed 's/[0-9][0-9]*/&-*/g')
+  awk -v plmns="$plmns" -v ours="$ours" '
+    /s23tweaks dual5g added:/ { next }
+    /<plmn_list name="msim_plmns"/ && !/<!--/ { sub(/ *<\/plmn_list>/, " " plmns " </plmn_list>"); print
+      print "    <!-- s23tweaks dual5g added: " ours " -->"; next }
+    { print }' $R/d5g_live.xml > $R/d5g_new.xml
+  [ "$(d5g_line $R/d5g_new.xml | wc -l)" = 1 ] && grep -q '</policy>' $R/d5g_new.xml || { log "dual5g: building the new file failed; nothing changed"; return 1; }
+  d5g_put $R/d5g_new.xml $R/d5g_live.xml || return 1
+  log "dual5g: msim_plmns is now$(d5g_list $R/d5g_new.xml)"
+  echo " $(d5g_list $R/d5g_new.xml) " > $D5G/applied
+  d5g_modem_restart
+}
+dual5g_restore() {   # put the original modem file back
+  mkdir -p $R
+  $EFST get $D5G_F $R/d5g_live.xml 2>>$L || { log "dual5g: can't read $D5G_F from the modem"; return 1; }
+  if [ -f $D5G/stock/global_defines.xml ]; then src=$D5G/stock/global_defines.xml
+  elif [ -f $D5G_SD/global_defines.xml ]; then src=$D5G_SD/global_defines.xml
+  elif [ -n "$(d5g_added $R/d5g_live.xml)" ]; then d5g_strip $R/d5g_live.xml $R/d5g_orig.xml; src=$R/d5g_orig.xml
+  else log "dual5g: no backup and no change of ours in the modem file; nothing to restore"; rm -f $D5G/applied; return 0; fi
+  if cmp -s $src $R/d5g_live.xml; then log "dual5g: the modem file is already the original"; rm -f $D5G/applied; return 0; fi
+  d5g_put $src $R/d5g_live.xml || return 1
+  rm -f $D5G/applied; log "dual5g: original modem file restored (msim_plmns:$(d5g_list $src))"
+  d5g_modem_restart
+}
+
 restart_framework() {
   old=$(pidof system_server); log "restarting the Android framework (screen goes black for ~30 s)"
   setprop ctl.restart zygote
@@ -1523,6 +1632,10 @@ why_not() {
     galaxyai)
       for p in $GAI_APPS; do [ -f /system/$p/${p#*/}.apk ] || { echo "this phone has no /system/$p/${p#*/}.apk to replace"; return; }; done ;;
     settingssearch) [ -f /system/$SSI/SecSettingsIntelligence.apk ] || echo "this phone has no /system/$SSI to replace" ;;
+    dual5g)
+      [ -x $EFST ] || { echo "files/efstool is missing"; return; }
+      [ -x /vendor/bin/diag_socket_log ] || { echo "this firmware has no /vendor/bin/diag_socket_log to reach the modem with"; return; }
+      [ "$(getprop persist.radio.multisim.config)" = dsds ] || echo "needs a dual-SIM phone in dual standby (DSDS) mode" ;;
     callscreen)
       [ "${lcv:-0}" -ge 400000000 ] 2>/dev/null || [ "$(df -k /data | awk 'NR == 2 {print $4}')" -ge 7340032 ] ||
         echo "needs about 7 GB free on the phone for its 3.1 GB download" ;;
@@ -1555,6 +1668,7 @@ is_on() {
     cam24fps) bound $CAM_APK && bound $CF && grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS".*supported-mode="[^"]*video' $CF 2>/dev/null ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
     hideksu) hideksu_on ;;
+    dual5g) [ -f $D5G/applied ] ;;
     *) return 1 ;;
   esac
 }
@@ -1643,6 +1757,8 @@ $CF_HLOCK"
   has callscreen && callscreen_apply
   if has weather; then weather_apply
   elif wx_stub; then pm uninstall $WX_PKG >/dev/null 2>&1 && log "weather: not picked; AI Core stub uninstalled"; fi
+  if has dual5g; then dual5g_apply
+  elif [ -f $D5G/applied ]; then log "dual5g: not picked; putting the original modem file back"; dual5g_restore; fi
   has airdrop && airdrop_post
   [ $restart = 1 ] && statusbar_wifi_refresh   # the framework restart can drop the Wi-Fi status-bar icon
   on=""; off=""; for x in $2; do if is_on $x; then on="$on $x"; else off="$off $x"; fi; done
@@ -1723,6 +1839,7 @@ status)
   echo "6ghz ap:  $(h6_offered && echo offered || echo "not offered") (CSC country $(getprop ro.csc.countryiso_code), override $(getprop $H6_PROP | grep . || echo unset))"
   echo "csc:      $SC $(bound $CSCF && { grep -q '<SalesCode>INS<' $CSCF && echo "with the INS config" || echo "with call recording"; } || echo stock) ($CSYS)"
   echo "reported: model $(getprop ro.product.model), csc $(getprop ro.csc.sales_code), country $(getprop ro.csc.countryiso_code)$([ -e $V/india_identity ] && [ "$(getprop ro.product.model)" = $IN_MODEL ] && echo " (india identity on)")"
+  echo "dual5g:   $([ -f $D5G/applied ] && echo "on (modem msim_plmns:$(cat $D5G/applied))" || echo off)$([ -f $D5G/stock/global_defines.xml ] && echo "; original backed up in $D5G/stock")"
   ;;
 cleanup)
   # Undo everything that outlives a reboot, then delete the state folder. module/uninstall.sh runs this
@@ -1751,6 +1868,12 @@ cleanup)
     pm enable $CIDMGR >/dev/null 2>&1; appops set $CIDMGR SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1
     say "carrier-switch prompt (CID Manager) restored"
   fi
+  if [ -f $D5G/applied ] || [ -f $D5G/stock/global_defines.xml ]; then
+    mkdir -p $R; : > $L
+    if dual5g_restore; then say "dual5g: original modem file restored"
+    else say "dual5g: COULD NOT restore the modem file; the original stays in $D5G_SD"; cp -r $D5G $D5G_SD/state 2>/dev/null; fi
+  fi
+  rm -f /dev/s23tweaks_efstool
   rm -f /data/adb/service.d/s23tweaks.sh
   cd /; rm -rf $V
   say "done; the next reboot removes what's still mounted"
@@ -1836,6 +1959,13 @@ report)
     if [ -n "$sn" ]; then sed "s/$sn/<serial>/g"; else cat; fi > $out
   echo "$out"
   ;;
+dual5g-restore)
+  # put the modem's original /policyman/global_defines.xml back (also what un-picking dual5g does)
+  [ "$(id -u)" = 0 ] || { echo "needs root" >&2; exit 1; }
+  mkdir -p $R; L=$R/dual5g-restore.log; : > $L
+  dual5g_restore; rc=$?
+  cat $L; cat $L >> $V/tweaks.log; exit $rc
+  ;;
 unflag)
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db; SQ=$AIR/sqlite3; W=$R/gms
   [ -x $SQ ] || { echo "the AirDrop download (with its sqlite3) isn't on the phone; pick AirDrop once to fetch it" >&2; exit 1; }
@@ -1908,5 +2038,5 @@ wifi7page)
   am start -n com.android.settings/.SubSettings \
     --es :settings:show_fragment com.samsung.android.settings.wifi.develop.WifiLabs7ModeSettingsFragment
   ;;
-*) echo "usage: tweaks.sh start|apply \"<tweaks>\" | probe | status | unflag | autostart on|off | wifi7page"; exit 2 ;;
+*) echo "usage: tweaks.sh start|apply \"<tweaks>\" | probe | status | unflag | dual5g-restore | autostart on|off | wifi7page"; exit 2 ;;
 esac

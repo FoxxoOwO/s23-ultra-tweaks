@@ -6,6 +6,7 @@ The tweaks come in six categories. The module page lets you pick a whole categor
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 **What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.6.0**: Dual SIM 5G (`dual5g`): 5G standalone on both SIMs at once, instead of only the data SIM. The original modem file is backed up first.
 - **v1.3.5**: HideKSU can now also hide the module's own mounts from apps you list, so mount-scanning root detectors and banking apps no longer see the tweaks (verified against Native Detector).
 - **v1.3.4**: the 6 GHz hotspot no longer changes the phone's country, so Samsung Wallet keeps working with it on.
 - **v1.3.3**: the India config now also makes Samsung Wallet India (UPI) and the 6 GHz hotspot work, by reporting the phone as the Indian model (reverts on reboot).
@@ -67,13 +68,14 @@ Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 - ⏺️ **23 · Call recording** in the Samsung Phone app, on any sales code: the module decodes the phone's own carrier config and allows recording in it · `callrec`
 - 🇮🇳 **24 · India carrier config** for Airtel / Jio SIMs: the **Use 5G standalone networks** switch (Settings → Connections → Mobile networks), call recording, Smart IVR, message cards and more. It also makes the phone report itself as the Indian S23 Ultra (SM-S918B / INS / country IN) so **Samsung Wallet India** (UPI, DigiLocker, transit) and the **6 GHz hotspot** work; this is a runtime change that reverts on reboot and never writes the sales code to disk (no factory-reset risk). If Samsung Wallet still shows "not supported" after applying (it can cache the earlier state), clear its storage — Settings → Apps → Samsung Wallet → Storage → **Clear data** — and reopen it. It also **stops Samsung's "Switch to \<carrier\>?" prompt** (the CID Manager dialog that keeps asking to restart and re-flash the carrier customization when the SIM's carrier doesn't match the reported sales code), which is reverted when you unpick `india` or remove the module. Works on any sales code on One UI 9. With an Indian SIM, picking the Carrier category takes this instead of call recording · `india`
+- 📶 **25 · Dual SIM 5G**: 5G standalone on **both SIMs at the same time**, instead of only the SIM set for mobile data. The S23's modem can do it; Samsung's modem config allows it only on Chinese and Costa Rican networks. The module adds your SIMs' country to that list. Unlike the other tweaks this one **stays after a reboot** (it's a file in the modem's own storage); the original is backed up first and goes back when you un-pick it or remove the module · `dual5g` ([details](#dual-sim-5g))
 
 Not included, because they don't work on the S23: the AI-generated weather wallpaper, which redraws the
 photo for each kind of weather (its model is built only for newer NPUs; the weather effect above is a
 different feature), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
 Portrait video (they crash the camera).
 
-**Nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), Samsung Language Core, which `callscreen` installs as an app update, and the AI Core stub app that `weather` installs (see [Undo](#undo)).
+**Apart from `dual5g`, nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), Samsung Language Core, which `callscreen` installs as an app update, and the AI Core stub app that `weather` installs (see [Undo](#undo)). `dual5g` edits one policy file inside the modem, which the modem keeps on its own storage; see [Dual SIM 5G](#dual-sim-5g) for its backup and undo.
 
 **Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
 
@@ -333,6 +335,50 @@ injected, and the files it would have seen are simply the stock ones.
   zygote does), and a detach there would remove the tweaks for the whole phone.
 - It runs only while `hideksu` is on.
 
+<a id="dual-sim-5g"></a>
+
+## 📶 Dual SIM 5G
+
+With two SIMs, the S23 Ultra normally gives 5G standalone (SA) only to the SIM picked for mobile data;
+the other one drops to LTE, and they swap within a second when you change the data SIM. That isn't the
+hardware: the modem (Snapdragon X70) supports 5G on both SIMs in dual standby ("5G+5G DSDS"), and
+Android already asks it for 5G on both. The modem's own policy files decide:
+
+- `/policyman/device_config.xml`: `<msim_config mode="5G_PLUS_5G" list="msim_plmns"/>`, so 5G+5G applies only on the networks in `msim_plmns`;
+- `/policyman/global_defines.xml`: Samsung's `msim_plmns` is `460-* 712-*`, China and Costa Rica only;
+- everywhere else the modem runs 5G+4G, and `/policyman/disable_sa_ndds.xml` removes the SA bands from the SIM that isn't the data SIM.
+
+`dual5g` adds your SIMs' mobile country codes to `msim_plmns`: it reads them from the SIMs (and the
+networks they're on) at each apply, adding all of a country's codes where it has several (India 404, 405,
+406; the US 310–316; Japan 440, 441; the UK 234, 235). It only adds; what's already listed stays. The
+file lives in the modem's storage (EFS), which the module reaches with its own small tool
+(`files/efstool`, source in `src/efstool`) through the phone's stock `diag_socket_log` — no computer,
+nothing flashed. The modem only reads the file when it starts, so after a change the module restarts
+just the modem (about 15 seconds without signal, no phone reboot). At later boots, when the list already
+has your country, nothing is written and the modem isn't restarted.
+
+**Backups, before anything is changed:**
+
+- the original file (and the two related policy files, for reference) goes to `/data/adb/s23tweaks/dual5g/stock/` once, before the first write, and is never overwritten;
+- a copy of it, with a README, goes to **Download/s23tweaks-modem-backup/** on the phone, where you can see it and copy it off;
+- every write also saves the file it replaces as `/data/adb/s23tweaks/dual5g/before-<date>.xml`;
+- each write is read back from the modem and compared; if it doesn't match, the previous file is written back.
+
+**Undo:** un-pick `dual5g` and apply, or remove the module: the original file goes back and the modem
+restarts. By hand:
+
+```sh
+adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh dual5g-restore"
+```
+
+Without the module at all, the service menu rewrites the modem's stock config: dial `*#27663368378#` →
+ETC → MCFG → **MCFG HW & SW RELOAD**. A firmware update can also reset the list; the next apply adds
+your country again.
+
+Whether a SIM shows 5G still depends on its coverage where you are. Tested on an SM-S918W with Airtel
+(data) and Jio: before, the standby SIM was never on SA; after, it stayed on SA while Airtel had data,
+and both were on SA (and VoNR) at once.
+
 <a id="undo"></a>
 
 ## ↩️ Undo
@@ -344,6 +390,7 @@ boot the module cleans up after itself once the phone is unlocked:
 - uninstalls Samsung Language Core and its Call screening settings, if `callscreen` installed it;
 - uninstalls the AI Core stub, if `weather` installed it (unpicking `weather` also removes it);
 - puts the Camera app's Director's view setting back the way it was (`camextras`);
+- puts the modem's original 5G+5G list back, if `dual5g` changed it (unpicking `dual5g` also does);
 - drops Android's cached manifests of the apps the tweaks swap, so the stock apps are re-read;
 - deletes `/data/adb/s23tweaks` (downloads, logs, backups) and the boot script.
 

@@ -8,7 +8,7 @@ set -euo pipefail
 # below can read the rest of the script from stdin (curl | bash).
 main() {
 REPO=dtechterminal/s23-ultra-tweaks
-VERSION=v1.5.0
+VERSION=v1.6.0
 AIRDROP_KBASE=5.15.197-android13-8-34343818-ab; AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"   # as in device/tweaks.sh
 PHONE_DIR=/data/adb/s23tweaks          # state (and the code, when the module isn't installed)
 MODULE_DIR=/data/adb/modules/s23_ultra_tweaks
@@ -89,8 +89,8 @@ ids=(airdrop wifi7 hotspot6g
      display colortone vulkan weather
      galaxyai audioeraser settingssearch callscreen bargein
      battery features hideksu
-     callrec india)
-cat=(A A A  B B B B B B B  C C C C  D D D D D  E E E  F F)
+     callrec india dual5g)
+cat=(A A A  B B B B B B B  C C C C  D D D D D  E E E  F F F)
 cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
@@ -116,9 +116,10 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Extra settings: Auto power on/off schedule, louder VoIP calls"
       "HideKSU: hide the KernelSU root manager from apps, so root-aware apps like CRED stop crashing (patched services.jar; 12 MB download; needs the KernelSU manager installed)"
       "Call recording in the Samsung Phone app"
-      "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards, plus Samsung Wallet India (UPI, DigiLocker, transit) and the 6 GHz hotspot by reporting the phone as the Indian model; reverts on reboot, the sales code on disk is untouched")
-avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1 $can_c24  1 $can_ct 1 1  1 1 1 $can_lc 1  1 1 $can_ksu  $can_rec $can_csc)
-why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" "" "$why_c24"  "" "$why_ct" "" ""  "" "" "" "$why_lc" ""  "" "" "$why_ksu"  "$why_rec" "$why_csc")
+      "India carrier config for Airtel/Jio SIMs: 'Use 5G standalone networks' switch, call recording, Smart IVR, message cards, plus Samsung Wallet India (UPI, DigiLocker, transit) and the 6 GHz hotspot by reporting the phone as the Indian model; reverts on reboot, the sales code on disk is untouched"
+      "Dual SIM 5G: 5G standalone on both SIMs at once instead of only the data SIM (adds your SIMs' country to the modem's 5G+5G list; stays until un-picked; the original is backed up first)")
+avail=($can_airdrop $can_airdrop 1  1 1 1 1 1 1 $can_c24  1 $can_ct 1 1  1 1 1 $can_lc 1  1 1 $can_ksu  $can_rec $can_csc 1)
+why=("$why_airdrop" "$why_airdrop" ""  "" "" "" "" "" "" "$why_c24"  "" "$why_ct" "" ""  "" "" "" "$why_lc" ""  "" "" "$why_ksu"  "$why_rec" "$why_csc" "")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
@@ -247,6 +248,7 @@ case " $picked " in *" autoframe "*) info "4K auto framing was reported to make 
 case " $picked " in *" weather "*) info "Weather effect: Wallpaper and style > Lock screen > Weather > Done. It animates only for rain, snow, fog or daytime sun." ;; esac
 case " $picked " in *" bargein "*) info "Bixby barge-in is untested; turn it off if anything misbehaves." ;; esac
 case " $picked " in *" hotspot6g "*) info "6 GHz hotspot: Settings > Connections > Mobile Hotspot > Band > 6 GHz (security must be WPA3)." ;; esac
+case " $picked " in *" dual5g "*) info "Dual SIM 5G: the modem restarts once (~15 s without signal). Original modem file: Download/s23tweaks-modem-backup. Undo: un-pick it and apply." ;; esac
 case " $picked " in *" india "*) info "India config: the phone reports itself as the Indian model so Samsung Wallet India (UPI) and the 6 GHz hotspot work. If Samsung Wallet still says 'not supported', clear its storage (Settings > Apps > Samsung Wallet > Storage > Clear data) and reopen it." ;; esac
 if [ "$auto" = on ]; then
   info "At each boot DFRoot roots the phone by itself and the tweaks re-apply about a minute later (the screen"

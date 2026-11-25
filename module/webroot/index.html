@@ -382,6 +382,7 @@ const TWEAKS = [
   { id: "hideksu", cat: "system", name: "HideKSU", desc: "Hide the KernelSU root manager from apps, so root-aware apps (CRED, banking) stop crashing. The launcher icon and DFRoot's boot root keep working (patched services.jar; needs the KernelSU manager installed; 12 MB download). Also hides the module's own mounts from the apps you list in /data/adb/s23tweaks/hide-apps.txt, so mount-scanning detectors don't see the tweaks" },
   { id: "callrec", cat: "carrier", name: "Call recording", desc: "Call recording in the Samsung Phone app" },
   { id: "india", cat: "carrier", name: "India carrier config (Airtel, Jio)", desc: "For Indian SIMs: the Indian carrier settings with the Use 5G standalone networks switch, call recording, Smart IVR and message cards, plus Samsung Wallet India (UPI, DigiLocker, transit) and the 6 GHz hotspot — it reports the phone as the Indian model while on (reverts on reboot; the sales code on disk is untouched, adding bank cards may still fail)" },
+  { id: "dual5g", cat: "carrier", name: "Dual SIM 5G", desc: "5G standalone on both SIMs at once, instead of only the one set for mobile data. Adds your SIMs' country to the modem's 5G+5G list (Samsung allows it only in China and Costa Rica). This one stays after a reboot until you un-pick it; the original modem file is backed up first, to Download/s23tweaks-modem-backup. The modem restarts once (~15 s without signal)." },
 ];
 const NAME = Object.fromEntries(TWEAKS.map(t => [t.id, t.name]));
 const IDS = TWEAKS.map(t => t.id);
@@ -391,6 +392,7 @@ const WHERE = {
   battery: ["Battery health", "Settings → Battery → Battery information."],
   features: ["Power schedule", "Search Settings for “power on/off” to find the schedule. Louder VoIP calls need no setting."],
   callrec: ["Call recording", "Phone app → Settings → Record calls."],
+  dual5g: ["Dual SIM 5G", "Both SIMs can now sit on 5G standalone at the same time. Whether each one shows 5G still depends on its coverage. To undo, un-pick it and apply: the original modem file goes back."],
   india: ["5G standalone and call recording", "Settings → Connections → Mobile networks → Use 5G standalone networks; Phone app → Settings → Record calls."],
   hotspot6g: ["6 GHz hotspot", "Settings → Connections → Mobile Hotspot → Band → 6 GHz (security WPA3)."],
   wifi7: ["Wi-Fi 7", "Multi-link needs a Wi-Fi 7 router with MLO on. The Wi-Fi 7 mode page is under Status."],
@@ -1006,6 +1008,7 @@ function installMock() {
     }
     if (has("battery")) add(0.5, "battery: auth IC presented");
     if (has("battery") || has("features")) add(0.4, "feature flags on: " + (has("battery") ? "BATTERY_SUPPORT_BSOH_SETTINGS " : "") + (has("features") ? "SETTINGS_SUPPORT_AUTO_POWER_ON_OFF AUDIO_SUPPORT_VOIP_SOUND_LOUDER" : ""));
+    if (has("dual5g")) { add(0.6, "dual5g: original modem file backed up to /data/adb/s23tweaks/dual5g/stock and /sdcard/Download/s23tweaks-modem-backup"); add(0.4, "dual5g: msim_plmns is now 460-* 712-* 404-* 405-* 406-*"); add(0.3, "dual5g: restarting the modem so it reads the new setting (no signal for ~15 s)"); add(14, "dual5g: modem back up"); }
     if (has("india")) { add(0.5, "india: INS carrier config on (sales code stays XAC on disk)"); add(0.4, "india: device reported as SM-S918B / INS, country IN (Samsung Wallet India + 6 GHz hotspot)"); }
     else if (has("callrec")) add(0.5, "callrec: call recording on in XAC's carrier config (Phone app > Settings > Record calls)");
     if (fail) { add(0.4, "restarting the Android framework (screen goes black for ~30 s)"); add(2.0, "FAILED: something went wrong in the mock (framework did not come back)"); return out; }
@@ -1053,7 +1056,7 @@ function installMock() {
     return JSON.stringify({ version: "v1.1.0", module: true,
       phone: { model: "SM-S918W", firmware: "S918WVLU8GZIF", csc: "XAC", android: "17", kernel: "5.15.197-android13-8-34343818-abS918WVLU8GZIF", gms: 264531035, sim: new URLSearchParams(location.search).get("sim") || "40445" },
       picked: st.picked, autostart: st.autostart, applying: !!st.run,
-      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "needs firmware S918WVLU8GZIF (this phone runs S918WVLU7GZE1)"), tw("display"), tw("logvideo"), tw("vulkan"), tw("camerahdr"), tw("hdr2023"), tw("audioeraser"), tw("colortone"), tw("galaxyai"), tw("camextras"), tw("autoframe"), tw("settingssearch"), tw("bargein"), tw("tenbit"), tw("cam24fps"), tw("weather"), tw("callscreen", "needs the Language Core 4.0.01.24 APK (3.1 GB) in /data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk; see the README")] });
+      tweaks: [tw("airdrop"), tw("battery"), tw("features"), tw("callrec"), tw("india"), tw("hotspot6g"), tw("wifi7", w7 ? "" : "needs firmware S918WVLU8GZIF (this phone runs S918WVLU7GZE1)"), tw("display"), tw("logvideo"), tw("vulkan"), tw("camerahdr"), tw("hdr2023"), tw("audioeraser"), tw("colortone"), tw("galaxyai"), tw("camextras"), tw("autoframe"), tw("settingssearch"), tw("bargein"), tw("tenbit"), tw("cam24fps"), tw("weather"), tw("callscreen", "needs the Language Core 4.0.01.24 APK (3.1 GB) in /data/adb/s23tweaks/dl/languagecore-4.0.01.24.apk; see the README"), tw("dual5g")] });
   }
   function handle(cmd) {
     tick();
