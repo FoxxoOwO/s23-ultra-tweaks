@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.7.0 (unreleased)
+## v1.7.0
 
 - `vulkan`'s description now says it can make some lock screen animations stutter more, such as Samsung's stretchable clocks between AOD and the lock screen (issue #27: turning it off brought that back to stock).
 - **Fix: an apply stopping at "keep /system/etc/floating_feature.xml"** (issue #26). Before an overlay goes on a `/system` folder, the apply parks the mounts already inside it and puts them back on top. On a phone that had been applying several module versions in one boot, the module's own old `floating_feature.xml` bind could no longer be parked, and every apply failed there until a reboot. Our own two edited files (`floating_feature.xml`, `camera-feature.xml`) are rebuilt from stock later in the same apply anyway, so one that can't be parked is now unmounted and the apply carries on. Any other mount still stops it, and the error now includes `mount`'s own message.
