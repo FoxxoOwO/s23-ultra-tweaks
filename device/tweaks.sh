@@ -618,6 +618,67 @@ loglut_bind() {
   log "logvideo: S24 LUTs for Gallery's Log color correction (Edit > LUT)"
 }
 
+# Samsung's low-light video pipeline (Video4kEisVIULL / VideoPreviewVIULL, active at <= 30 fps)
+# has no Log10 tuning on the S23's CamX HAL: in dark scenes it spams IPE metadata errors and crushes
+# the black floor to #000000 instead of keeping Samsung Log's lifted shadows (unlike 48/50/60/120 fps
+# and 8K, which use standard Video4kEIS). Patch IsVIULLEnabled() in com.qti.chi.override.so via a
+# cave at the end of the code segment: when recordingDrMode ([x0, #0xe6ac]) == 5 (Log), return 0
+# before the cache/FPS checks; otherwise run the displaced instruction and continue normally so
+# SDR/HDR10+ video keeps stock VIULL. Found by instructions, not fixed offsets.
+LV_LIB=/vendor/lib64/hw/com.qti.chi.override.so
+LV_CAVE="529cd588 b8686808 7100151f 54000081 52800000 d50323bf d65f03c0 d104c3ff"
+lv_unbind() { while bound $LV_LIB; do umount $LV_LIB || return 1; done; }
+lv_bind() { lv_unbind && mount -o bind,ro $V/logvideo_chi.so $LV_LIB; }
+lv_find() {
+  od -An -v -tx4 -w4 "$1" | awk '
+    $1 == "7100603f" && w[5] == "528ca689" && w[12] == "910343fd" && w[13] == "a90d7bfd" && w[14] == "d104c3ff" && w[15] == "d503233f" {
+      printf "0x%x\n", (NR - 16) * 4
+    }
+    { for (i = 15; i > 1; i--) w[i] = w[i-1]; w[1] = $1 }'
+}
+lv_patch() {
+  F=$1; O=$2; m=$(lv_find $F)
+  [ "$(echo "$m" | grep -c '^0x')" = 1 ] || { echo "its CHI override code differs (IsVIULLEnabled found $(echo "$m" | grep -c '^0x') times)"; return 1; }
+  FN=$((m))
+  ph=$((0x$(tb_rd $F 0x20 8))); n=$((0x$(tb_rd $F 0x38 2))); sz=$((0x$(tb_rd $F 0x36 2))); X=""
+  while [ $n -gt 0 ]; do
+    if [ $((0x$(tb_rd $F $ph 4))) = 1 ] && [ $((0x$(tb_rd $F $((ph + 4)) 4) & 1)) = 1 ]; then
+      X=$((0x$(tb_rd $F $((ph + 8)) 8))); XE=$((X + 0x$(tb_rd $F $((ph + 0x20)) 8))); break; fi
+    ph=$((ph + sz)); n=$((n - 1))
+  done
+  [ -n "$X" ] || { echo "no code segment found"; return 1; }
+  [ $FN -ge $X ] && [ $((FN + 4)) -lt $XE ] || { echo "IsVIULLEnabled falls outside the code segment"; return 1; }
+  K=$(((XE + 3) & ~3)); KE=$((K + 36))
+  [ $KE -le $(((XE + 4095) & ~4095)) ] && [ "$(od -An -v -tx1 -j $K -N 36 $F | tr -s ' ' '\n' | grep -c '^00$')" = 36 ] ||
+    { echo "no free room at the end of its code"; return 1; }
+  cp $F $O || { echo "no room for a copy"; return 1; }
+  tb_wr $O $((FN + 4)) $(tb_b $((FN + 4)) $K)   # sub sp, sp, #0x130 -> b cave (keeps paciasp at FN)
+  o=$K; for x in $LV_CAVE; do tb_wr $O $o 0x$x; o=$((o + 4)); done
+  tb_wr $O $o $(tb_b $o $((FN + 8)))           # back to stp x29, x30, [sp, #0xd0]
+  printf 'IsVIULLEnabled 0x%x, cave 0x%x' $FN $K
+}
+logviull_apply() {
+  [ -f $LV_LIB ] || { log "logvideo: $LV_LIB missing; VIULL Log fix skipped"; return 1; }
+  if bound $LV_LIB; then
+    [ "$(md5 $LV_LIB)" = "$(md5 $V/logvideo_chi.so)" ] && { log "logvideo: low-light Log fix (VIULL bypass) already on"; return 0; }
+    log "logvideo: something else is bound over $LV_LIB; VIULL Log fix skipped"; return 1
+  fi
+  s=$(md5 $LV_LIB)
+  if [ "$(cat $V/logvideo_chi.src 2>/dev/null)" != "$s" ] || [ ! -f $V/logvideo_chi.so ]; then
+    rm -f $V/logvideo_chi.so $V/logvideo_chi.src
+    r=$(lv_patch $LV_LIB $V/logvideo_chi.tmp) || { rm -f $V/logvideo_chi.tmp; log "logvideo: $r; VIULL Log fix skipped"; return 1; }
+    mv $V/logvideo_chi.tmp $V/logvideo_chi.so; echo $s > $V/logvideo_chi.src; log "logvideo: patched CHI override made ($r)"
+  fi
+  chown 0:0 $V/logvideo_chi.so; chmod 644 $V/logvideo_chi.so; chcon u:object_r:vendor_file:s0 $V/logvideo_chi.so
+  if tb_restart lv_bind && bound $LV_LIB; then
+    log "logvideo: low-light Log fix on (VIULL bypassed when recordingDrMode=5)"
+  else
+    tb_restart lv_unbind
+    log "logvideo: with the CHI patch the camera driver didn't stay up; stock driver back"
+    return 1
+  fi
+}
+
 # Director's view (front and back camera at once; the S23 had it in 2023). One UI 9 still ships the
 # mode but hides it: modes marked enable="false" show only when the camera's own settings hold
 # <mode>=1. A camera app setting, kept in its data folder (a reboot doesn't undo it; Camera > More >
@@ -2094,6 +2155,8 @@ $CF_PROFPS"
   has afcontrol && { ff_set CAMERA_SUPPORT_AFSPEED TRUE; ff_set CAMERA_SUPPORT_AFSENSITIVITY TRUE; }
   has aelimit && ff_set CAMERA_SUPPORT_AUTO_EXPOSURE_LIMIT TRUE
   has slowmoaf && ff_set CAMERA_SUPPORT_AF_DURING_SLOWMOTION_RECORDING TRUE
+  if has logvideo; then logviull_apply   # restarts only the camera driver
+  elif bound $LV_LIB; then tb_restart lv_unbind && log "logvideo: not picked; stock VIULL back"; fi
   has tenbit && tenbit_apply   # restarts only the camera driver
   if has camextras; then hlock_apply   # restarts only the camera driver
   elif bound $HL_LIB || bound $HA_LIB || bound $HL2_LIB || bound $HA2_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
@@ -2189,7 +2252,7 @@ status)
   echo "battery:  auth IC $(mounted /sys/class/power_supply tmpfs && echo presented || { [ -e /sys/class/power_supply/sec_auth ] && echo "real (presence $(cat /sys/class/power_supply/sec_auth/presence 2>/dev/null), auth $(cat /sys/class/power_supply/sec_auth/batt_auth 2>/dev/null))" || echo off; }),"\
        "flags [$(grep -oE '<SEC_FLOATING_FEATURE_(BATTERY_SUPPORT_BSOH_SETTINGS|SETTINGS_ENABLE_EU_BATTERY_REGULATORY)>[A-Z]*' $FF | sed 's/<SEC_FLOATING_FEATURE_//; s/>/=/' | tr '\n' ' ')]"
   echo "display:  $(bound $FF && grep -q '<SEC_FLOATING_FEATURE_LCD_CONFIG_AOD_FULLSCREEN>1<' $FF && echo on || echo off), AOD brightness curve $(aodb_on && echo on || { [ -f $AODB ] && echo "added, waiting for a framework restart" || echo off; })"
-  echo "logvideo: $(is_on logvideo && echo on || echo off), Gallery LUTs $(bound $LV && echo on || echo off)"
+  echo "logvideo: $(is_on logvideo && echo on || echo off), Gallery LUTs $(bound $LV && echo on || echo off), low-light Log fix $(bound $LV_LIB && echo on || echo off)"
   echo "camextras: horizon lock $(is_on camextras && echo on || echo off), levelling $(bound $HL_LIB && echo "on ($(hl_desc))" || echo off), Director's view $(grep -q '<string name="directors_view_mode">1</string>' $CAM_PREFS 2>/dev/null && echo shown || echo hidden)"
   echo "autoframe: $(grep -o '<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>[^<]*' $FF | cut -d'>' -f2 | grep . || echo stock)"
   echo "bargein:  $(grep -q '<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<' $FF && echo on || echo off)"
