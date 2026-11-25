@@ -1,6 +1,7 @@
 /* pbflag: insert or overwrite a boolean flag in a Google Play services phenotype snapshot (.pb),
  * keeping the snapshot's field order. Flag entries are field 5; an existing entry is replaced in
- * place, a new one goes before the first entry with a larger numeric name.
+ * place, a new numeric one goes before the first entry with a larger numeric name, and a new
+ * string one goes before the first string entry that sorts after it (or at EOF).
  * Usage: pbflag <in.pb> <out.pb> <flag-name> <0|1>
  * Port of the Python tool used during development; same byte output. */
 #include <stdio.h>
@@ -44,9 +45,10 @@ int main(int argc, char **argv) {
 	FILE *f = fopen(argv[1], "rb"); if (!f) { perror(argv[1]); return 1; }
 	fseek(f, 0, SEEK_END); len = ftell(f); fseek(f, 0, SEEK_SET);
 	buf = malloc(len + 1); if (fread(buf, 1, len, f) != len) { perror("read"); return 1; } fclose(f);
-	const char *flag = argv[3]; unsigned long long val = strtoull(argv[4], 0, 10), want = strtoull(flag, 0, 10);
+	const char *flag = argv[3]; unsigned long long val = strtoull(argv[4], 0, 10);
+	int num = isnum(flag); unsigned long long want = num ? strtoull(flag, 0, 10) : 0;
 	unsigned char entry[256], newf[300]; size_t nl = strlen(flag), el = 0, nfl = 0;
-	if (nl > 200 || !isnum(flag)) { fprintf(stderr, "flag must be numeric\n"); return 2; }
+	if (nl == 0 || nl > 200) { fprintf(stderr, "invalid flag name\n"); return 2; }
 	entry[el++] = 0x0a; el += ev(nl, entry + el); memcpy(entry + el, flag, nl); el += nl;
 	entry[el++] = 0x18; el += ev(val, entry + el);
 	newf[nfl++] = 0x2a; nfl += ev(el, newf + nfl); memcpy(newf + nfl, entry, el); nfl += el;
@@ -74,11 +76,11 @@ int main(int argc, char **argv) {
 		if (i > len) goto bad;
 		if (fn == 5 && !done && entry_name(st, i, name, sizeof name) == 0) {
 			if (!strcmp(name, flag)) { fwrite(newf, 1, nfl, o); outlen += nfl; done = 1; continue; }
-			if (!exists && isnum(name) && strtoull(name, 0, 10) > want) { fwrite(newf, 1, nfl, o); outlen += nfl; done = 1; }
+			if (!exists && (num ? (isnum(name) && strtoull(name, 0, 10) > want) : (!isnum(name) && strcmp(name, flag) > 0))) { fwrite(newf, 1, nfl, o); outlen += nfl; done = 1; }
 		}
 		fwrite(buf + st, 1, i - st, o); outlen += i - st;
 	}
-	if (!done) { fprintf(stderr, "no place to insert %s\n", flag); fclose(o); remove(argv[2]); return 1; }
+	if (!done) { fwrite(newf, 1, nfl, o); outlen += nfl; }
 	fclose(o); printf("ok %zu -> %zu\n", len, outlen); return 0;
 bad:
 	fprintf(stderr, "snapshot parse error at %zu\n", i); fclose(o); remove(argv[2]); return 1;

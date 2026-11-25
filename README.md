@@ -75,7 +75,7 @@ photo for each kind of weather (its model is built only for newer NPUs; the weat
 different feature), Dual rec (can't open the S23's cameras), and two-lens or seamless-zoom
 Portrait video (they crash the camera).
 
-**Apart from `dual5g`, nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: two Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), Samsung Language Core, which `callscreen` installs as an app update, and the AI Core stub app that `weather` installs (see [Undo](#undo)). `dual5g` edits one policy file inside the modem, which the modem keeps on its own storage; see [Dual SIM 5G](#dual-sim-5g) for its backup and undo.
+**Apart from `dual5g`, nothing is written to any partition.** Every change is a kernel module load, an overlay, a bind mount or a runtime setting. The files behind them stay on storage in `/data/adb/s23tweaks`, so they use no RAM. A reboot puts the phone back to stock, and then the tweaks re-apply by themselves (see [After a reboot](#after-a-reboot)). The exceptions: the Google Play services flag overrides that `airdrop` adds, the camera setting that shows Director's view (`camextras`), Samsung Language Core, which `callscreen` installs as an app update, and the AI Core stub app that `weather` installs (see [Undo](#undo)). `dual5g` edits one policy file inside the modem, which the modem keeps on its own storage; see [Dual SIM 5G](#dual-sim-5g) for its backup and undo.
 
 **Different firmware?** Point your AI coding agent at [AGENTS.md](AGENTS.md) and it can build the kernel modules for your phone (see [Other firmware](#other-firmware-let-your-ai-agent-build-it)).
 
@@ -151,7 +151,7 @@ Samsung's S24-and-newer phones do AirDrop through Google's **Mosey** stack. The 
 4. **`bwfix.ko`**: when AirDrop starts, the S24 firmware asks for a PCIe Gen3 link. The S23's PCIe root port tops out at Gen2, so the request is refused, and the firmware crashes on the refusal. bwfix sets Gen2 and acknowledges.
 5. **`wonder.ko`**: Google's virtual Wi-Fi driver that Mosey drives, with small S23 patches (`src/wonder-patch`).
 6. **Mosey**: `MoseyApp.apk`, `mosey_server` and `libmosey_daemon_ffi.so` from the S24 Ultra system image, added to `/system_ext` in an overlay. `moseyrun` starts the daemon as uid `system` with only `NET_ADMIN`/`NET_RAW`, the same way the S24's init script does.
-7. **Play services**: two Nearby flags (`45704091`, `45723015`) that make Play services hand AirDrop to Mosey, set as local overrides.
+7. **Play services**: three Nearby flags (`45704091`, `45723015`, and `sharing_package_whitelist_check_bypass` for Play services 26.46+) that make Play services hand AirDrop to Mosey, set as local overrides.
 
 A watchdog script also runs. If the Wi-Fi firmware ever crashes, it saves the kernel log and reboots cleanly. Without it, the S24 driver's recovery leaves the phone to hard-reset about a minute later.
 
@@ -386,7 +386,7 @@ and both were on SA (and VoNR) at once.
 **Remove the module** (KernelSU → Modules → S23 Ultra Tweaks → Uninstall) and reboot. During that
 boot the module cleans up after itself once the phone is unlocked:
 
-- removes AirDrop's two Play services flag overrides;
+- removes AirDrop's Play services flag overrides;
 - uninstalls Samsung Language Core and its Call screening settings, if `callscreen` installed it;
 - uninstalls the AI Core stub, if `weather` installed it (unpicking `weather` also removes it);
 - puts the Camera app's Director's view setting back the way it was (`camextras`);
