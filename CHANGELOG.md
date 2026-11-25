@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.7.1
 
 - **Fix: `wideflash` did nothing on a camera that had been used before.** Samsung Camera reads `SUPPORT_FLASH_IN_WIDE_LENS` only as the default of its own setting, `flash_in_wide_lens` (the switch behind Camera Assistant's wide-flash option). A camera that has already been opened saves that setting as `0`, so the 0.6x lens kept the flash greyed out even with the feature switch on. The apply now turns the setting on once, after stopping the Camera and with the earlier value saved. Unpicking `wideflash` or running cleanup puts it back exactly as it was. After that first apply, a choice made in Camera Assistant is kept. Seen on an S23 Ultra (S918W) where the Camera had been used: the flash is greyed out at 0.6x on v1.7.0 and works after this fix.
 
