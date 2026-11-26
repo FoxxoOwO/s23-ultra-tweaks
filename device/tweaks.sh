@@ -367,16 +367,22 @@ wifi7_reload() {   # the AirDrop driver was already loaded before the config was
   wonder_load
 }
 wifi7_check() {
-  # If Wi-Fi can't run with the S24 supplicant, go back to the S23's and carry on without MLO
-  wait_for 60 wlan_up; wait_for 90 connected
+  # If Wi-Fi can't run with the S24 supplicant, go back to the S23's and carry on without MLO.
+  # Wi-Fi switched off before the apply: turn it on only for the check (no need to wait for a
+  # network then), and off again afterwards.
+  was_off=${WIFI_WAS_OFF:-0}
+  wifi_off && cmd wifi set-wifi-enabled enabled
+  wait_for 60 wlan_up; [ $was_off = 1 ] || wait_for 90 connected
   if [ "$(getprop init.svc.wpa_supplicant)" = running ] && cmd wifi status | grep -q "Wifi is enabled" &&
      [ "$(md5 /proc/$(pidof wpa_supplicant)/exe)" = "$(md5 $AIR/wifi7/wpa_supplicant)" ]; then
     log "wifi7: Wi-Fi running with the S24 supplicant ($(cmd wifi status | grep -oE 'Wi-Fi standard: [^,]*' | head -1))"
   else
     log "wifi7: warning: Wi-Fi didn't come up with the S24 supplicant; switching back to the S23 one (no MLO)"
     cmd wifi set-wifi-enabled disabled; wait_for 15 wifi_off; wait_for 20 sup_stopped; wifi7_unbind_sup
-    cmd wifi set-wifi-enabled enabled; wait_for 60 wlan_up
+    [ $was_off = 1 ] || { cmd wifi set-wifi-enabled enabled; wait_for 60 wlan_up; }
   fi
+  [ $was_off = 1 ] && { cmd wifi set-wifi-enabled disabled; log "wifi7: Wi-Fi was off before the apply, so it's off again"; }
+  return 0
 }
 connected() { cmd wifi status | grep -q "Supplicant state: COMPLETED"; }
 
@@ -2238,6 +2244,7 @@ apply)
   done
   payload_fetch   # before the AirDrop driver swap takes Wi-Fi down
   if has airdrop; then
+    wifi_off && WIFI_WAS_OFF=1   # before the driver swap turns it on; wifi7_check turns it back off
     has wifi7 && wifi7_bind   # before the driver loads, so it reads the MLO settings
     airdrop_kernel
     if has wifi7 && [ "${W7_OFF:-0}" = 0 ]; then [ "${AK_LOADED:-0}" = 1 ] && [ "${W7_INI_NEW:-0}" = 1 ] && wifi7_reload; wifi7_check; fi

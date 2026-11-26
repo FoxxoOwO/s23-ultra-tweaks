@@ -70,7 +70,7 @@ can_ksu=0; why_ksu="this phone's services.jar isn't one a patch was made from (S
 case " $HKS_MD5 " in *" ${jar_md5:-none} "*) can_ksu=1; why_ksu="" ;; esac
 # an Indian SIM (MCC 404/405) makes the carrier picks take the India config instead of plain call recording
 sim=$(sh_ getprop gsm.sim.operator.numeric | cut -d, -f1); sim_india=0; carrier_skip=india
-case "$sim" in 404*|405*) sim_india=1; carrier_skip=callrec ;; esac
+case "$sim" in 404*|405*|406*) sim_india=1; carrier_skip=callrec ;; esac
 
 # Language Core for callscreen: a 3.1 GB download, so the phone needs about 7 GB free while it installs
 can_lc=1; why_lc=""
