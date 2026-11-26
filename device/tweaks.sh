@@ -11,6 +11,8 @@
 #   probe             one line of JSON: phone, which tweaks it can take and why not, what's active
 #   status            print what is active
 #   report            write a bug report (phone, tweaks, logs, crash summaries; no personal data) to Download
+#   airdrop-test [S]  record S seconds (default 90) of AirDrop logs while the user tries a share, say which
+#                     stage it reached, and save the log (personal data masked) to Download
 #   unflag            remove the Play services flag overrides that the airdrop tweak adds
 #   autostart on|off  re-apply the saved tweaks at every boot. DFRoot roots the phone by itself at
 #                     boot, then KernelSU runs the module's service.sh (module) or a script in
@@ -180,6 +182,16 @@ md5() { md5sum "$1" 2>/dev/null | cut -d' ' -f1; }
 # started from an app, such as a module page, can keep that filter: dmesg dies with SIGSYS and prints
 # nothing); /dev/kmsg is read with plain read() calls
 klog() { ( dmesg ) 2>/dev/null || timeout 1 cat /dev/kmsg 2>/dev/null | sed 's/^[^;]*;//'; }
+# masks email, MAC addresses, IMEI-length numbers and quoted names (device and contact names in share logs)
+scrub() {
+  sed -E -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g' \
+    -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<mac>/g' -e 's/(^|[^0-9])[0-9]{14,17}([^0-9]|$)/\1<number>\2/g' |
+    if [ -n "$sn" ]; then sed "s/$sn/<serial>/g"; else cat; fi
+}
+AD_SUM=$V/airdrop-test.summary   # the last airdrop-test's verdict, shown in the report
+# what logcat holds: a busy phone fills the main buffer in minutes, so a missing line may just be old
+log_span() { f=$(logcat -d -b main -v epoch 2>/dev/null | awk 'NF > 2 && $1 ~ /^[0-9]+\./ { print int($1); exit }')
+  [ -n "$f" ] && echo "$((($(date +%s) - f) / 60)) min" || echo "unknown"; }
 # The apply lock is a directory holding the owner's pid. A lock whose owner is gone (killed apply)
 # counts as free, so a crash can't block every later apply until the next reboot.
 lock_alive() { lp=$(cat $APPLY_LOCK/pid 2>/dev/null); [ -n "$lp" ] && kill -0 "$lp" 2>/dev/null; }
@@ -2362,6 +2374,70 @@ cleanup)
   case "$0" in /dev/*) rm -f "$0" ;; esac
   exit 0
   ;;
+airdrop-test)
+  # Record one AirDrop attempt: logcat from now on (the buffers alone cover only minutes on a busy phone)
+  # and the kernel log, for $2 seconds while the user shares. Then say which stage it reached: Quick Share
+  # used, Mosey started and logging, the Wi-Fi driver's AirDrop link active. The filtered log goes to
+  # Download with personal data masked; the verdict also goes in the next report.
+  [ "$(id -u)" = 0 ] || { echo "needs root" >&2; exit 1; }
+  to_root_cgroup   # the user leaves the module page to share: don't get frozen with the manager app
+  secs=${2:-90}; case $secs in ''|*[!0-9]*) secs=90 ;; esac; [ $secs -gt 600 ] && secs=600
+  mkdir -p $R /sdcard/Download; sn=$(getprop ro.serialno)
+  out=/sdcard/Download/s23-ultra-tweaks-airdrop-$(date +%Y%m%d-%H%M%S).txt; raw=$R/airdrop-test.log; kr=$R/airdrop-test.kmsg
+  snap() {
+    echo "  Mosey app $(pidof com.google.android.mosey >/dev/null && echo running || echo "not running"), mosey_server $(pidof mosey_server >/dev/null && echo running || echo "not running")," \
+      "Mosey service $(service check com.google.android.moseyservice.IMoseyService/default | grep -q ': found' && echo registered || echo "not registered")"
+    echo "  Wi-Fi: $(cmd wifi status 2>/dev/null | grep -m1 -oE 'Wifi is (enabled|disabled)'), $(cmd wifi status 2>/dev/null | grep -m1 -oE 'Supplicant state: [A-Z_]+')," \
+      "hotspot $(cmd wifi status 2>/dev/null | grep -qiE 'SoftApManager|ROLE_SOFTAP' && echo on || echo off)," \
+      "Bluetooth $([ "$(settings get global bluetooth_on)" = 1 ] && echo on || echo off)," \
+      "AirDrop modules [$(grep -oE '^(wonder|bwfix) ' /proc/modules | tr -d '\n')]"
+    echo "  network interfaces: $(ip -o link 2>/dev/null | awk -F': ' '{ sub(/@.*/, "", $2); print $2 }' | grep -vE '^(lo|dummy|ifb|tunl|gre|erspan|ip_vti|ip6|sit|rmnet|epdg)' | tr '\n' ' ')"
+  }
+  # the kernel log's last record number now: lines after it are the test's (its clock stops in deep sleep,
+  # so a time cut-off against /proc/uptime would drop them)
+  k0=$(timeout 1 cat /dev/kmsg 2>/dev/null | tail -n 1 | cut -d, -f2); k0=${k0:-0}
+  before=$(snap); ap0=$(pidof com.google.android.mosey)
+  logcat -b main,system,events,crash -v threadtime -T "$(date '+%m-%d %H:%M:%S').000" > $raw 2>/dev/null & lp=$!
+  echo "recording for $secs s: share a photo with Quick Share > Share with Apple devices now"
+  sleep $secs; kill $lp 2>/dev/null; wait $lp 2>/dev/null
+  after=$(snap)
+  # the test's kernel lines (/dev/kmsg works where dmesg can't; each record is "level,number,microseconds,-;text")
+  timeout 1 cat /dev/kmsg 2>/dev/null | awk -v k0=$k0 '{ split($0, a, ","); if (a[2] + 0 > k0 + 0) { t = a[3] / 1000000; sub(/^[^;]*;/, ""); printf "[%10.3f] %s\n", t, $0 } }' > $kr
+  # the Mosey app's processes (it starts only when Quick Share hands it a share). mosey_server is a lazy
+  # service that the module's loop restarts every few seconds, so its start-up lines are left out of the counts
+  apids=" $ap0 $(pidof com.google.android.mosey) $(awk '/am_proc_start/ && /com\.google\.android\.mosey[],]/ { sub(/.*am_proc_start[^[]*\[[0-9]+,/, ""); sub(/,.*/, ""); print }' $raw | tr '\n' ' ') "
+  rel() { awk -v p="$apids" '{ if (index(p, " " $3 " ") || $0 ~ /[Mm]osey|[Aa]irdrop|AirDrop|[Aa]wdl|AWDL|NearbySharing|ShareLive|QuickShare|Wonder/) print }' $raw | grep -v '	at '; }
+  idle='AidlLazyServiceRegistrar|reset mosey network resources|Interface is gone, nothing to shutdown|Registering service com\.google\.android\.moseyservice'
+  # Quick Share: its screens opening (activity events), and its log lines (it also logs in the background)
+  nui=$(grep -E 'wm_on_(create|resume)_called|wm_(create|restart|resume)_activity|am_focused' $raw | grep -c sharelive)
+  nsl=$(grep -cE 'ShareLive|QuickShare' $raw)
+  napp=$(awk -v p="$apids" 'index(p, " " $3 " ") || $6 ~ /^Mosey/' $raw | grep -c .)
+  nsrv=$(grep -E ' (mosey_server|mosey_daemon)' $raw | grep -cvE "$idle")
+  nmo=$((napp + nsrv))
+  nst=$(grep -cE 'am_proc_start.*com\.google\.android\.mosey[],]' $raw)
+  nk=$(grep -ciE 'wonder|awdl|llw' $kr)
+  nohand="the share never reached the AirDrop side (Share with Apple devices not shown or not tapped, or Play services didn't hand the share to Mosey)"
+  if [ $nmo -gt 0 ]; then
+    if [ $nk -gt 0 ]; then v="Mosey ran and the Wi-Fi driver logged AirDrop link activity: the log shows how far it got"
+    else v="Mosey ran; the kernel log has no AirDrop link lines: the log shows how far Mosey got"; fi
+  elif [ $nui -gt 0 ]; then v="Quick Share opened, but Mosey logged nothing: $nohand"
+  elif [ $nsl -gt 0 ]; then v="Mosey logged nothing. Quick Share logged $nsl lines but no screen of it opened; if you did share, $nohand"
+  else v="Neither Quick Share nor Mosey logged anything: start the test, then share within $secs s"; fi
+  { echo "$(date '+%Y-%m-%d %H:%M'), $secs s: $v"
+    echo "  Quick Share screens opened $nui, Quick Share lines $nsl, Mosey app lines $napp, mosey_server lines $nsrv (its idle restarts not counted), Mosey app starts $nst, AirDrop link kernel lines $nk"
+    echo "  before:"; echo "$before" | sed 's/^/  /'; echo "  after:"; echo "$after" | sed 's/^/  /'
+    echo "  log: $out"; } | scrub > $AD_SUM
+  { echo "s23-ultra-tweaks AirDrop test, $(date '+%Y-%m-%d %H:%M:%S %z'), module $(mod_ver), $(getprop ro.product.model) $(getprop ro.build.PDA)"
+    echo; cat $AD_SUM
+    echo; echo "===== Mosey, Quick Share and Nearby lines (all levels, names in quotes masked) ====="
+    rel | sed -E "s/\"[^\"]*\"/<name>/g; s/'[^']*'/<name>/g" | tail -n 4000 | cut -c1-400
+    echo; echo "===== kernel log during the test ====="
+    grep -vE 'Runtime (suspend|resume)|PCI link|MHI state' $kr | tail -n 1500 | cut -c1-300
+  } 2>&1 | scrub > $out
+  rm -f $raw $kr
+  cat $AD_SUM
+  echo "$out"
+  ;;
 report)
   # One text file for bug reports: phone and firmware, what each tweak found, the stock values and files
   # it depends on, the last logs and recent crash summaries. Leaves out the serial number, email
@@ -2403,6 +2479,9 @@ report)
     echo "kernel log (Wi-Fi driver, AirDrop modules, PCIe), last 25:"
     klog | grep -iE 'wonder|bwfix|mhifix|s23tweaks|kiwi_v2.*(error|fail|assert|crash)|cnss.*(fail|error|crash|assert|ssr|recover)|wlan.*firmware' |
       grep -vE 'Runtime (suspend|resume)|PCI link|MHI state' | tail -n 25 | sed 's/^/  /' | cut -c1-200
+    echo "Mosey app: $(pidof com.google.android.mosey >/dev/null && echo running || echo "not running (it starts when Quick Share hands it a share)"); the logs below cover the last $(log_span), so an older start or share isn't in them"
+    if [ -f $AD_SUM ]; then echo "last AirDrop test (tweaks.sh airdrop-test):"; sed 's/^/  /' $AD_SUM
+    else echo "no AirDrop test recorded yet: Status > Record an AirDrop test, then try a share while it records"; fi
     echo "Mosey / Quick Share warnings and errors, last 30 (names in quotes masked):"
     logcat -d -v brief 2>/dev/null | grep -E '^[EW]/[^(]*(Mosey|mosey|AirDrop|Awdl|NearbySharing|ShareLive|Wonder)' | grep -v '	at ' |
       sed -E "s/\"[^\"]*\"/<name>/g; s/'[^']*'/<name>/g" | tail -n 30 | sed 's/^/  /' | cut -c1-220
@@ -2436,9 +2515,7 @@ report)
       want && /AndroidRuntime: [A-Za-z0-9_.$]+(Exception|Error)/ { e = $0; sub(/.*AndroidRuntime: /, "", e); k = p " | " substr(e, 1, 160)
         n[k]++; last[k] = t; if (!(k in seen)) { seen[k] = 1; o[++m] = k }; want = 0 }
       END { for (i = m; i >= 1; i--) printf "%dx  %s | %s\n", n[o[i]], last[o[i]], o[i] }' | head -n 20
-  } 2>&1 | sed -E -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g' \
-      -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<mac>/g' -e 's/(^|[^0-9])[0-9]{14,17}([^0-9]|$)/\1<number>\2/g' |
-    if [ -n "$sn" ]; then sed "s/$sn/<serial>/g"; else cat; fi > $out
+  } 2>&1 | scrub > $out
   echo "$out"
   ;;
 dual5g-restore)
