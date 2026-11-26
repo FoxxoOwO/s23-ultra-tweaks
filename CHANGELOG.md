@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **AirDrop test and report: spot Play services not loading Mosey** (issues #22, #39). A working share starts with Play services' Nearby loading Mosey as a share target (`Starting external provider registry`, `Bound to provider …mosey…ExternalSharingService`). In both failing reports that never happened, although the apply had logged "3 of 3 overrides present": that count comes from Play services' database right after the module writes it, not from what Play services uses later. A fresh apply fixed it on #39. The AirDrop test now counts those lines and, when Quick Share opened but Play services never loaded Mosey, says to apply again. The test and the report also show how many of the three Nearby flags are in Play services' live Nearby config.
+
 ## v1.8.7
 
 - **Fix: `wifi7` gave up after an earlier fallback in the same boot** (issue #33). When an apply had switched back to the S23 supplicant, the next one bound the S24 supplicant again but nothing restarted it (the driver already had the MLO settings, so it wasn't reloaded), and the check saw the old supplicant still running. The check now restarts Wi-Fi once when the running supplicant isn't the S24 one.
