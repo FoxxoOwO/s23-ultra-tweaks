@@ -50,7 +50,7 @@ V=${S23T_STATE:-/data/adb/s23tweaks}         # state: choices, logs, backups, au
 mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
-STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu profps"
+STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone highlights tenbit galaxyai settingssearch hideksu profps"
 TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai highlights camextras autoframe settingssearch bargein callscreen tenbit hideksu weather wideflash prowbtint zoomrocker videosoftening afcontrol aelimit slowmoaf extstorage anamorphic profps dual5g nronly natroam rambler"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
@@ -121,7 +121,8 @@ SETTINGS_EAD="S918WVLU8GZIF 5b8afa24f17e090d57380b8ebbd3dcee f499f2e574a47eca041
 S918BXXUAGZIF 5b20b1a68f94d01bba5a776e15ffdc30 de6d142d238849198810dfe70fada8dd"
 ead_row() { echo "$SETTINGS_EAD" | awk -v b="$(getprop ro.build.PDA)" '$1 == b'; }
 ead_builds() { echo "$SETTINGS_EAD" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
-# Patch files hold "<byte offset> <octal value>" lines; they are CRLF here, so the loops strip .
+# Patch files hold "<byte offset> <octal value>" lines and are LF in the repo; a CRLF checkout
+# would hand read() a trailing CR, so the loops strip it.
 # highlights: the Notification highlights page (Settings > Notifications > Advanced settings) is hidden
 # while com.android.settings:bool/config_na_enable is false, which no S23 build allows. The patches flip
 # SecNotificationIntelligenceController.getAvailabilityStatus()'s early "const/4 p0, 3" to 0. The ead one
@@ -1213,7 +1214,8 @@ colortone_stage() {
 colortone_bind() {
   sm=$(md5sum $SETTINGS | cut -d' ' -f1)
   set -- $(ead_row); eb=$1; SETTINGS_STOCK_MD5=${2:-none}; SETTINGS_EAD_MD5=${3:-none}
-  if [ "$sm" = $SETTINGS_EAD_MD5 ]; then :   # already patched (an earlier apply this boot)
+  set -- $(nh_row); NHM=${3:-none}; NHE=${5:-none}   # highlights patches this same APK, on top of ours
+  if [ "$sm" = $SETTINGS_EAD_MD5 ] || [ "$sm" = $NHM ] || [ "$sm" = $NHE ]; then :   # an earlier apply this boot
   elif [ "$sm" != $SETTINGS_STOCK_MD5 ]; then
     log "colortone: Settings isn't the $(ead_builds) build, so the Adaptive color tone switch stays hidden"; return
   else
@@ -1239,7 +1241,7 @@ highlights_bind() {
   [ -z "$eb" ] && { log "highlights: Settings isn't the $(nh_builds) build, so its page stays hidden"; return; }
   P=$PL/highlights/SecSettings.apk
   case $sm in
-    $nhm|$nhe) : ;;   # patched by an earlier apply this boot
+    $nhm|$nhe) return 0 ;;   # bound by an earlier apply this boot
     $stock) pf=$D/files/SecSettings-nh-$eb.patch; want=$nhm ;;
     $ead) pf=$D/files/SecSettings-nh-ead-$eb.patch; want=$nhe ;;   # colortone is bound under us
     *) log "highlights: Settings isn't the $eb or colortone build, so its page stays hidden"; return ;;
@@ -1708,15 +1710,31 @@ natroam_off() {   # delete our override files; 0 if any was removed
 # idle, and need a Samsung account signed in. The model weights aren't on this phone though: Samsung
 # ships them as com.samsung.android.offline.language.model, whose version list covers sm8650 and
 # newer, not the S23's sm8550, so SIS answers pfd is null and no summary appears yet.
+NH_UNDO=$V/undo/noti_intelligence   # the three settings as they were before the first apply
 NH_KEYS="noti_intelligence_summarize_content noti_intelligence_priority_content noti_intelligence_priority_conversation"
 nh_on() { [ "$(settings get secure noti_intelligence_summarize_content)" = 1 ]; }
 nh_apply() {
+  if [ ! -f $NH_UNDO ]; then mkdir -p $V/undo; for k in $NH_KEYS; do echo "$k $(settings get secure $k)" >> $NH_UNDO; done; fi
   ff_set GENAI_CONFIG_LLM_VERSION 0.81
   ff_set COMMON_CONFIG_AI_VERSION 20263
   ff_set FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE TRUE
   for k in $NH_KEYS; do settings put secure $k 1; done
   nh_on || { log "highlights: couldn't write the notification intelligence settings"; return 1; }
   log "highlights: notification priority and summaries on"
+}
+nh_off() {   # 0 if anything we set was still there
+  c=1
+  if [ -f $NH_UNDO ]; then   # put back what was there before (wideflash's pattern)
+    while read k v; do
+      if [ "$v" = null ]; then settings delete secure $k; else settings put secure $k "$v"; fi
+    done < $NH_UNDO
+    rm -f $NH_UNDO; return 0
+  fi
+  for k in $NH_KEYS; do
+    [ "$(settings get secure $k)" = 1 ] || continue
+    settings delete secure $k && c=0
+  done
+  return $c
 }
 
 # rambler: Gboard's Rambler voice typing (Gemini dictation that drops filler words and takes spoken edits),
@@ -2165,7 +2183,7 @@ is_on() {
     camerahdr) grep -q 'mfhdr.arcsoft.v4' $FF 2>/dev/null && [ -f /system/lib64/liblow_light_hdr.arcsoft.so ] ;;
     audioeraser) [ -f /system/etc/fastScanner.tflite ] ;;
     hdr2023) bound /system/lib64/libae_bracket_hdr.arcsoft.so && bound /system/lib64/libhybrid_high_dynamic_range.arcsoft.so ;;
-    colortone) bound $SETTINGS ;;
+    colortone) sm=$(md5sum $SETTINGS | cut -d' ' -f1); set -- $(ead_row); [ "$sm" = "${3:-none}" ] || [ "$sm" = "$(nh_row | cut -d' ' -f5)" ] ;;
     tenbit) bound $TB_LIB && [ "$(md5 $TB_LIB)" = "$(md5 $V/tenbit.so)" ] ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
     highlights) nh_on && bound $FF && grep -q '<SEC_FLOATING_FEATURE_GENAI_CONFIG_LLM_VERSION>0\.[7-9][0-9]' $FF 2>/dev/null ;;
@@ -2273,7 +2291,8 @@ $CF_PROFPS"
   fi
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
-  has highlights && nh_apply
+  if has highlights; then nh_apply
+  elif [ -f $NH_UNDO ] || nh_on; then nh_off && log "highlights: not picked; the notification intelligence settings are back"; fi
   # Lock screen Weather effect: the editor's Weather button (weather_apply adds the AI Core stub)
   has weather && ff_set $WX_KEY "$(wx_style)"
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
