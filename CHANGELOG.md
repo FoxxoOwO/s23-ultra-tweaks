@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.7
 
 - **Fix: `wifi7` gave up after an earlier fallback in the same boot** (issue #33). When an apply had switched back to the S23 supplicant, the next one bound the S24 supplicant again but nothing restarted it (the driver already had the MLO settings, so it wasn't reloaded), and the check saw the old supplicant still running. The check now restarts Wi-Fi once when the running supplicant isn't the S24 one.
 
