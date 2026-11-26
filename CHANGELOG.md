@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.8
 
 - **AirDrop test and report: spot Play services not loading Mosey** (issues #22, #39). A working share starts with Play services' Nearby loading Mosey as a share target (`Starting external provider registry`, `Bound to provider …mosey…ExternalSharingService`). In both failing reports that never happened, although the apply had logged "3 of 3 overrides present": that count comes from Play services' database right after the module writes it, not from what Play services uses later. A fresh apply fixed it on #39. The AirDrop test now counts those lines and, when Quick Share opened but Play services never loaded Mosey, says to apply again. The test and the report also show how many of the three Nearby flags are in Play services' live Nearby config.
 
