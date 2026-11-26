@@ -75,7 +75,7 @@ case "$sim" in 404*|405*) sim_india=1; carrier_skip=callrec ;; esac
 # Language Core for callscreen: a 3.1 GB download, so the phone needs about 7 GB free while it installs
 can_lc=1; why_lc=""
 free_kb=$(sh_ "df -k /data | tail -n 1" | awk '{print $4}')
-lc_have=$(sh_ "dumpsys package com.samsung.android.offline.languagemodel 2>/dev/null | grep -m1 -oE 'versionCode=4[0-9]{8}'")
+lc_have=$(sh_ "dumpsys package com.samsung.android.offline.languagemodel 2>/dev/null | grep -m1 -oE 'versionCode=[4-9][0-9]{8}'")
 [ -z "$lc_have" ] && [ "${free_kb:-0}" -lt 7340032 ] && { can_lc=0; why_lc="needs about 7 GB free on the phone for its 3.1 GB download"; }
 
 # Tweaks, grouped in categories. A category letter picks every available tweak in it.
@@ -170,8 +170,9 @@ if [ -z "$picked" ]; then
     done
   done
   info "Pick whole categories by letter and single tweaks by number, e.g. \"A B 16\"."
-  if [ $sim_india = 1 ]; then info "Indian SIM: category F picks ${#ids[@]} (India config, includes call recording)."
-  else info "Category F picks call recording only; ${#ids[@]} (India config, for Indian SIMs) already includes it."; fi
+  ii=0; for i in "${!ids[@]}"; do [ "${ids[$i]}" = india ] && ii=$((i+1)); done
+  if [ $sim_india = 1 ]; then info "Indian SIM: category F takes India ($ii), which includes call recording."
+  else info "Category F takes call recording; $ii (India config, for Indian SIMs) includes it too."; fi
   r=$(ask "Letters/numbers separated by spaces, Enter for all available: ")
   add() { case " $picked " in *" $1 "*) ;; *) picked="$picked $1" ;; esac; }
   if [ -z "$r" ]; then
@@ -189,7 +190,7 @@ if [ -z "$picked" ]; then
     i=$((n-1)); [ "${avail[$i]}" = 1 ] || die "${ids[$i]} is unavailable on this phone: ${why[$i]}"
     add "${ids[$i]}"
   done
-  case " $picked " in *" india "*) picked=$(echo "$picked" | sed 's/ callrec//') ;; esac
+  case " $picked " in *" india "*) picked=$(echo "$picked" | sed 's/^callrec //; s/ callrec//') ;; esac   # india carries call recording
   case " $picked " in *" wifi7 "*) case " $picked " in *" airdrop "*) ;; *) info "wifi7 runs on the AirDrop Wi-Fi driver, so airdrop is added too."; picked="airdrop $picked" ;; esac ;; esac
   picked=$(echo $picked)
 fi
