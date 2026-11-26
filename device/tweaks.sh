@@ -2218,8 +2218,8 @@ apply)
   trap 'rm -rf $APPLY_LOCK' EXIT
   [ -e $REMOVED ] && { : > $L; fail "$REMOVED_MSG"; }
   picks=$(migrate_choices "$2")
-  [ "$picks" = "$2" ] || log "choices: cam24fps and slowmo4k120 are part of profps now; applying profps"
   TWEAKS=" $picks "; : > $L
+  [ "$picks" = "$2" ] || log "choices: cam24fps and slowmo4k120 are part of profps now; applying profps"
   log "applying:$TWEAKS"
   for x in $picks; do case " $TWEAK_IDS " in *" $x "*) ;; *) fail "unknown tweak: $x" ;; esac; done
   echo "$picks" > $V/choices
@@ -2425,7 +2425,7 @@ status)
   echo "colortone: Settings $(bound $SETTINGS && echo patched || echo stock), service $([ -f /system/priv-app/$EAD/$EAD.apk ] && echo on || echo off)"
   echo "galaxyai: $(for p in $GAI_APPS; do n=${p#*/}; printf '%s=%s ' $n "$(same_size /system/$p/$n.apk $PL/galaxyai/$n.apk && echo S24 || echo stock)"; done)C2PA=$(same_size $C2PA $D/files/libC2paDps-shim.so && echo shim || echo stock)"
   echo "vulkan:   renderer $(getprop debug.hwui.renderer | grep . || echo default)"
-  echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; }); mounts $(hidemnt_running && { n=$(hidemnt_count); [ "$n" -gt 0 ] 2>/dev/null && echo "hidden from user-installed apps ($n override(s))" || echo "hidden from user-installed apps"; } || { has hideksu && echo "visible to apps (the hiding daemon isn't running; apply again to restart it)" || echo "visible to apps"; })"
+  echo "hideksu:  $(hideksu_on && echo "on (KernelSU manager hidden from apps)" || { bound $KSUJAR && echo "bound, waiting for a framework restart" || echo off; }); mounts $(hidemnt_running && { n=$(hidemnt_count); [ "$n" -gt 0 ] 2>/dev/null && echo "hidden from user-installed apps ($n override(s))" || echo "hidden from user-installed apps"; } || { grep -qw hideksu $V/choices 2>/dev/null && echo "visible to apps (the hiding daemon isn't running; apply again to restart it)" || echo "visible to apps"; })"
   echo "wifi7:    wpa_supplicant $(bound $WPAS && echo S24 || echo stock), driver MLO settings $(bound $INI && echo on || echo off)"
   echo "6ghz ap:  $(h6_offered && echo offered || echo "not offered") (CSC country $(getprop ro.csc.countryiso_code), override $(getprop $H6_PROP | grep . || echo unset))"
   echo "csc:      $SC $(bound $CSCF && { grep -q '<SalesCode>INS<' $CSCF && echo "with the INS config" || echo "with call recording"; } || echo stock) ($CSYS)"
