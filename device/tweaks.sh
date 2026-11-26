@@ -374,6 +374,14 @@ wifi7_check() {
   was_off=${WIFI_WAS_OFF:-0}
   wifi_off && cmd wifi set-wifi-enabled enabled
   wait_for 60 wlan_up; [ $was_off = 1 ] || wait_for 90 connected
+  # The S24 supplicant only runs once the supplicant restarts. A driver reload does that, but when the
+  # driver already has the MLO settings (an earlier apply this boot fell back to the S23 supplicant and
+  # kept them) nothing restarts it, so cycle Wi-Fi once before deciding it failed.
+  if bound $WPAS && [ "$(md5 /proc/$(pidof wpa_supplicant)/exe 2>/dev/null)" != "$(md5 $AIR/wifi7/wpa_supplicant)" ]; then
+    log "wifi7: restarting Wi-Fi so the S24 supplicant takes over (Wi-Fi drops for a few seconds)"
+    cmd wifi set-wifi-enabled disabled; wait_for 15 wifi_off; wait_for 20 sup_stopped
+    cmd wifi set-wifi-enabled enabled; wait_for 60 wlan_up; [ $was_off = 1 ] || wait_for 90 connected
+  fi
   if [ "$(getprop init.svc.wpa_supplicant)" = running ] && cmd wifi status | grep -q "Wifi is enabled" &&
      [ "$(md5 /proc/$(pidof wpa_supplicant)/exe)" = "$(md5 $AIR/wifi7/wpa_supplicant)" ]; then
     log "wifi7: Wi-Fi running with the S24 supplicant ($(cmd wifi status | grep -oE 'Wi-Fi standard: [^,]*' | head -1))"
