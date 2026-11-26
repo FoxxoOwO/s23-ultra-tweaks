@@ -2527,14 +2527,16 @@ airdrop-test)
   nsl=$(grep -cE 'ShareLive|QuickShare' $raw)
   napp=$(awk -v p="$apids" 'index(p, " " $3 " ") || $6 ~ /^Mosey/' $raw | grep -c .)
   nsrv=$(grep -E ' (mosey_server|mosey_daemon)' $raw | grep -cvE "$idle")
-  nmo=$((napp + nsrv))
+  nmo=$((napp + nst))   # the app is what runs a share; mosey_server alone logs housekeeping too
   nst=$(grep -cE 'am_proc_start.*com\.google\.android\.mosey[],]' $raw)
   nk=$(grep -ciE 'wonder|awdl|llw' $kr)
   nohand="the share never reached the AirDrop side (Share with Apple devices not shown or not tapped, or Play services didn't hand the share to Mosey)"
   if [ $nmo -gt 0 ]; then
     if [ $nk -gt 0 ]; then v="Mosey ran and the Wi-Fi driver logged AirDrop link activity: the log shows how far it got"
     else v="Mosey ran; the kernel log has no AirDrop link lines: the log shows how far Mosey got"; fi
-  elif [ $nui -gt 0 ]; then v="Quick Share opened, but Mosey logged nothing: $nohand"
+  elif [ $nui -gt 0 ]; then
+    if [ $nsrv -gt 0 ]; then v="Quick Share opened, but the Mosey app never started (only mosey_server logged, $nsrv lines): $nohand"
+    else v="Quick Share opened, but Mosey logged nothing: $nohand"; fi
   elif [ $nsl -gt 0 ]; then v="Mosey logged nothing. Quick Share logged $nsl lines but no screen of it opened; if you did share, $nohand"
   else v="Neither Quick Share nor Mosey logged anything: start the test, then share within $secs s"; fi
   { echo "$(date '+%Y-%m-%d %H:%M'), $secs s: $v"
