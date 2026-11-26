@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.2
 
 - **Fix: Log video crushing the blacks in dark scenes** (`logvideo`). At 24/25/30 fps (720p, 1080p and 4K), the S23's CamX HAL routes Log through its low-light `Video4kEisVIULL` / `VideoPreviewVIULL` pipeline, which has no Log10 tuning: in dark scenes it caps gain around ISO 1600 and clamps the black floor to `#000000`, losing Log's lifted shadows. 48/50/60/100/120 fps and 8K skip VIULL and were fine. The tweak now makes a patched copy of `/vendor/lib64/hw/com.qti.chi.override.so` where `IsVIULLEnabled()` returns 0 when `recordingDrMode` is 5 (Samsung Log), so those modes use the standard `Video4kEIS` path; SDR/HDR10+ video keeps stock VIULL. The function is found by its instruction pattern, not fixed offsets, and the patched copy is rebuilt when the stock library's MD5 changes. It is a bind mount, so a reboot restores stock. Tested on an S23 Ultra: Log at 24/25/30 fps keeps the lifted shadows in dark scenes.
 
