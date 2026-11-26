@@ -153,6 +153,11 @@ IN_SALES_PROPS="ro.csc.sales_code ro.boot.sales_code persist.audio.sales_code ri
 NEARBY_FLAGS="45704091 45723015 sharing_package_whitelist_check_bypass"   # Nearby Sharing: enableExternalProviders + provider-registry gate + GMS 26.46+ source-stamp bypass
 
 HIST=/dev/s23tweaks.history   # every apply's lines since boot (tweaks.log holds only the last apply)
+# Set by cleanup when the module is removed after an apply in this boot. The binds that apply made stay
+# until a reboot, but cleanup deleted the files behind them, so a reinstall would take its own binds for
+# someone else's and leave them on (a camera driver restart then found no driver). Applying waits for the reboot.
+REMOVED=/dev/s23tweaks_removed
+REMOVED_MSG="the module was removed earlier in this boot and that install's changes are still mounted; reboot, then apply"
 log() { m="$(cut -d' ' -f1 /proc/uptime) $*"; echo "$m" >> $L; echo "$m" >> $HIST 2>/dev/null; echo "s23tweaks: $*" > /dev/kmsg; sync; }
 fail() { log "FAILED: $*"; exit 1; }
 wait_for() { n=$1; shift; while [ $n -gt 0 ]; do "$@" && return 0; n=$((n-1)); sleep 1; done; return 1; }
@@ -2097,6 +2102,7 @@ apply)
   if [ "${S23T_LOCKED:-0}" = 1 ] && [ -d $APPLY_LOCK ]; then echo $$ > $APPLY_LOCK/pid   # handed over by start
   else take_lock || { echo "another apply is already running (see $L)" >&2; exit 3; }; fi
   trap 'rm -rf $APPLY_LOCK' EXIT
+  [ -e $REMOVED ] && { : > $L; fail "$REMOVED_MSG"; }
   picks=$(migrate_choices "$2")
   [ "$picks" = "$2" ] || log "choices: cam24fps and slowmo4k120 are part of profps now; applying profps"
   TWEAKS=" $picks "; : > $L
@@ -2172,10 +2178,16 @@ $CF_PROFPS"
   has aelimit && ff_set CAMERA_SUPPORT_AUTO_EXPOSURE_LIMIT TRUE
   has slowmoaf && ff_set CAMERA_SUPPORT_AF_DURING_SLOWMOTION_RECORDING TRUE
   if has logvideo; then logviull_apply   # restarts only the camera driver
-  elif bound $LV_LIB; then tb_restart lv_unbind && log "logvideo: not picked; stock VIULL back"; fi
+  elif bound $LV_LIB; then
+    if tb_restart lv_unbind; then log "logvideo: not picked; stock VIULL back"
+    else log "logvideo: not picked; took the VIULL fix off, but the camera driver didn't stay up afterwards"; fi
+  fi
   has tenbit && tenbit_apply   # restarts only the camera driver
   if has camextras; then hlock_apply   # restarts only the camera driver
-  elif bound $HL_LIB || bound $HA_LIB || bound $HL2_LIB || bound $HA2_LIB; then tb_restart hl_unbind && log "camextras: not picked; stock EIS back"; fi
+  elif bound $HL_LIB || bound $HA_LIB || bound $HL2_LIB || bound $HA2_LIB; then
+    if tb_restart hl_unbind; then log "camextras: not picked; stock EIS back"
+    else log "camextras: not picked; took the levelling copies off, but the camera driver didn't stay up afterwards"; fi
+  fi
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
   # Lock screen Weather effect: the editor's Weather button (weather_apply adds the AI Core stub)
@@ -2260,6 +2272,7 @@ guard)
   reboot
   ;;
 status)
+  [ -e $REMOVED ] && echo "note: $REMOVED_MSG"
   echo "saved choices: $(migrate_choices "$(cat $V/choices 2>/dev/null)"); $(sh $D/tweaks.sh autostart)"
   echo "airdrop:  modules [$(grep -oE '^(wonder|bwfix) ' /proc/modules | tr -d '\n')]," \
        "Mosey $(bound /system_ext/bin && echo on || echo off), daemon $(running loop && echo running || echo stopped)," \
@@ -2309,6 +2322,7 @@ cleanup)
   n=0; until [ "$(getprop sys.boot_completed)" = 1 ] && [ "$(getprop sys.user.0.ce_available)" = true ] &&
     pm path android >/dev/null 2>&1; do n=$((n+1)); [ $n -gt 4320 ] && exit 1; sleep 5; done
   say() { /system/bin/log -t s23tweaks "cleanup: $*" 2>/dev/null; echo "$*"; }   # Android's log: log() here is ours
+  [ -s $HIST ] && : > $REMOVED   # an apply ran in this boot: its binds outlive the files deleted below
   [ -x $AIR/sqlite3 ] && sh "$0" unflag >/dev/null 2>&1 && say "Play services flag overrides removed"
   if [ -f $V/undo/languagecore ] && pm path $LC_PKG >/dev/null 2>&1; then
     pm uninstall $LC_PKG >/dev/null 2>&1 && say "Language Core uninstalled"

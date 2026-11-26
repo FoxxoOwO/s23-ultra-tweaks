@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: reinstalling the module without a reboot broke the camera.** Removing the module runs its cleanup, which deletes `/data/adb/s23tweaks` but leaves that boot's bind mounts in place until the next reboot. A reinstall in the same boot then found its own binds (the `tenbit` camera driver, the `logvideo` and `camextras` libraries) with their files gone, logged "something else is bound over …" and left them on. Un-picking `logvideo` or `camextras` later restarted the camera driver, which then couldn't load (`hw_get_module … by -2`) and crashed in a loop. Cleanup now leaves a marker in `/dev` when an apply ran in that boot, and until a reboot clears it, applying stops with "reboot, then apply" (the status shows the same note).
+- The `logvideo` and `camextras` un-pick paths now log when the camera driver doesn't stay up after the restart; before, they said nothing.
+
 ## v1.8.4
 
 - **`features` no longer promises the Auto power on/off schedule outside China** (issue #33). Samsung's Settings shows it (General management → Reset) only when `Rune.isChinaModel()` (CSC country `CN`) and `SETTINGS_SUPPORT_AUTO_POWER_ON_OFF` are both true, so on an S918B, S918W or S918U1 the flag the module sets can't make it appear. Faking the country would change too much else. The descriptions now say so; louder VoIP calls are unaffected.
