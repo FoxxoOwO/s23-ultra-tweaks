@@ -176,6 +176,10 @@ migrate_choices() {
   echo "$mc_o"
 }
 md5() { md5sum "$1" 2>/dev/null | cut -d' ' -f1; }
+# the kernel log. dmesg needs the syslog() system call, which an app's seccomp filter forbids (a root shell
+# started from an app, such as a module page, can keep that filter: dmesg dies with SIGSYS and prints
+# nothing); /dev/kmsg is read with plain read() calls
+klog() { ( dmesg ) 2>/dev/null || timeout 1 cat /dev/kmsg 2>/dev/null | sed 's/^[^;]*;//'; }
 # The apply lock is a directory holding the owner's pid. A lock whose owner is gone (killed apply)
 # counts as free, so a crash can't block every later apply until the next reboot.
 lock_alive() { lp=$(cat $APPLY_LOCK/pid 2>/dev/null); [ -n "$lp" ] && kill -0 "$lp" 2>/dev/null; }
@@ -2397,7 +2401,7 @@ report)
     sec "AirDrop and Wi-Fi"
     echo "Wi-Fi: $(cmd wifi status 2>/dev/null | grep -m1 -oE 'Wifi is (enabled|disabled)'), $(cmd wifi status 2>/dev/null | grep -m1 -oE 'Wi-Fi standard: [^,]*'), driver $(cat /sys/module/wlan/version 2>/dev/null || grep -m1 -oE '^kiwi_v2 [0-9]+' /proc/modules)"
     echo "kernel log (Wi-Fi driver, AirDrop modules, PCIe), last 25:"
-    dmesg 2>/dev/null | grep -iE 'wonder|bwfix|mhifix|s23tweaks|kiwi_v2.*(error|fail|assert|crash)|cnss.*(fail|error|crash|assert|ssr|recover)|wlan.*firmware' |
+    klog | grep -iE 'wonder|bwfix|mhifix|s23tweaks|kiwi_v2.*(error|fail|assert|crash)|cnss.*(fail|error|crash|assert|ssr|recover)|wlan.*firmware' |
       grep -vE 'Runtime (suspend|resume)|PCI link|MHI state' | tail -n 25 | sed 's/^/  /' | cut -c1-200
     echo "Mosey / Quick Share warnings and errors, last 30 (names in quotes masked):"
     logcat -d -v brief 2>/dev/null | grep -E '^[EW]/[^(]*(Mosey|mosey|AirDrop|Awdl|NearbySharing|ShareLive|Wonder)' | grep -v '	at ' |

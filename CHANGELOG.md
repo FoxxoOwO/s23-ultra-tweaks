@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Fix: reinstalling the module without a reboot broke the camera.** Removing the module runs its cleanup, which deletes `/data/adb/s23tweaks` but leaves that boot's bind mounts in place until the next reboot. A reinstall in the same boot then found its own binds (the `tenbit` camera driver, the `logvideo` and `camextras` libraries) with their files gone, logged "something else is bound over …" and left them on. Un-picking `logvideo` or `camextras` later restarted the camera driver, which then couldn't load (`hw_get_module … by -2`) and crashed in a loop. Cleanup now leaves a marker in `/dev` when an apply ran in that boot, and until a reboot clears it, applying stops with "reboot, then apply" (the status shows the same note).
+- The report's kernel log section is no longer empty when the report runs from an app's root shell (such as the module page on some root managers). There `dmesg` is killed by the app's seccomp filter (SIGSYS, which also showed up in the native crash list); the report now falls back to reading `/dev/kmsg`.
 - The `logvideo` and `camextras` un-pick paths now log when the camera driver doesn't stay up after the restart; before, they said nothing.
 
 ## v1.8.4
