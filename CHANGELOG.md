@@ -9,6 +9,7 @@
 - **Fix: the status never said when `hideksu`'s hiding daemon had stopped** (issue #33). The "the hiding daemon isn't running; apply again to restart it" note from v1.8.4 checked the picks of the apply in progress, which are empty when the status runs, so it always printed just "mounts visible to apps". It now checks the saved picks.
 - **Fix: the "cam24fps and slowmo4k120 are part of profps now" note was missing from the apply log.** It was written just before the log was cleared at the start of the apply.
 - **Fix: `wifi7` turned itself off when Wi-Fi was switched off during an apply** (issue #33). Its check waited 2½ minutes for a Wi-Fi connection that couldn't come, took that as the S24 supplicant failing, and went back to the S23 one. With Wi-Fi off, the check now turns Wi-Fi on just long enough to see the S24 supplicant start, then turns it off again.
+- **Fix: the AirDrop test and the report left Quick Share's device and profile names unmasked** (`deviceName=…`, `name=…`, `account=…`), which usually hold the owner's name. They are masked now.
 
 ## v1.8.5
 

@@ -196,7 +196,8 @@ klog() { ( dmesg ) 2>/dev/null || timeout 1 cat /dev/kmsg 2>/dev/null | sed 's/^
 # masks email, MAC addresses, IMEI-length numbers and quoted names (device and contact names in share logs)
 scrub() {
   sed -E -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/<email>/g' \
-    -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<mac>/g' -e 's/(^|[^0-9])[0-9]{14,17}([^0-9]|$)/\1<number>\2/g' |
+    -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<mac>/g' -e 's/(^|[^0-9])[0-9]{14,17}([^0-9]|$)/\1<number>\2/g' \
+    -e 's/((device|account|profile|owner|user)[Nn]ame=|[(, ]name=)[^,)]+/\1<name>/g' -e 's/(account=)[^,)]+/\1<account>/g' |
     if [ -n "$sn" ]; then sed "s/$sn/<serial>/g"; else cat; fi
 }
 AD_SUM=$V/airdrop-test.summary   # the last airdrop-test's verdict, shown in the report
