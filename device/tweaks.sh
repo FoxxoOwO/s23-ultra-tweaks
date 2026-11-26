@@ -21,7 +21,7 @@
 #   wifi7page         open Samsung's hidden "Wi-Fi 7 mode" settings page (Wi-Fi Labs)
 #   loop | guard      (internal) keep mosey_server running / reboot cleanly on a Wi-Fi firmware crash
 # Tweaks: airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan
-#         camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein
+#         camerahdr hdr2023 audioeraser colortone galaxyai highlights camextras autoframe settingssearch bargein
 #         callscreen tenbit hideksu weather wideflash
 #         prowbtint zoomrocker videosoftening afcontrol aelimit slowmoaf extstorage
 #         anamorphic profps dual5g nronly natroam rambler  (see README.md; the categories they're grouped in are in install.sh and the WebUI)
@@ -51,7 +51,7 @@ mkdir -p $V; L=$V/tweaks.log; R=$V/run
 [ -f $D/module.prop ] && MODULE=1 || MODULE=0
 APPLY_LOCK=/dev/s23tweaks_apply.lock         # /dev is tmpfs: locks never survive a reboot
 STAYS_TILL_REBOOT="airdrop wifi7 battery india callrec vulkan audioeraser hdr2023 colortone tenbit galaxyai settingssearch hideksu profps"
-TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai camextras autoframe settingssearch bargein callscreen tenbit hideksu weather wideflash prowbtint zoomrocker videosoftening afcontrol aelimit slowmoaf extstorage anamorphic profps dual5g nronly natroam rambler"
+TWEAK_IDS="airdrop battery features callrec india hotspot6g wifi7 display logvideo vulkan camerahdr hdr2023 audioeraser colortone galaxyai highlights camextras autoframe settingssearch bargein callscreen tenbit hideksu weather wideflash prowbtint zoomrocker videosoftening afcontrol aelimit slowmoaf extstorage anamorphic profps dual5g nronly natroam rambler"
 GMS_MIN=261125000                            # Play services 26.11, the first with Mosey support
 # Firmware the AirDrop/Wi-Fi 7 kernel modules are checked against (one line each, read by customize.sh).
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
@@ -121,6 +121,16 @@ SETTINGS_EAD="S918WVLU8GZIF 5b8afa24f17e090d57380b8ebbd3dcee f499f2e574a47eca041
 S918BXXUAGZIF 5b20b1a68f94d01bba5a776e15ffdc30 de6d142d238849198810dfe70fada8dd"
 ead_row() { echo "$SETTINGS_EAD" | awk -v b="$(getprop ro.build.PDA)" '$1 == b'; }
 ead_builds() { echo "$SETTINGS_EAD" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
+# Patch files hold "<byte offset> <octal value>" lines; they are CRLF here, so the loops strip .
+# highlights: the Notification highlights page (Settings > Notifications > Advanced settings) is hidden
+# while com.android.settings:bool/config_na_enable is false, which no S23 build allows. The patches flip
+# SecNotificationIntelligenceController.getAvailabilityStatus()'s early "const/4 p0, 3" to 0. The ead one
+# goes on top of the colortone patch, as both touch different bytes of the same APK's stored dex.
+# firmware, stock md5, md5 with files/SecSettings-nh-<firmware>.patch, md5 with the colortone patch,
+# md5 with both (tools/nhpatch.py makes them)
+SETTINGS_NH="S918BXXUAGZIF 5b20b1a68f94d01bba5a776e15ffdc30 9d87d879ce01bd65c98cd7dfcf1063ab de6d142d238849198810dfe70fada8dd 854ca78b2a6c9cd2020d1326a0c5a13a"
+nh_row() { echo "$SETTINGS_NH" | awk -v b="$(getprop ro.build.PDA)" '$1 == b'; }
+nh_builds() { echo "$SETTINGS_NH" | awk '{print $1}' | tr '\n' ' ' | sed 's/ $//; s/ / or /g'; }
 CAM_APK=/system/priv-app/SamsungCamera/SamsungCamera.apk
 # profps, keyed on the Camera APK itself, not the firmware: md5 of a stock SamsungCamera.apk, md5 once
 # patched, the patch in files/, and the firmware it came from. Any firmware whose stock Camera APK is listed
@@ -1210,7 +1220,7 @@ colortone_bind() {
     P=$PL/colortone/SecSettings.apk   # the patched copy stays on storage and is reused at the next boot
     if [ "$(md5sum $P 2>/dev/null | cut -d' ' -f1)" != $SETTINGS_EAD_MD5 ]; then
       cp $SETTINGS $P.new
-      grep -v '^#' $D/files/SecSettings-ead-$eb.patch | while read off oct; do
+      grep -v '^#' $D/files/SecSettings-ead-$eb.patch | tr -d '\r' | while read off oct; do
         printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
       [ "$(md5sum $P.new | cut -d' ' -f1)" = $SETTINGS_EAD_MD5 ] || { rm -f $P.new; fail "colortone: Settings patch gave the wrong file"; }
       mv $P.new $P
@@ -1220,6 +1230,32 @@ colortone_bind() {
     am force-stop com.android.settings
   fi
   log "colortone: Adaptive color tone on (Settings > Display)"
+}
+# Its page is hidden because the bool that getAvailabilityStatus() reads is false, so patch the return
+# value instead of the resource: the arsc differs per build, the dex differs only in that literal.
+highlights_bind() {
+  sm=$(md5sum $SETTINGS | cut -d' ' -f1)
+  set -- $(nh_row); eb=$1; stock=${2:-none}; nhm=${3:-none}; ead=${4:-none}; nhe=${5:-none}
+  [ -z "$eb" ] && { log "highlights: Settings isn't the $(nh_builds) build, so its page stays hidden"; return; }
+  P=$PL/highlights/SecSettings.apk
+  case $sm in
+    $nhm|$nhe) : ;;   # patched by an earlier apply this boot
+    $stock) pf=$D/files/SecSettings-nh-$eb.patch; want=$nhm ;;
+    $ead) pf=$D/files/SecSettings-nh-ead-$eb.patch; want=$nhe ;;   # colortone is bound under us
+    *) log "highlights: Settings isn't the $eb or colortone build, so its page stays hidden"; return ;;
+  esac
+  if [ -n "${pf:-}" ]; then
+    mkdir -p $PL/highlights
+    rm -f $P.new; cp $SETTINGS $P.new
+    grep -v '^#' $pf | tr -d '\r' | while read off oct; do
+      printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
+    [ "$(md5sum $P.new | cut -d' ' -f1)" = $want ] || { rm -f $P.new; fail "highlights: Settings patch gave the wrong file"; }
+    mv $P.new $P
+  fi
+  chmod 644 $P; chcon u:object_r:system_file:s0 $P
+  mount -o bind,ro $P $SETTINGS || fail "highlights: bind $SETTINGS"
+  am force-stop com.android.settings
+  log "highlights: its page is on (Settings > Notifications > Advanced settings)"
 }
 cam24fps_bind() {
   set -- $(cam24_row)
@@ -1237,7 +1273,7 @@ cam24fps_bind() {
     P=$PL/cam24fps/SamsungCamera.apk   # patched copy stays on storage and is reused at the next boot
     if [ "$(md5sum $P 2>/dev/null | cut -d' ' -f1)" != $CAM_PATCHED_MD5 ]; then
       cp $CAM_APK $P.new
-      grep -v '^#' $D/files/$cpf | while read off oct; do
+      grep -v '^#' $D/files/$cpf | tr -d '\r' | while read off oct; do
         printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
       if [ "$(md5sum $P.new | cut -d' ' -f1)" != $CAM_PATCHED_MD5 ]; then
         rm -f $P.new
@@ -1425,6 +1461,7 @@ payload_apply() {
   has hdr2023 && hdr2023_check && { ran=0; h23=1; }
   has audioeraser && audioeraser_stage && { ran=0; ae=1; }
   has colortone && colortone_stage && { ran=0; ct=1; }
+  has highlights && { ran=0; nh=1; }
   has galaxyai && galaxyai_stage && { ran=0; gai=1; }
   has settingssearch && settingssearch_stage && { ran=0; ssi=1; }
   layers_mount
@@ -1438,6 +1475,7 @@ payload_apply() {
 # right before the restart, not ahead of the ~30 s of camera driver restarts.
 apk_binds() {
   [ "${ct:-0}" = 1 ] && colortone_bind
+  [ "${nh:-0}" = 1 ] && highlights_bind   # after colortone: it patches on top of that bind
   [ "${gai:-0}" = 1 ] && galaxyai_bind
   [ "${ssi:-0}" = 1 ] && settingssearch_bind
   return 0
@@ -1654,6 +1692,31 @@ natroam_on() { [ -s $NROAM ] || return 1; while read o; do [ -f "$o" ] || return
 natroam_off() {   # delete our override files; 0 if any was removed
   [ -s $NROAM ] || { rm -f $NROAM; return 1; }
   while read o; do rm -f "$o"; done < $NROAM; rm -f $NROAM
+}
+
+# ---------- Notification highlights (Galaxy AI priority + summaries) ----------
+# One UI 8.5's Notification highlights sorts the notifications Android thinks important to the top of
+# the panel and summarizes long or repeated chat notifications. The S23 firmware already carries all of
+# it: NotificationManagerService's summarize path (NotiSummaryManager/NotiSummarizer), the Settings
+# pages and com.samsung.android.intellivoiceservice's SummarizationService. What's off is the gate:
+# NotificationManagerService's NmRune flags read SEC_FLOATING_FEATURE_GENAI_CONFIG_LLM_VERSION (the
+# second number must be >= 70), COMMON_CONFIG_AI_VERSION (>= 20261) and
+# FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE, and the S23 firmware has no LLM version at all. The two
+# switches are Secure settings that the Settings page (Notification highlights) would write; that page
+# is hidden on the S23 because SecSettings' bool/config_na_enable is false, so they're set here.
+# Summaries run on the phone (intellivoiceservice, no network) when the screen is off and the phone is
+# idle, and need a Samsung account signed in. The model weights aren't on this phone though: Samsung
+# ships them as com.samsung.android.offline.language.model, whose version list covers sm8650 and
+# newer, not the S23's sm8550, so SIS answers pfd is null and no summary appears yet.
+NH_KEYS="noti_intelligence_summarize_content noti_intelligence_priority_content noti_intelligence_priority_conversation"
+nh_on() { [ "$(settings get secure noti_intelligence_summarize_content)" = 1 ]; }
+nh_apply() {
+  ff_set GENAI_CONFIG_LLM_VERSION 0.81
+  ff_set COMMON_CONFIG_AI_VERSION 20263
+  ff_set FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE TRUE
+  for k in $NH_KEYS; do settings put secure $k 1; done
+  nh_on || { log "highlights: couldn't write the notification intelligence settings"; return 1; }
+  log "highlights: notification priority and summaries on"
 }
 
 # rambler: Gboard's Rambler voice typing (Gemini dictation that drops filler words and takes spoken edits),
@@ -2041,6 +2104,9 @@ why_not() {
     profps) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     galaxyai)
       for p in $GAI_APPS; do [ -f /system/$p/${p#*/}.apk ] || { echo "this phone has no /system/$p/${p#*/}.apk to replace"; return; }; done ;;
+    highlights)
+      cmd package query-services -a android.intellivoiceservice.SummarizationService 2>/dev/null | grep -q SummarizationService ||
+        echo "this phone has no on-device summarization service (com.samsung.android.intellivoiceservice)" ;;
     settingssearch) [ -f /system/$SSI/SecSettingsIntelligence.apk ] || echo "this phone has no /system/$SSI to replace" ;;
     rambler) pm path $GB_PKG >/dev/null 2>&1 || echo "Gboard (com.google.android.inputmethod.latin) isn't installed" ;;
     nronly)
@@ -2102,6 +2168,7 @@ is_on() {
     colortone) bound $SETTINGS ;;
     tenbit) bound $TB_LIB && [ "$(md5 $TB_LIB)" = "$(md5 $V/tenbit.so)" ] ;;
     galaxyai) bound /system/priv-app/SamsungSmartSuggestions/SamsungSmartSuggestions.apk ;;
+    highlights) nh_on && bound $FF && grep -q '<SEC_FLOATING_FEATURE_GENAI_CONFIG_LLM_VERSION>0\.[7-9][0-9]' $FF 2>/dev/null ;;
     hideksu) hideksu_on ;;
     dual5g) [ -f $D5G/applied ] ;;
     nronly) nr_ours ;;
@@ -2206,6 +2273,7 @@ $CF_PROFPS"
   fi
   # Bixby barge-in (untested): talk over Bixby while it answers, as on the S24
   has bargein && ff_set BIXBY_CONFIG_BARGEIN_PARAM_MODE 2
+  has highlights && nh_apply
   # Lock screen Weather effect: the editor's Weather button (weather_apply adds the AI Core stub)
   has weather && ff_set $WX_KEY "$(wx_style)"
   # Draw apps with Vulkan instead of OpenGL (Samsung's libhwui ignores ro.hwui.use_vulkan)
@@ -2328,6 +2396,7 @@ status)
   echo "reported: model $(getprop ro.product.model), csc $(getprop ro.csc.sales_code), country $(getprop ro.csc.countryiso_code)$([ -e $V/india_identity ] && [ "$(getprop ro.product.model)" = $IN_MODEL ] && echo " (india identity on)")"
   echo "nronly:   $(nr_ours && echo "on (Network mode offers LTE only and 5G only)" || echo off)"
   echo "natroam:  $([ -s $NROAM ] && echo "on ($(grep -c . $NROAM) SIM override(s))" || echo off)"
+  echo "highlights: $(is_on highlights && echo "on (notification priority and summaries)" || echo off)"
   echo "rambler:  $(rambler_on && echo "on (Gboard flag overrides)" || echo off)"
   echo "dual5g:   $([ -f $D5G/applied ] && echo "on (modem msim_plmns:$(cat $D5G/applied))" || echo off)$([ -f $D5G/stock/global_defines.xml ] && echo "; original backed up in $D5G/stock")"
   ;;
@@ -2365,6 +2434,7 @@ cleanup)
     if dual5g_restore; then say "dual5g: original modem file restored"
     else say "dual5g: COULD NOT restore the modem file; the original stays in $D5G_SD"; cp -r $D5G $D5G_SD/state 2>/dev/null; fi
   fi
+  nh_off && say "highlights: notification intelligence settings back to stock"
   rambler_off && say "rambler: Gboard's flag overrides restored"
   natroam_off && say "natroam: carrier config overrides removed (national roaming shows again after the next reboot)"
   rm -f /dev/s23tweaks_efstool

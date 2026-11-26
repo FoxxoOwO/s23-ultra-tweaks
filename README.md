@@ -79,6 +79,7 @@ All ten camera tweaks added in this fork — frame-rate unlocks (24 fps, the ext
 
 - 🧠 **24 · Now Brief, Creative Studio and Call Assist** from the S24 · `galaxyai`
   - Works on: firmware S918WVLU8GZIF (219 MB download)
+- 🔔 **38 · Notification highlights**: Galaxy AI moves the notifications Android thinks important to the top of the panel and summarizes long or repeated chat notifications. The S23 firmware already has the whole feature (the panel code, the Settings pages and the on-phone summarizer in `com.samsung.android.intellivoiceservice`); what it lacks is the AI version flag that switches it on, so the tweak sets that and turns both features on. Summaries run on the phone (no network) when the screen is off and the phone is idle, and need a Samsung account. The model weights are not on this phone (Samsung ships them as `com.samsung.android.offline.language.model` for `sm8650` and newer, not for the S23's `sm8550`), so the switches are on and the pipeline runs but summaries stay empty until Samsung supports this chipset. The tweak also reveals the page the build hides (Notifications → Advanced settings → Notification highlights) by patching the Settings APK in RAM, so the switches are visible; undo un-picks the tweak · `highlights`
 - 🔇 **25 · Audio Eraser**: Gallery → video → Edit → remove wind, noise, music or voices · `audioeraser`
   - Works on: firmware S918WVLU8GZIF (34 MB download)
 - 🔎 **26 · Settings search** bar from the S24. Natural-language answers stay off (they need Samsung's Semantic Search Core 4.x) · `settingssearch`
