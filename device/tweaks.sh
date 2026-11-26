@@ -55,7 +55,7 @@ GMS_MIN=261125000                            # Play services 26.11, the first wi
 # All are One UI 9 build GZIF on GKI kernel 34343818, and their whole Wi-Fi stack (cnss2, mhi, cfg80211,
 # mac80211, ipa) has the same code and symbol CRCs as S918WVLU8GZIF, which the modules are built on.
 AIRDROP_KBASE=5.15.197-android13-8-34343818-ab
-AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF"
+AIRDROP_FW="S918WVLU8GZIF S918BXXUAGZIF S918U1UEU8GZIF S918USQU8GZIF S918NKSU8GZIF S9180ZHU8GZIF"
 kernel_stock() { for f in $AIRDROP_FW; do [ "$(uname -r)" = "$AIRDROP_KBASE$f" ] && return 0; done; return 1; }
 # Opt-in for custom kernels (issue #10): with the file $V/allow-any-kernel, a 5.15 android13 kernel on one
 # of the supported firmwares is let through. The kernel itself still refuses the modules if any symbol CRC
@@ -1668,13 +1668,17 @@ rambler_apply() {
   if [ ! -e $RB_UNDO ] && [ ! -e $RB_UNDO.absent ]; then
     if [ -f $GB_OVR ]; then cp $GB_OVR $RB_UNDO; else : > $RB_UNDO.absent; fi
   fi
-  { if [ -f $GB_OVR ]; then grep -vE "name=\"($(rb_names))\"|</map>" $GB_OVR
+  # Android writes a preferences file with no entries as <map /> (self-closing); that, an empty file or no
+  # file at all starts a new map. Anything else without <map> isn't a file we understand.
+  if grep -q '<map>' $GB_OVR 2>/dev/null; then rb_base=keep
+  elif [ ! -s $GB_OVR ] || grep -qE '<map ?/>' $GB_OVR; then rb_base=new
+  else log "rambler: Gboard's flag_override.xml isn't a preferences file this understands; left alone"; return 1; fi
+  { if [ $rb_base = keep ]; then grep -vE "name=\"($(rb_names))\"|</map>" $GB_OVR
     else echo '<?xml version="1.0" encoding="utf-8" standalone="yes" ?>'; echo '<map>'; fi
     for k in $RB_TRUE; do echo "    <boolean name=\"$k\" value=\"true\" />"; done
     for k in $RB_FALSE; do echo "    <boolean name=\"$k\" value=\"false\" />"; done
     for kv in $RB_LONG; do echo "    <long name=\"${kv%%=*}\" value=\"${kv#*=}\" />"; done
     echo '</map>'; } > $R/gboard_flags.xml
-  grep -q '<map>' $R/gboard_flags.xml || { log "rambler: Gboard's flag_override.xml has no <map>; left alone"; rm -f $R/gboard_flags.xml; return 1; }
   if cmp -s $R/gboard_flags.xml $GB_OVR; then log "rambler: on (Gboard's flag overrides already in place)"; rm -f $R/gboard_flags.xml; return 0; fi
   rambler_write $R/gboard_flags.xml; rm -f $R/gboard_flags.xml
   rambler_on || { log "rambler: couldn't write Gboard's flag overrides"; return 1; }

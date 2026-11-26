@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## v1.8.3
 
+- **Fix: Rambler skipped when Gboard's override file was empty** (`rambler`, issue #33). Android writes a preferences file with no entries as `<map />`, and `rambler` looked for `<map>`, so it logged "flag_override.xml has no <map>; left alone" and did nothing. An empty file or `<map />` now starts a new map. A file that isn't a preferences file at all is still left alone.
+- **AirDrop on the SM-S9180** (`S9180ZHU8GZIF`, issue #31). Checked against the firmware files, not on a phone: same GKI kernel build, 0 symbol CRC mismatches for `kiwi_v2.ko`, `wonder.ko`, `mhifix.ko` and `bwfix.ko`, an identical Wi-Fi stack (`tools/modcmp.py`) and a byte-identical `amss20.bin`.
 - **One tweak for every frame-rate unlock: `cam24fps` and `slowmo4k120` are now part of `profps`.** All three changed the same two files (`camera-feature.xml` and the patched `SamsungCamera.apk`), so they are now a single **Frame-rate unlocks** switch: 24 fps in standard Video (FHD, UHD and 8K, rear and front), the extra Pro video rates (4K/21:9 25/48/50/100/120, FHD 25/48/50/100, 8K 25) with the 10× super tele at 25/48/50 fps on the patched Camera, and Slow motion 4K120 / FHD120 with the rebuilt FHD240 entry. `profps` stays available on any phone whose `camera-feature.xml` can be edited: the Pro rates and Slow motion are XML-only. The APK patch (24 fps in standard Video and the 10× at 25/48/50) is bound only when the stock Camera APK is one the patch knows; on a Galaxy Store Camera update or an unknown APK those two are skipped, with the log saying so, and the rest still applies. This also fixes the boot-time `slowmo4k120: skipped: this firmware has no 4K120 entry to enable in Slow motion`: its availability check looked for the 4K120 entry before `camfeat_apply` added it. Saved picks with `cam24fps` or `slowmo4k120` are migrated to `profps` automatically (the module page, the boot apply and `install.sh` all map them), and the bind mounts still go away on reboot.
 
 ## v1.8.2

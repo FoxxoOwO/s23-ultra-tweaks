@@ -6,6 +6,8 @@ The tweaks come in six categories. The module page lets you pick a whole categor
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 **What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.8.3**: one switch for every frame-rate unlock (`profps` now includes `cam24fps` and `slowmo4k120`, and Slow motion 4K120 survives a reboot), AirDrop on the SM-S9180, and a `rambler` fix for an empty Gboard override file.
+- **v1.8.2**: Log video keeps its lifted shadows in dark scenes at 24/25/30 fps (`logvideo`).
 - **v1.8.1**: Gboard's Rambler voice typing from the Pixel 10 and 11 (`rambler`).
 - **v1.8.0**: LTE only and 5G only in Network mode for both SIMs (`nronly`), and no national-roaming R for Indian SIMs (`natroam`).
 - **v1.7.2**: fixes Chromium browsers such as Vivaldi crashing on launch with `hideksu` on ("GPU process isn't usable").
@@ -435,7 +437,7 @@ items (the flags do nothing on their own; `tweaks.sh unflag` removes just them).
 
 ## ⚠️ Known limitations
 
-- **AirDrop needs One UI 9 build GZIF** (S918WVLU8GZIF, S918BXXUAGZIF, S918U1UEU8GZIF, S918USQU8GZIF or S918NKSU8GZIF). The modules are built on the S918W kernel. The other four have the same Wi-Fi drivers and the same kernel symbol CRCs, checked with `tools/kocompat.py` and `tools/modcmp.py` against their firmware files, but only the S918W and S918B have been tested on a phone. A different build needs the modules rebuilt (below).
+- **AirDrop needs One UI 9 build GZIF** (S918WVLU8GZIF, S918BXXUAGZIF, S918U1UEU8GZIF, S918USQU8GZIF, S918NKSU8GZIF or S9180ZHU8GZIF). The modules are built on the S918W kernel. The other five have the same Wi-Fi drivers and the same kernel symbol CRCs, checked with `tools/kocompat.py` and `tools/modcmp.py` against their firmware files, but only the S918W and S918B have been tested on a phone. A different build needs the modules rebuilt (below).
   - **Custom kernels** (untested, opt-in): on one of those builds with a non-Samsung 5.15 android13 kernel, `su -c touch /data/adb/s23tweaks/allow-any-kernel` lets AirDrop and Wi-Fi 7 try anyway. The kernel needs `CONFIG_MODVERSIONS` and must not force module signatures. It still refuses the modules if any kernel symbol they use has a different CRC, and the module then puts the stock Wi-Fi driver back. Delete the file to go back to the check. AirDrop also needs the kernel's stock Wi-Fi stack: a kernel that ships its own `cfg80211.ko` (its `vermagic` isn't `5.15.197-android13-8-34343818-ab…`) makes the S24 driver fail to register, so AirDrop is shown as not available there; Wi-Fi 7 and the 6 GHz hotspot still work (issue #21).
 - **Horizontal lock levels only up to about 20°** and isn't the S26's 360° lock (see [Horizontal lock](#horizontal-lock)).
 - The Wi-Fi link to the PCIe bus stays at Gen2, so very large transfers may be slower than on an S24.
