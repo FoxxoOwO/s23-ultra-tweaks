@@ -82,11 +82,11 @@ lc_have=$(sh_ "dumpsys package com.samsung.android.offline.languagemodel 2>/dev/
 ids=(airdrop wifi7 hotspot6g
      logvideo camextras camerahdr hdr2023 autoframe tenbit wideflash prowbtint zoomrocker videosoftening afcontrol aelimit slowmoaf extstorage anamorphic profps
      display colortone vulkan weather
-     galaxyai audioeraser settingssearch callscreen bargein
+     galaxyai highlights audioeraser settingssearch callscreen bargein
      battery features hideksu
      callrec india dual5g nronly natroam
      rambler)
-cat=(A A A B B B B B B B B B B B B B B B B C C C C D D D D D E E E F F F F F D)
+cat=(A A A B B B B B B B B B B B B B B B B C C C C D D D D D D E E E F F F F F D)
 cats=(A B C D E F)
 catname=("Connectivity" "Camera" "Display and graphics" "Galaxy AI and Samsung apps" "Battery and settings" "Carrier")
 desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Google's Mosey; 20 MB download)"
@@ -113,6 +113,7 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Vulkan rendering: apps draw with Vulkan instead of OpenGL"
       "Lock screen weather effect: rain, snow, fog or sun over the lock screen wallpaper, following Samsung Weather (installs a 12 KB AI Core stub app)"
       "Galaxy AI apps: the S24's Now Brief, Creative Studio and Call Assist (219 MB download)"
+      "Notification highlights: Galaxy AI sorts important notifications to the top of the panel and summarizes long or repeated chats, on the phone; needs a Samsung account, and summaries appear with the screen off"
       "Audio Eraser: remove wind, noise, music or voices from videos in Gallery (34 MB download)"
       "Settings search: the S24's new Settings search bar; natural-language answers stay off (10 MB download)"
       "Call screening: installs Samsung Language Core; screening and voice messages work, the AI summary doesn't (persistent; 3.1 GB download)"
@@ -126,8 +127,8 @@ desc=("AirDrop: Quick Share > Share with Apple devices (S24 Wi-Fi driver + Googl
       "Network mode: 'LTE only' and '5G only' for both SIMs (Settings > Connections > Mobile networks > Network mode; 5G only means standalone 5G, with no signal where there is none)"
       "India: no 'R' roaming icon on national roaming (an Airtel or Jio SIM from another circle counts as home; roaming abroad still shows)"
       "Gboard Rambler: the Pixel 10/11's Gemini voice typing that drops filler words and takes spoken edits (Gboard settings > Voice typing > Dictation type > Rambler)")
-avail=($can_airdrop $can_airdrop 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 $can_ct 1 1 1 1 1 $can_lc 1 1 1 $can_ksu $can_rec $can_csc 1 1 1 1)
-why=("$why_airdrop" "$why_airdrop" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "$why_ct" "" "" "" "" "" "$why_lc" "" "" "" "$why_ksu" "$why_rec" "$why_csc" "" "" "" "")
+avail=($can_airdrop $can_airdrop 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 $can_ct 1 1 1 1 1 1 $can_lc 1 1 1 $can_ksu $can_rec $can_csc 1 1 1 1)
+why=("$why_airdrop" "$why_airdrop" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "" "$why_ct" "" "" "" "" "" "" "$why_lc" "" "" "" "$why_ksu" "$why_rec" "$why_csc" "" "" "" "")
 
 # pre-release builds lived in /data/local/tmp/s23tweaks: carry the picks and the Play services backup over
 sh_ "su -c '[ -d /data/local/tmp/s23tweaks ] && [ ! -e $PHONE_DIR/choices ] && mkdir -p $PHONE_DIR && cp -r /data/local/tmp/s23tweaks/choices /data/local/tmp/s23tweaks/backup $PHONE_DIR/ 2>/dev/null; true'" >/dev/null
