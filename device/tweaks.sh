@@ -273,11 +273,11 @@ back_to_stock() {   # the firmware binds sit on the overlay, so they come off fi
 wonder_load() {
   for i in 1 2 3; do
     insmod $AIR/wonder.ko 2>/dev/null && return 0
-    dmesg | tail -n 60 | grep -q 'mac80211 hardware. Ret: -12' || break
+    klog | tail -n 60 | grep -q 'mac80211 hardware. Ret: -12' || break
     log "airdrop: not enough contiguous memory for wonder (try $i of 3); compacting memory and retrying"
     sync; echo 1 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory; sleep 2
   done
-  fail "wonder: $(dmesg | grep -E 'wonder|page allocation failure' | tail -n 3 | tr '\n' ' ')"
+  fail "wonder: $(klog | grep -E 'wonder|page allocation failure' | tail -n 3 | tr '\n' ' ')"
 }
 
 airdrop_kernel() {
@@ -296,7 +296,7 @@ airdrop_kernel() {
   pe=$(ksym plat_env cnss2) || { back_to_stock; fail "plat_env not found in kallsyms"; }
   b=$(ksect cnss2 .bss) || { back_to_stock; fail "cnss2 .bss address not readable"; }; d=$(( 0x$pe - b ))
   [ $d -ge 0 ] && [ $d -lt 1048576 ] || { back_to_stock; fail "plat_env 0x$pe is not in cnss2 .bss"; }
-  insmod $A/mhifix.ko mode=1 plat_env=0x$pe; r=$(dmesg | grep mhifix | tail -4 | tr '\n' ' ')
+  insmod $A/mhifix.ko mode=1 plat_env=0x$pe; r=$(klog | grep mhifix | tail -4 | tr '\n' ' ')
   case "$r" in *"tables freed"*"fw_mem DDR freed"*) ;; *) back_to_stock; fail "mhifix: $r" ;; esac
   # S24 firmware over /vendor/firmware/kiwi: an overlay of placeholders, each bound to the downloaded file
   # (the S23 board file stays)
@@ -306,22 +306,22 @@ airdrop_kernel() {
   mount -t overlay s23tweaks_fwov -o ro,lowerdir=$T:/vendor/firmware/kiwi /vendor/firmware/kiwi || { back_to_stock; fail "firmware overlay"; }
   for f in $FW; do chmod 644 $A/fw/$f; chcon u:object_r:vendor_firmware_file:s0 $A/fw/$f
     mount -o bind,ro $A/fw/$f /vendor/firmware/kiwi/$f || { back_to_stock; fail "firmware bind $f"; }; done
-  insmod $A/kiwi_v2.ko || { back_to_stock; fail "S24 Wi-Fi driver: $(dmesg | tail -2 | tr '\n' ' ')"; }
+  insmod $A/kiwi_v2.ko || { back_to_stock; fail "S24 Wi-Fi driver: $(klog | tail -2 | tr '\n' ' ')"; }
   wifi_up; sleep 5
   # Some custom kernels bring the S24 driver up fine alone but not with wifi7's MLO config and S24
   # supplicant (issue #21): drop wifi7 for this boot and retry, so AirDrop still works
   if ! wlan_up && { bound $INI || bound $WPAS; }; then
     log "airdrop: Wi-Fi didn't come up with the wifi7 settings; retrying without them (wifi7 off until a reboot)"
     wifi_down; wifi7_drop
-    insmod $A/kiwi_v2.ko || { back_to_stock; fail "S24 Wi-Fi driver: $(dmesg | tail -2 | tr '\n' ' ')"; }
+    insmod $A/kiwi_v2.ko || { back_to_stock; fail "S24 Wi-Fi driver: $(klog | tail -2 | tr '\n' ' ')"; }
     wifi_up; sleep 5
   fi
   # bwfix: the S24 firmware asks for a PCIe Gen3 link when AirDrop starts; the S23 refuses (Gen2
   # max) and the firmware crashes on the refusal. bwfix sets Gen2 and acknowledges.
   cb=$(ksym cnss_mhi_bw_scale.cfi_jt cnss2)
-  [ -d /sys/module/bwfix ] || insmod $A/bwfix.ko ${cb:+orig=0x$cb} || fail "bwfix: $(dmesg | tail -2 | tr '\n' ' ')"
+  [ -d /sys/module/bwfix ] || insmod $A/bwfix.ko ${cb:+orig=0x$cb} || fail "bwfix: $(klog | tail -2 | tr '\n' ' ')"
   wonder_load
-  log "airdrop: kernel side loaded ($(dmesg | grep -o 'wonder: connected to wlan.*' | tail -1))"
+  log "airdrop: kernel side loaded ($(klog | grep -o 'wonder: connected to wlan.*' | tail -1))"
 }
 
 # ---------- wifi7: Wi-Fi 7 multi-link (MLO) as a Wi-Fi client ----------
@@ -362,7 +362,7 @@ wifi7_drop() {   # undo wifi7's binds, with the supplicant stopped and the drive
 wifi7_reload() {   # the AirDrop driver was already loaded before the config was bound
   log "wifi7: reloading the Wi-Fi driver so it reads the MLO settings (Wi-Fi drops for ~15 s)"
   wifi_down
-  insmod $AIR/kiwi_v2.ko || { back_to_stock; fail "wifi7: kiwi_v2 reload: $(dmesg | tail -2 | tr '\n' ' ')"; }
+  insmod $AIR/kiwi_v2.ko || { back_to_stock; fail "wifi7: kiwi_v2 reload: $(klog | tail -2 | tr '\n' ' ')"; }
   wifi_up
   wonder_load
 }
@@ -1215,10 +1215,18 @@ colortone_bind() {
   sm=$(md5sum $SETTINGS | cut -d' ' -f1)
   set -- $(ead_row); eb=$1; SETTINGS_STOCK_MD5=${2:-none}; SETTINGS_EAD_MD5=${3:-none}
   set -- $(nh_row); NHM=${3:-none}; NHE=${5:-none}   # highlights patches this same APK, on top of ours
-  if [ "$sm" = $SETTINGS_EAD_MD5 ] || [ "$sm" = $NHM ] || [ "$sm" = $NHE ]; then :   # an earlier apply this boot
-  elif [ "$sm" != $SETTINGS_STOCK_MD5 ]; then
-    log "colortone: Settings isn't the $(ead_builds) build, so the Adaptive color tone switch stays hidden"; return
+  if [ "$sm" = $SETTINGS_EAD_MD5 ] || [ "$sm" = $NHE ]; then :   # an earlier apply this boot had the right layer
+    :
   else
+    if [ "$sm" = $NHM ]; then
+      # a highlights-only bind from an earlier apply in this boot: drop it and rebuild from stock, so
+      # highlights_bind can stack its patch on ours below (the two touch different bytes of the dex)
+      umount $SETTINGS 2>/dev/null
+      sm=$(md5sum $SETTINGS | cut -d' ' -f1)
+    fi
+    if [ "$sm" != $SETTINGS_STOCK_MD5 ]; then
+      log "colortone: Settings isn't the $(ead_builds) build, so the Adaptive color tone switch stays hidden"; return
+    fi
     P=$PL/colortone/SecSettings.apk   # the patched copy stays on storage and is reused at the next boot
     if [ "$(md5sum $P 2>/dev/null | cut -d' ' -f1)" != $SETTINGS_EAD_MD5 ]; then
       cp $SETTINGS $P.new
@@ -1720,15 +1728,17 @@ nh_apply() {
   ff_set FRAMEWORK_SUPPORT_PERSONALIZED_DATA_CORE TRUE
   for k in $NH_KEYS; do settings put secure $k 1; done
   nh_on || { log "highlights: couldn't write the notification intelligence settings"; return 1; }
+  [ -n "$(nh_row)" ] || log "highlights: no Settings patch for $(getprop ro.build.PDA), so its page stays hidden (the switches above still work)"
   log "highlights: notification priority and summaries on"
 }
 nh_off() {   # 0 if anything we set was still there
   c=1
   if [ -f $NH_UNDO ]; then   # put back what was there before (wideflash's pattern)
     while read k v; do
-      if [ "$v" = null ]; then settings delete secure $k; else settings put secure $k "$v"; fi
+      if [ "$v" = null ]; then settings delete secure $k >/dev/null 2>&1 && c=0
+      else settings put secure $k "$v" >/dev/null 2>&1 && c=0; fi
     done < $NH_UNDO
-    rm -f $NH_UNDO; return 0
+    rm -f $NH_UNDO; return $c
   fi
   for k in $NH_KEYS; do
     [ "$(settings get secure $k)" = 1 ] || continue
@@ -1952,7 +1962,9 @@ statusbar_wifi_refresh() {
   [ -n "$cur" ] && new="$cur,wifi" || new="wifi"
   settings put secure icon_blacklist "$new" 2>/dev/null || return 0
   sleep 1
-  if [ -n "$cur" ]; then settings put secure icon_blacklist "$cur"; else settings delete secure icon_blacklist; fi
+  sb_restore() { if [ -n "$cur" ]; then settings put secure icon_blacklist "$cur" >/dev/null 2>&1
+                 else settings delete secure icon_blacklist >/dev/null 2>&1; fi; }
+  wait_for 10 sb_restore || log "status bar: couldn't restore icon_blacklist; the Wi-Fi icon may stay hidden until you reset it"
   log "status bar: nudged SystemUI to redraw the Wi-Fi icon after the framework restart"
 }
 
@@ -1994,7 +2006,8 @@ d5g_modem_restart() {
   [ -n "$r" ] || { log "dual5g: can't find the modem's remoteproc; reboot the phone to use the new setting"; return 1; }
   log "dual5g: restarting the modem so it reads the new setting (no signal for ~15 s)"
   echo stop > $r/state 2>/dev/null; sleep 2
-  for i in 1 2 3; do echo start > $r/state 2>/dev/null; wait_for 20 [ "$(cat $r/state)" = running ] && break; done
+  d5g_running() { [ "$(cat $r/state)" = running ]; }
+  for i in 1 2 3; do echo start > $r/state 2>/dev/null; wait_for 20 d5g_running && break; done
   [ "$(cat $r/state)" = running ] || { log "dual5g: the modem didn't come back; reboot the phone"; return 1; }
   wait_for 60 sh -c 'getprop gsm.sim.state | grep -q LOADED'; log "dual5g: modem back up"
 }
@@ -2309,7 +2322,11 @@ $CF_PROFPS"
   if has rambler; then rambler_apply
   elif rambler_off; then log "rambler: not picked; Gboard's flag overrides are back as they were"; fi
   if has hotspot6g; then hotspot6g_pre && restart=1   # after india, which may set the country to IN
-  elif [ "$(getprop $H6_PROP)" = 1 ]; then /data/adb/ksu/bin/resetprop $H6_PROP 0 && log "hotspot6g: not picked; 6 GHz override off"; fi
+  elif [ "$(getprop $H6_PROP)" = 1 ]; then
+    RP=/data/adb/ksu/bin/resetprop
+    if [ -x $RP ]; then $RP $H6_PROP 0 && log "hotspot6g: not picked; 6 GHz override off"
+    else log "hotspot6g: KernelSU resetprop not found; the 6 GHz override stays until a reboot"; fi
+  fi
   apk_binds
   [ $restart = 1 ] && restart_framework
   if has hideksu; then hidemnt_start                                   # after the restart, so it catches the respawned apps
@@ -2325,7 +2342,7 @@ $CF_PROFPS"
   elif [ -f $D5G/applied ]; then log "dual5g: not picked; putting the original modem file back"; dual5g_restore; fi
   has airdrop && airdrop_post
   [ $restart = 1 ] && statusbar_wifi_refresh   # the framework restart can drop the Wi-Fi status-bar icon
-  on=""; off=""; for x in $2; do if is_on $x; then on="$on $x"; else off="$off $x"; fi; done
+  on=""; off=""; for x in $picks; do if is_on $x; then on="$on $x"; else off="$off $x"; fi; done
   log "on:${on:- none}"
   [ -n "$off" ] && log "not on:$off (the reason is in the lines above)"
   touch /dev/s23tweaks_applied   # lets the boot apply know this boot already has them
@@ -2617,6 +2634,7 @@ dual5g-restore)
 unflag)
   G=/data/data/com.google.android.gms; DB=$G/databases/phenotype.db; SQ=$AIR/sqlite3; W=$R/gms
   [ -x $SQ ] || { echo "the AirDrop download (with its sqlite3) isn't on the phone; pick AirDrop once to fetch it" >&2; exit 1; }
+  [ -f $DB ] || { echo "Play services database not available; flags not changed" >&2; exit 1; }
   rm -rf $W; mkdir -p $W; am force-stop com.google.android.gms
   cp $DB $W/p.db; [ -f $DB-wal ] && cp $DB-wal $W/p.db-wal
   in_list=""
