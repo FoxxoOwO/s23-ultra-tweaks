@@ -89,7 +89,7 @@ All ten camera tweaks added in this fork — frame-rate unlocks (24 fps, the ext
 ### 🔋 Battery and settings
 
 - 🩺 **29 · Battery health**: Settings → Battery → Battery information shows health and cycle count · `battery`
-- ⏰ **30 · Auto power on/off** schedule and **louder VoIP calls** · `features`
+- ⏰ **30 · Louder VoIP calls**, and the **Auto power on/off** schedule on Chinese models only: Samsung's Settings shows the schedule (General management → Reset) only when the phone's CSC country is CN *and* the flag is set (`Rune.isChinaModel()`), so on other S23s the flag alone can't bring it (issue #33) · `features`
 - 🫥 **31 · HideKSU**: hides the KernelSU root manager (`me.weishu.kernelsu`) from apps, so root-aware apps like CRED stop detecting root and crashing. Nothing is injected into the apps, so their in-process tamper scans stay clean. The manager stays installed — its launcher icon, DFRoot's boot-time root and the system still see it; only third-party apps don't. Needs the KernelSU manager installed. It replaces `services.jar` with a patched copy of the phone's own, so it only runs on a phone whose stock `services.jar` is one a patch was made from (checked by MD5, whatever the firmware name): so far the SM-S918W's (S918WVLU8GZIF), an SM-S918B INS one and an SM-S918U1 one. Applies on a framework restart. It also **hides the module's own mounts** from every user-installed app automatically (keeping them for the preinstalled Samsung apps that consume them; see [Hiding the module's mounts](#hiding-the-modules-mounts)), so mount-scanning detectors and banking apps don't see the tweaks' bind/overlay mounts · `hideksu`
 
 ### 📱 Carrier

@@ -388,7 +388,7 @@ const TWEAKS = [
   { id: "bargein", cat: "ai", name: "Bixby barge-in", desc: "Talk over Bixby while it answers, as on the S24 (untested)" },
   { id: "rambler", cat: "ai", name: "Gboard Rambler", desc: "The Pixel 10 and 11's Rambler voice typing in Gboard: Gemini turns natural speech into clean text, drops filler words and takes spoken edits (\u201cchange blue to green\u201d). Sets Gboard's own local flag overrides, the same set PixelBoard uses; needs Gboard 18 and an internet connection, and Google may limit daily use. Undo: un-pick it and apply." },
   { id: "battery", cat: "system", name: "Battery health", desc: "Settings → Battery → Battery information shows health and cycle count" },
-  { id: "features", cat: "system", name: "Power schedule and louder calls", desc: "Auto power on/off schedule and louder VoIP calls" },
+  { id: "features", cat: "system", name: "Power schedule and louder calls", desc: "Louder VoIP calls; the Auto power on/off schedule shows only on Chinese (CN) models" },
   { id: "hideksu", cat: "system", name: "HideKSU", desc: "Hide the KernelSU root manager from apps, so root-aware apps (CRED, banking) stop crashing. The launcher icon and DFRoot's boot root keep working (patched services.jar; needs the KernelSU manager installed; 12 MB download). Also hides the module's own mounts from the apps you list in /data/adb/s23tweaks/hide-apps.txt, so mount-scanning detectors don't see the tweaks" },
   { id: "callrec", cat: "carrier", name: "Call recording", desc: "Call recording in the Samsung Phone app" },
   { id: "india", cat: "carrier", name: "India carrier config (Airtel, Jio)", desc: "For Indian SIMs: the Indian carrier settings with the Use 5G standalone networks switch, call recording, Smart IVR and message cards, plus Samsung Wallet India (UPI, DigiLocker, transit) and the 6 GHz hotspot — it reports the phone as the Indian model while on (reverts on reboot; the sales code on disk is untouched, adding bank cards may still fail)" },
@@ -411,7 +411,7 @@ const IDS = TWEAKS.map(t => t.id);
 const WHERE = {
   airdrop: ["AirDrop", "On the Apple device set AirDrop to Everyone for 10 minutes; on the S23 share → Quick Share → Share with Apple devices."],
   battery: ["Battery health", "Settings → Battery → Battery information."],
-  features: ["Power schedule", "Search Settings for “power on/off” to find the schedule. Louder VoIP calls need no setting."],
+  features: ["Louder calls", "Louder VoIP calls need no setting. The Auto power on/off schedule (General management → Reset) appears only on Chinese (CN) models; Samsung's Settings checks the country too."],
   callrec: ["Call recording", "Phone app → Settings → Record calls."],
   nronly: ["LTE only and 5G only", "Settings → Connections → Mobile networks → Network mode (each SIM). 5G only drops to no signal where there is no standalone 5G."],
   natroam: ["No national roaming", "The R icon is gone on national roaming. Data roaming in Mobile networks now matters only abroad."],
