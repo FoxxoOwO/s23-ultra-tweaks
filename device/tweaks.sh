@@ -1203,10 +1203,12 @@ colortone_bind() {
 cam24fps_bind() {
   set -- $(cam24_row)
   if [ -z "$1" ]; then
-    log "profps: this Camera APK isn't one the frame-rate patch was made for (Camera 17.0.00.43 of $(cam24_builds)); nothing applied"; return 1
+    log "profps: this Camera APK isn't one the frame-rate patch was made for (Camera 17.0.00.43 of $(cam24_builds)); the XML frame rates still apply, 24 fps and the 10x stay hidden"; return 0
   fi
+  pm path com.sec.android.app.camera 2>/dev/null | grep -q "^package:$CAM_APK$" ||
+    { log "profps: Samsung Camera is updated from the Galaxy Store; the XML frame rates still apply, 24 fps and the 10x stay hidden until its updates are uninstalled"; return 0; }
   CAM_STOCK_MD5=$1; CAM_PATCHED_MD5=$2; cpf=$3
-  [ -f $D/files/$cpf ] || { log "profps: patch file $cpf is missing"; return 1; }
+  [ -f $D/files/$cpf ] || { log "profps: patch file $cpf is missing; the XML frame rates still apply, 24 fps and the 10x stay hidden"; return 0; }
   cm=$(md5sum $CAM_APK | cut -d' ' -f1)
   if [ "$cm" = $CAM_PATCHED_MD5 ]; then :   # already patched (an earlier apply this boot)
   else
@@ -1218,7 +1220,7 @@ cam24fps_bind() {
         printf "\\$oct" | dd of=$P.new bs=1 seek=$off conv=notrunc 2>/dev/null; done
       if [ "$(md5sum $P.new | cut -d' ' -f1)" != $CAM_PATCHED_MD5 ]; then
         rm -f $P.new
-        log "profps: the Camera patch didn't match this APK; nothing applied"; return 1
+        log "profps: the Camera patch didn't match this APK; the XML frame rates still apply, 24 fps and the 10x stay hidden"; return 0
       fi
       mv $P.new $P
     fi
@@ -1226,7 +1228,11 @@ cam24fps_bind() {
     mount -o bind,ro $P $CAM_APK || fail "profps: bind $CAM_APK"
     am force-stop com.sec.android.app.camera
   fi
-  log "profps: 24 fps in standard Video, extra Pro video rates, 10x at 25/48/50 and Slow motion 4K120/FHD120 on"
+  if grep -q BACK_SECOND_TELE $D/files/$cpf 2>/dev/null; then
+    log "profps: 24 fps in standard Video, extra Pro video rates, 10x at 25/48/50 and Slow motion 4K120/FHD120 on"
+  else
+    log "profps: 24 fps in standard Video, extra Pro video rates and Slow motion 4K120/FHD120 on; this Camera patch doesn't unhide the 10x"
+  fi
 }
 
 # Now Brief, Creative Studio, Call Assist: the S24 firmware ships newer builds of these three apps.
@@ -2007,13 +2013,7 @@ why_not() {
       pm path me.weishu.kernelsu >/dev/null 2>&1 || echo "the KernelSU manager (me.weishu.kernelsu) isn't installed, so there's nothing to hide" ;;
     hdr2023) for f in $H23_LIBS; do [ -f /system/lib64/$f ] || { echo "this phone has no /system/lib64/$f to replace"; return; }; done ;;
     logvideo|camextras|wideflash|prowbtint|zoomrocker|slowmoaf|extstorage|anamorphic) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
-    profps)
-      grep -q '</resources>' $CF 2>/dev/null || { echo "this firmware's $CF can't be edited"; return; }
-      [ -f $CAM_APK ] || { echo "this phone has no $CAM_APK"; return; }
-      pm path com.sec.android.app.camera 2>/dev/null | grep -q "^package:$CAM_APK$" || { echo "uninstall Samsung Camera updates first so stock $CAM_APK is active"; return; }
-      set -- $(cam24_row)
-      [ -n "$1" ] || { echo "this phone's Samsung Camera isn't one the frame-rate patch was made for (Camera 17.0.00.43 of $(cam24_builds)); tools/cam24patch.py can make one"; return; }
-      [ -f $D/files/$3 ] || echo "patch file $3 missing" ;;
+    profps) grep -q '</resources>' $CF 2>/dev/null || echo "this firmware's $CF can't be edited" ;;
     galaxyai)
       for p in $GAI_APPS; do [ -f /system/$p/${p#*/}.apk ] || { echo "this phone has no /system/$p/${p#*/}.apk to replace"; return; }; done ;;
     settingssearch) [ -f /system/$SSI/SecSettingsIntelligence.apk ] || echo "this phone has no /system/$SSI to replace" ;;
@@ -2056,10 +2056,15 @@ is_on() {
     slowmoaf) bound $CF && grep -q 'name="SUPPORT_SLOW_MOTION_AF_DURING_RECORDING" value="true"' $CF 2>/dev/null && grep -q '<SEC_FLOATING_FEATURE_CAMERA_SUPPORT_AF_DURING_SLOWMOTION_RECORDING>TRUE<' $FF 2>/dev/null ;;
     extstorage) bound $CF && grep -q 'BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_60FPS.*external-storage-support="true"' $CF 2>/dev/null ;;
     anamorphic) bound $CF && grep -q 'name="SUPPORT_CAMERA_ASSISTANT_ANAMORPHIC_LENS" value="true"' $CF 2>/dev/null ;;
-    profps) bound $CF && bound $CAM_APK &&
+    profps) bound $CF &&
       grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_25FPS" value="true"' $CF 2>/dev/null &&
-      grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS".*supported-mode="[^"]*video' $CF 2>/dev/null &&
-      grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS".*slow_motion' $CF 2>/dev/null ;;
+      grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS".*slow_motion' $CF 2>/dev/null &&
+      # when the Camera APK is one the patch knows and active, 24 fps needs the patched copy bound
+      # too; an unknown APK (or a Galaxy Store update) leaves the XML rates on and only those two off
+      { set -- $(cam24_row)
+        if [ -n "$1" ] && pm path com.sec.android.app.camera 2>/dev/null | grep -q "^package:$CAM_APK$"; then
+          bound $CAM_APK && grep -q 'name="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS".*supported-mode="[^"]*video' $CF 2>/dev/null
+        else true; fi; } ;;
     autoframe) grep -q "<SEC_FLOATING_FEATURE_CAMERA_CONFIG_AUTOFRAMING>uhd<" $FF 2>/dev/null ;;
     bargein) grep -q "<SEC_FLOATING_FEATURE_BIXBY_CONFIG_BARGEIN_PARAM_MODE>2<" $FF 2>/dev/null ;;
     weather) grep -q "<SEC_FLOATING_FEATURE_$WX_KEY>[^<]*GENWEATHER" $FF 2>/dev/null && pm path $WX_PKG >/dev/null 2>&1 && ! wx_live_off ;;
@@ -2154,9 +2159,7 @@ $CF_PROFPS"
   has profps && cf_slowmo_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_120FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_120FPS"
   has profps && cf_video_modes="BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS BACK_CAMCORDER_RESOLUTION_FEATURE_MAP_7680X4320_24FPS FRONT_CAMCORDER_RESOLUTION_FEATURE_MAP_3840X2160_24FPS FRONT_CAMCORDER_RESOLUTION_FEATURE_MAP_1920X1080_24FPS"
   camfeat_apply && restart=1
-  if has profps; then
-    cam24fps_bind || fail "profps: the Camera APK patch/bind failed (a Galaxy Store Camera update? uninstall its updates and apply again)"
-  fi
+  has profps && cam24fps_bind   # XML-only when the Camera APK isn't one the patch knows; the log says what was skipped
   # 4K auto framing (untested): the S24's UHD setting for auto framing in video
   has autoframe && ff_set CAMERA_CONFIG_AUTOFRAMING uhd
   # Camera Assistant: video softening (Off / Medium / High) and the AF speed/sensitivity controls
