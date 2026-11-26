@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.4
 
 - **`features` no longer promises the Auto power on/off schedule outside China** (issue #33). Samsung's Settings shows it (General management → Reset) only when `Rune.isChinaModel()` (CSC country `CN`) and `SETTINGS_SUPPORT_AUTO_POWER_ON_OFF` are both true, so on an S918B, S918W or S918U1 the flag the module sets can't make it appear. Faking the country would change too much else. The descriptions now say so; louder VoIP calls are unaffected.
 - **Fix: `hideksu` stopped hiding the module's mounts after a few hours** (issue #34). The `hidemnt` daemon, which hides the mounts from each user-installed app as it starts, exited without a trace when the kernel's process-event queue overflowed: a burst of process starts (browsers, video apps) makes `recv()` fail with `ENOBUFS`, and the loop treated every error except `EINTR` as the end. Apps started after that saw the mounts again, and the status said only "mounts visible to apps". Now an overflow sweeps `/proc` for any app whose start was missed and carries on, any other socket error reopens the socket, the receive queue is 4 MB instead of the default, the daemon skips apps it already cleaned (so it keeps up with bursts), and it is excluded from the OOM killer. If the daemon isn't running while `hideksu` is picked, the status now says so and to apply again.

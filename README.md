@@ -6,6 +6,7 @@ The tweaks come in six categories. The module page lets you pick a whole categor
 Each one works on any S23 Ultra on One UI 9 unless it says otherwise.
 
 **What's new** (details in the [changelog](CHANGELOG.md)):
+- **v1.8.4**: `hideksu` keeps hiding the module's mounts from apps after hours of use (the `hidemnt` daemon no longer exits when bursts of app starts overflow its event queue).
 - **v1.8.3**: one switch for every frame-rate unlock (`profps` now includes `cam24fps` and `slowmo4k120`, and Slow motion 4K120 survives a reboot), AirDrop on the SM-S9180, and a `rambler` fix for an empty Gboard override file.
 - **v1.8.2**: Log video keeps its lifted shadows in dark scenes at 24/25/30 fps (`logvideo`).
 - **v1.8.1**: Gboard's Rambler voice typing from the Pixel 10 and 11 (`rambler`).
