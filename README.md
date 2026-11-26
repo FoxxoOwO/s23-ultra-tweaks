@@ -199,6 +199,8 @@ with what you expected and what happened. Without the module page:
 adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh report"
 ```
 
+**AirDrop doesn't find the Apple device or doesn't send?** First run Status → **Record an AirDrop test**: it records 90 seconds of logs while you try one share, says which stage the share reached, and saves the log in Download. Then make the bug report (it includes the test's result) and attach both files. Without the module page: `adb shell su -c "sh /data/adb/modules/s23_ultra_tweaks/tweaks.sh airdrop-test 90"`, then share within the 90 seconds.
+
 The report has the phone model, firmware, kernel and app versions, which tweaks are on and why any
 aren't offered, the camera and feature settings the tweaks change (and what the phone had before),
 the files the module mounts, the last apply and boot logs, and summaries of recent crashes. It leaves
