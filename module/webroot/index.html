@@ -293,7 +293,7 @@ details .inner { padding: 0 16px 14px; }
 
     <div class="apply-bar">
       <button class="btn primary block" id="apply" type="button">Apply</button>
-      <p class="hint">A reboot undoes everything except Call screening (an app install) and Director's view (a camera setting); with “Apply at every boot” on, the rest comes back about a minute after boot.</p>
+      <p class="hint">A reboot undoes everything except persistent tweaks (Call screening, Dual SIM 5G, Lock screen weather effect, Director's view, No national roaming, Gboard Rambler and AirDrop's Play services flags — all undone when un-picked or removed); with “Apply at every boot” on, the rest comes back about a minute after boot.</p>
     </div>
 
     <section class="card" aria-labelledby="h-status">
@@ -387,12 +387,12 @@ const TWEAKS = [
   { id: "highlights", cat: "ai", name: "Notification highlights", desc: "Galaxy AI sorts important notifications to the top of the panel and summarizes long or repeated chats, on the phone. It also reveals the page (Settings > Notifications > Advanced settings > Notification highlights) that this build hides, so you can see both switches; summaries need a Samsung account, Language Core and one of the listed messaging apps, and appear while the screen is off." },
   { id: "audioeraser", cat: "ai", name: "Audio Eraser", desc: "Remove wind, noise, music or voices from videos in Gallery (34 MB download)" },
   { id: "settingssearch", cat: "ai", name: "Settings search", desc: "The S24's new Settings search bar; natural-language answers stay off (10 MB download)" },
-  { id: "callscreen", cat: "ai", name: "Call screening", desc: "Installs Samsung Language Core: screening and voice messages work, the AI summary and replies don't. Stays after a reboot (3.1 GB download; Wi-Fi recommended)" },
+  { id: "callscreen", cat: "ai", name: "Call screening", desc: "Installs Samsung Language Core: screening, greeting, voice messages and the AI summary work; AI replies are untested. Stays after a reboot (3.1 GB download; Wi-Fi recommended)" },
   { id: "bargein", cat: "ai", name: "Bixby barge-in", desc: "Talk over Bixby while it answers, as on the S24 (untested)" },
   { id: "rambler", cat: "ai", name: "Gboard Rambler", desc: "The Pixel 10 and 11's Rambler voice typing in Gboard: Gemini turns natural speech into clean text, drops filler words and takes spoken edits (\u201cchange blue to green\u201d). Sets Gboard's own local flag overrides, the same set PixelBoard uses; needs Gboard 18 and an internet connection, and Google may limit daily use. Undo: un-pick it and apply." },
   { id: "battery", cat: "system", name: "Battery health", desc: "Settings → Battery → Battery information shows health and cycle count" },
   { id: "features", cat: "system", name: "Power schedule and louder calls", desc: "Louder VoIP calls; the Auto power on/off schedule shows only on Chinese (CN) models" },
-  { id: "hideksu", cat: "system", name: "HideKSU", desc: "Hide the KernelSU root manager from apps, so root-aware apps (CRED, banking) stop crashing. The launcher icon and DFRoot's boot root keep working (patched services.jar; needs the KernelSU manager installed; 12 MB download). Also hides the module's own mounts from the apps you list in /data/adb/s23tweaks/hide-apps.txt, so mount-scanning detectors don't see the tweaks" },
+  { id: "hideksu", cat: "system", name: "HideKSU", desc: "Hide the KernelSU root manager from apps, so root-aware apps (CRED, banking) stop crashing. The launcher icon and DFRoot's boot root keep working (patched services.jar; needs the KernelSU manager installed; 12 MB download). Also hides the module's own mounts from user-installed apps automatically (keeping them for preinstalled system/Samsung apps; optional overrides in /data/adb/s23tweaks/hide-apps.txt), so mount-scanning detectors don't see the tweaks" },
   { id: "callrec", cat: "carrier", name: "Call recording", desc: "Call recording in the Samsung Phone app" },
   { id: "india", cat: "carrier", name: "India carrier config (Airtel, Jio)", desc: "For Indian SIMs: the Indian carrier settings with the Use 5G standalone networks switch, call recording, Smart IVR and message cards, plus Samsung Wallet India (UPI, DigiLocker, transit) and the 6 GHz hotspot — it reports the phone as the Indian model while on (reverts on reboot; the sales code on disk is untouched, adding bank cards may still fail)" },
   { id: "dual5g", cat: "carrier", name: "Dual SIM 5G", desc: "5G standalone on both SIMs at once, instead of only the one set for mobile data. Adds your SIMs' country to the modem's 5G+5G list (Samsung allows it only in China and Costa Rica). This one stays after a reboot until you un-pick it; the original modem file is backed up first, to Download/s23tweaks-modem-backup. The modem restarts once (~15 s without signal)." },
@@ -445,7 +445,7 @@ const WHERE = {
   anamorphic: ["Anamorphic desqueeze", "Camera → Settings → Camera Assistant → Anamorphic lens desqueeze."],
   autoframe: ["4K auto framing", "Reported to make the camera fail (S918B). Video at UHD with Auto framing on; turn it off if the camera fails to open."],
   settingssearch: ["Settings search", "Open Settings and tap the search bar."],
-  callscreen: ["Call screening", "Phone → Settings → Call screening. On the S23 the AI summary shows an error; screening and voice messages work."],
+  callscreen: ["Call screening", "Phone → Settings → Call screening. Screening, greeting, voice messages and the AI summary work (with Language Core 4.0.01.24); AI replies are untested."],
   rambler: ["Gboard Rambler", "Gboard settings → Voice typing → Dictation type → Rambler, then tap the mic on the keyboard."],
   bargein: ["Bixby barge-in", "Untested: start talking while Bixby is answering."],
   weather: ["Lock screen weather effect", "Wallpaper and style → Lock screen → Weather → Done. It animates only when the weather has rain, snow, fog or daytime sun; cloudy or clear nights show nothing."],
@@ -1017,7 +1017,7 @@ async function onWifi7Page(e) {
 
 async function onUnflag(e) {
   const body = h("div", {},
-    h("p", { text: "This removes the two Google Play services flag overrides that AirDrop adds. It undoes part of AirDrop: Share with Apple devices stops working until AirDrop is applied again." }),
+    h("p", { text: "This removes the Google Play services flag overrides that AirDrop adds. It undoes part of AirDrop: Share with Apple devices stops working until AirDrop is applied again." }),
     h("p", { text: "It's only needed when you're removing the module for good. A reboot already undoes everything else. Play services restarts." }));
   if (!(await confirmDialog({ title: "Remove Play services flags?", body, ok: "Remove", danger: true }))) return;
   const b = e.target; b.disabled = true; b.textContent = "Removing…";

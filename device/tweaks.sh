@@ -2122,8 +2122,8 @@ why_not() {
   case $1 in
     airdrop|wifi7)
       kernel_supported || { echo "needs firmware $(echo $AIRDROP_FW | sed 's/ /, /g') (this phone runs $build)"; return; }
-      if [ $1 = airdrop ] && ! kernel_stock && ! cfg80211_stock; then
-        echo "this kernel ships its own Wi-Fi stack (cfg80211.ko built for $(cfg80211_vermagic | grep . || echo "an unknown kernel"), not $AIRDROP_KBASE*), which the S24 Wi-Fi driver can't register with; Wi-Fi 7 and the 6 GHz hotspot still work"; return
+      if ! kernel_stock && ! cfg80211_stock; then
+        echo "this kernel ships its own Wi-Fi stack (cfg80211.ko built for $(cfg80211_vermagic | grep . || echo "an unknown kernel"), not $AIRDROP_KBASE*), which the S24 Wi-Fi driver can't register with; the 6 GHz hotspot still works"; return
       fi
       [ "${gms:-0}" -ge $GMS_MIN ] || echo "needs Google Play services 26.11 or newer" ;;
     callrec|india)
@@ -2251,6 +2251,11 @@ apply)
     w=$(why_not $x); if [ -n "$w" ]; then log "$x: skipped: $w"; else keep="$keep $x"; fi
   done
   TWEAKS=" $keep "
+  if has wifi7 && ! has airdrop; then
+    keep=$(echo "$keep" | sed 's/ wifi7//g; s/^wifi7 //; s/^wifi7$//')
+    TWEAKS=" $keep "
+    log "wifi7: skipped: needs airdrop (the S24 Wi-Fi driver)"
+  fi
   # what an apply doesn't undo (binds, kernel modules, properties) stays until a reboot: say so
   for x in $STAYS_TILL_REBOOT; do
     has $x && continue
@@ -2387,7 +2392,7 @@ probe)
   ver=$( [ $MODULE = 1 ] && grep -m1 '^version=' $D/module.prop | cut -d= -f2 || echo script)
   j() { w=$(why_not $1); printf '{"id":"%s","available":%s,"why":"%s","active":%s}' "$1" \
           "$( [ -z "$w" ] && echo true || echo false)" "$w" "$(is_on $1 && echo true || echo false)"; }
-  sim=$(getprop gsm.sim.operator.numeric | cut -d, -f1)   # MCC+MNC of the first SIM; 404/405 = India
+  sim=$(getprop gsm.sim.operator.numeric | cut -d, -f1)   # MCC+MNC of the first SIM; 404/405/406 = India
   printf '{"version":"%s","module":%s,"phone":{"model":"%s","firmware":"%s","csc":"%s","android":"%s","kernel":"%s","gms":%s,"sim":"%s"},' \
     "$ver" "$( [ $MODULE = 1 ] && echo true || echo false)" "$model" "$build" "$csc" "$android" "$kern" "${gms:-0}" "$sim"
   printf '"picked":"%s","autostart":%s,"applying":%s,"tweaks":[' "$(migrate_choices "$(cat $V/choices 2>/dev/null)")" \
